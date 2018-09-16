@@ -1,81 +1,26 @@
 extern crate specs;
+extern crate hex2d;
 
-use specs::{Builder, Component, DispatcherBuilder, System, Read, ReadStorage, Join, VecStorage, World, WriteStorage};
+mod geom;
 
-#[derive(Debug)]
-struct Position {
-    x: f32,
-    y: f32,
-}
-
-impl Component for Position {
-    type Storage = VecStorage<Self>;
-}
-
-#[derive(Debug)]
-struct Velocity {
-    x: f32,
-    y: f32,
-}
-
-impl Component for Velocity {
-    type Storage = VecStorage<Self>;
-}
-
-struct HelloWorld;
-
-impl<'a> System<'a> for HelloWorld {
-    type SystemData = ReadStorage<'a, Position>;
-
-    fn run(&mut self, position: Self::SystemData) {
-        for position in position.join() {
-            println!("Hello, {:?}", &position);
-        }
-    }
-}
-
-struct UpdatePos;
-
-impl<'a> System<'a> for UpdatePos {
-    type SystemData = (Read<'a, DeltaTime>,
-                       ReadStorage<'a, Velocity>,
-                       WriteStorage<'a, Position>);
-
-    fn run(&mut self, (delta, vel, mut pos): Self::SystemData) {
-        for (vel, pos) in (&vel, &mut pos).join() {
-            pos.x += vel.x * delta.0;
-            pos.y += vel.y * delta.0;
-        }
-    }
-}
-
-#[derive(Default)]
-struct DeltaTime(f32);
+use hex2d::Coordinate;
+use specs::{Builder, DispatcherBuilder, World};
 
 fn main() {
     let mut world = World::new();
-    
-    const HELLO_WORLD: &str = "hello_world";
-    const UPDATE_POS: &str = "update_pos";
-    const HELLO_UPDATED: &str = "hello_updated";
+
+    const TRAVEL: &str = "travel";
+    const PRINT_CELLS: &str = "print_cells";
 
     let mut dispatcher = DispatcherBuilder::new()
-        .with(HelloWorld, HELLO_WORLD, &[])
-        .with(UpdatePos, UPDATE_POS, &[HELLO_WORLD])
-        .with(HelloWorld, HELLO_UPDATED, &[UPDATE_POS])
+        .with(geom::Travel, TRAVEL, &[])
+        .with(geom::PrintCells, PRINT_CELLS, &[TRAVEL])
         .build();
 
     dispatcher.setup(&mut world.res);
 
-    {
-        let mut delta = world.write_resource::<DeltaTime>();
-        *delta = DeltaTime(0.05);
-    }
-
-    world.create_entity().with(Position { x: 4.0, y: 7.0 }).build();
     world.create_entity()
-        .with(Position { x: 2.0, y: 5.0 })
-        .with(Velocity { x: 0.1, y: 0.2 })
+        .with(geom::Cell(Coordinate { x: 0, y: 0 }))
         .build();
 
     dispatcher.dispatch(&mut world.res);
