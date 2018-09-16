@@ -1,0 +1,8 @@
+[package]
+name = "tree-of-stars"
+version = "0.1.0"
+authors = ["Abe Egnor <abe.egnor@gmail.com>"]
+
+[dependencies]
+specs = "0.12.1"
+hex2d = "0.2.0"
