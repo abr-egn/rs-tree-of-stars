@@ -22,7 +22,18 @@ fn main() {
     world.create_entity()
         .with(geom::Cell(Coordinate { x: 0, y: 0 }))
         .build();
+    world.create_entity()
+        .with(geom::Cell(Coordinate { x: 1, y: 1 }))
+        .with(geom::Speed(0.5))
+        .with(geom::Path {
+            route: vec![Coordinate { x: 1, y: 1 }, Coordinate { x: 2, y: 2}],
+            index: 0,
+            to_next: 0.0,
+        })
+        .build();
 
-    dispatcher.dispatch(&mut world.res);
-    world.maintain();
+    for _ in 1..=3 {
+        dispatcher.dispatch(&mut world.res);
+        world.maintain();
+    }
 }
