@@ -54,20 +54,7 @@ struct DeltaTime(f32);
 
 fn main() {
     let mut world = World::new();
-    world.register::<Position>();
-    world.register::<Velocity>();
-    world.add_resource(DeltaTime(0.05));
-    {
-        let mut delta = world.write_resource::<DeltaTime>();
-        *delta = DeltaTime(0.04);
-    }
-
-    world.create_entity().with(Position { x: 4.0, y: 7.0 }).build();
-    world.create_entity()
-        .with(Position { x: 2.0, y: 5.0 })
-        .with(Velocity { x: 0.1, y: 0.2 })
-        .build();
-
+    
     const HELLO_WORLD: &str = "hello_world";
     const UPDATE_POS: &str = "update_pos";
     const HELLO_UPDATED: &str = "hello_updated";
@@ -76,6 +63,19 @@ fn main() {
         .with(HelloWorld, HELLO_WORLD, &[])
         .with(UpdatePos, UPDATE_POS, &[HELLO_WORLD])
         .with(HelloWorld, HELLO_UPDATED, &[UPDATE_POS])
+        .build();
+
+    dispatcher.setup(&mut world.res);
+
+    {
+        let mut delta = world.write_resource::<DeltaTime>();
+        *delta = DeltaTime(0.05);
+    }
+
+    world.create_entity().with(Position { x: 4.0, y: 7.0 }).build();
+    world.create_entity()
+        .with(Position { x: 2.0, y: 5.0 })
+        .with(Velocity { x: 0.1, y: 0.2 })
         .build();
 
     dispatcher.dispatch(&mut world.res);
