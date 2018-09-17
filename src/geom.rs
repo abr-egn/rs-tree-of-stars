@@ -1,8 +1,11 @@
-use hex2d::Coordinate;
-use specs::{Component, Entities, System, Read, ReadStorage, Join, WriteStorage, VecStorage};
-use specs::storage::BTreeStorage;
+use hex2d::{self, Coordinate};
+use specs::{
+    storage::BTreeStorage,
+    Component, Entities, System, Read, ReadStorage, Join, WriteStorage, VecStorage
+};
+use mortal;
 
-use screen;
+use screen::Screen;
 
 /** Location **/
 
@@ -13,19 +16,26 @@ impl Component for Cell {
     type Storage = VecStorage<Self>;
 }
 
-pub struct PrintCells;
+pub struct DrawCells;
 
-impl<'a> System<'a> for PrintCells {
+const SPACING: hex2d::IntegerSpacing<i32> = hex2d::IntegerSpacing::FlatTop(3, 2);
+
+impl<'a> System<'a> for DrawCells {
     type SystemData = (
-        Read<'a, screen::Screen>,
+        Read<'a, Screen>,
         ReadStorage<'a, Cell>,
     );
 
     fn run(&mut self, (screen, cells): Self::SystemData) {
-        let mut ix = 0;
-        for cell in cells.join() {
-            screen.0.write_at((ix, 0), &format!("Coord: {:?}", cell.0));
-            ix += 1;
+        let screen = &screen.0;
+        let mortal::Size { lines, columns } = screen.size();
+        let line_off = (lines / 2) as i32;
+        let col_off = (columns / 2) as i32;
+        for Cell(coord) in cells.join() {
+            let (x, y) = coord.to_pixel_integer(SPACING);
+            let line = (y + line_off) as usize;
+            let col = (x + col_off) as usize;
+            screen.write_at((line, col), "*");
         }
     }
 }

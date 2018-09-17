@@ -12,11 +12,11 @@ fn main() {
     let mut world = World::new();
 
     const TRAVEL: &str = "travel";
-    const PRINT_CELLS: &str = "print_cells";
+    const DRAW_CELLS: &str = "draw_cells";
 
     let mut dispatcher = DispatcherBuilder::new()
         .with(geom::Travel, TRAVEL, &[])
-        .with(geom::PrintCells, PRINT_CELLS, &[TRAVEL])
+        .with(geom::DrawCells, DRAW_CELLS, &[TRAVEL])
         .build();
 
     dispatcher.setup(&mut world.res);
@@ -36,8 +36,11 @@ fn main() {
 
     let mut quit = false;
     while !quit {
+        world.read_resource::<screen::Screen>().0.clear_screen();
+
         dispatcher.dispatch(&mut world.res);
         world.maintain();
+        
         let screen = &world.read_resource::<screen::Screen>().0;
         screen.refresh().unwrap();
         let mut scr_read = screen.lock_read().unwrap();
