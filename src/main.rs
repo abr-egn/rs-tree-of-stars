@@ -1,7 +1,9 @@
 extern crate specs;
 extern crate hex2d;
+extern crate mortal;
 
 mod geom;
+mod screen;
 
 use hex2d::Coordinate;
 use specs::{Builder, DispatcherBuilder, World};
@@ -32,8 +34,25 @@ fn main() {
         })
         .build();
 
-    for _ in 1..=3 {
+    let mut quit = false;
+    while !quit {
         dispatcher.dispatch(&mut world.res);
         world.maintain();
+        let screen = &world.read_resource::<screen::Screen>().0;
+        screen.refresh().unwrap();
+        let mut scr_read = screen.lock_read().unwrap();
+
+        loop {
+            let ev = if let Some(ev) = scr_read.read_event(None).unwrap() { ev } else { continue };
+            use mortal::{Event::Key, Key::*};
+            match ev {
+                Key(Escape) => {
+                    quit = true;
+                    break;
+                },
+                Key(Char(' ')) => break,
+                _ => ()
+            };
+        }
     }
 }

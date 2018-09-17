@@ -1,6 +1,8 @@
 use hex2d::Coordinate;
-use specs::{Component, Entities, System, ReadStorage, Join, WriteStorage, VecStorage};
+use specs::{Component, Entities, System, Read, ReadStorage, Join, WriteStorage, VecStorage};
 use specs::storage::BTreeStorage;
+
+use screen;
 
 /** Location **/
 
@@ -14,11 +16,16 @@ impl Component for Cell {
 pub struct PrintCells;
 
 impl<'a> System<'a> for PrintCells {
-    type SystemData = ReadStorage<'a, Cell>;
+    type SystemData = (
+        Read<'a, screen::Screen>,
+        ReadStorage<'a, Cell>,
+    );
 
-    fn run(&mut self, cells: Self::SystemData) {
+    fn run(&mut self, (screen, cells): Self::SystemData) {
+        let mut ix = 0;
         for cell in cells.join() {
-            println!("Coord: {:?}", cell.0);
+            screen.0.write_at((ix, 0), &format!("Coord: {:?}", cell.0));
+            ix += 1;
         }
     }
 }
