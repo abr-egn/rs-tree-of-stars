@@ -21,6 +21,7 @@ fn main() {
 
     dispatcher.setup(&mut world.res);
 
+    /*
     world.create_entity()
         .with(geom::Cell(Coordinate { x: 0, y: 0 }))
         .build();
@@ -33,6 +34,12 @@ fn main() {
             to_next: 0.0,
         })
         .build();
+    */
+    Coordinate { x: 0, y: 0 }.for_each_in_ring(1, hex2d::Spin::CW(hex2d::Direction::XY), |coord| {
+        world.create_entity()
+            .with(geom::Cell(coord))
+            .build();
+    });
 
     let mut quit = false;
     while !quit {
@@ -40,7 +47,7 @@ fn main() {
 
         dispatcher.dispatch(&mut world.res);
         world.maintain();
-        
+
         let screen = &world.read_resource::<screen::Screen>().0;
         screen.refresh().unwrap();
         let mut scr_read = screen.lock_read().unwrap();

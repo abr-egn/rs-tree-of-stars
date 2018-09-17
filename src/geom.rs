@@ -34,8 +34,9 @@ impl<'a> System<'a> for DrawCells {
         for Cell(coord) in cells.join() {
             let (x, y) = coord.to_pixel_integer(SPACING);
             let line = (y + line_off) as usize;
-            let col = (x + col_off) as usize;
-            screen.write_at((line, col), "*");
+            let col = (x + col_off - 1) as usize;
+            screen.write_at((line, col),   "/¯\\");
+            screen.write_at((line+1, col), "\\_/");
         }
     }
 }
