@@ -1,7 +1,7 @@
 use hex2d::{self, Coordinate};
 use specs::{
+    prelude::*,
     storage::BTreeStorage,
-    Component, Entities, System, Read, ReadStorage, Join, WriteStorage, VecStorage
 };
 use mortal;
 
@@ -65,27 +65,19 @@ pub struct Travel;
 
 impl<'a> System<'a> for Travel {
     type SystemData = (
-        Entities<'a>,
         ReadStorage<'a, Speed>,
         WriteStorage<'a, Cell>,
         WriteStorage<'a, Path>,
     );
 
-    fn run(&mut self, (entities, speed, mut cell, mut path): Self::SystemData) {
-        let mut done = vec![];
-        for (entity, speed, path, cell) in (&*entities, &speed, &mut path, &mut cell).join() {
-            path.to_next += speed.0;
+    fn run(&mut self, (speed, mut cell, mut path): Self::SystemData) {
+        for (speed, path, cell) in (&speed, &mut path, &mut cell).join() {
+            path.to_next += speed.0 * (1.0/60.0);  // TODO: get from main loop
             if path.to_next >= 1.0 {
                 path.to_next -= 1.0;
-                path.index += 1;
+                path.index = (path.index + 1) % path.route.len();
                 cell.0 = path.route[path.index];
-                if path.index == path.route.len()-1 {
-                    done.push(entity);
-                }
             }
-        }
-        for e in done {
-            path.remove(e);
         }
     }
 }

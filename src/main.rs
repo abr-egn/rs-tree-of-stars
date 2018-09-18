@@ -5,8 +5,10 @@ extern crate mortal;
 mod geom;
 mod screen;
 
+use std::time::{Duration, Instant};
+
 use hex2d::Coordinate;
-use specs::{Builder, DispatcherBuilder, World};
+use specs::prelude::*;
 
 fn main() {
     let mut world = World::new();
@@ -21,28 +23,28 @@ fn main() {
 
     dispatcher.setup(&mut world.res);
 
-    /*
+    const ORIGIN: Coordinate = Coordinate { x: 0, y: 0 };
+
     world.create_entity()
-        .with(geom::Cell(Coordinate { x: 0, y: 0 }))
+        .with(geom::Cell(ORIGIN))
         .build();
     world.create_entity()
-        .with(geom::Cell(Coordinate { x: 1, y: 1 }))
-        .with(geom::Speed(0.5))
+        .with(geom::Cell(Coordinate { x: 1, y: -1 }))
+        .with(geom::Speed(2.0))
         .with(geom::Path {
-            route: vec![Coordinate { x: 1, y: 1 }, Coordinate { x: 2, y: 2}],
+            route: ORIGIN.ring(1, hex2d::Spin::CW(hex2d::Direction::XY)),
             index: 0,
             to_next: 0.0,
         })
         .build();
-    */
-    Coordinate { x: 0, y: 0 }.for_each_in_ring(1, hex2d::Spin::CW(hex2d::Direction::XY), |coord| {
-        world.create_entity()
-            .with(geom::Cell(coord))
-            .build();
-    });
+
+    // This should be const but no const fn in stable yet.
+    let frame_delay = Duration::new(1, 0) / 60;
 
     let mut quit = false;
     while !quit {
+        let now = Instant::now();
+
         world.read_resource::<screen::Screen>().0.clear_screen();
 
         dispatcher.dispatch(&mut world.res);
@@ -53,14 +55,16 @@ fn main() {
         let mut scr_read = screen.lock_read().unwrap();
 
         loop {
-            let ev = if let Some(ev) = scr_read.read_event(None).unwrap() { ev } else { continue };
+            let elapsed = now.elapsed();
+            if elapsed >= frame_delay { break };
+            let frame_timeout = frame_delay - elapsed;
+            let ev = if let Some(ev) = scr_read.read_event(Some(frame_timeout)).unwrap() { ev } else { continue };
             use mortal::{Event::Key, Key::*};
             match ev {
                 Key(Escape) => {
                     quit = true;
                     break;
                 },
-                Key(Char(' ')) => break,
                 _ => ()
             };
         }
