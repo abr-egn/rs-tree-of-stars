@@ -8,13 +8,21 @@ use std::time::{Duration, Instant};
 use hex2d::Coordinate;
 
 use amethyst::input::{is_close_requested, is_key_down};
+use amethyst::core::cgmath::{Vector3, Matrix4};
+use amethyst::core::transform::{GlobalTransform, Transform};
 use amethyst::prelude::*;
-use amethyst::renderer::{DisplayConfig, DrawFlat, Event, Pipeline,
-                         PosTex, RenderBundle, Stage, VirtualKeyCode};
+use amethyst::renderer::{
+    Camera, DisplayConfig, DrawFlat, Event, Pipeline, PosTex, Projection,
+    RenderBundle, Stage, VirtualKeyCode
+};
 
 pub struct Main;
 
 impl<'a, 'b> State<GameData<'a, 'b>> for Main {
+    fn on_start(&mut self, data: StateData<GameData>) {
+
+    }
+
     fn handle_event(&mut self, _: StateData<GameData>, event: Event) -> Trans<GameData<'a, 'b>> {
         if is_close_requested(&event) || is_key_down(&event, VirtualKeyCode::Escape) {
             Trans::Quit
@@ -27,6 +35,42 @@ impl<'a, 'b> State<GameData<'a, 'b>> for Main {
         data.data.update(&data.world);
         Trans::None
     }
+}
+
+const ARENA_HEIGHT: f32 = 100.0;
+const ARENA_WIDTH: f32 = 100.0;
+
+fn initialize_camera(world: &mut World) {
+    // TODO: currently 0, 0 is lower-left; change transform so it's middle
+    world.create_entity()
+        .with(Camera::from(Projection::orthographic(
+            0.0,
+            ARENA_WIDTH,
+            ARENA_HEIGHT,
+            0.0,
+        )))
+        .with(GlobalTransform(
+            Matrix4::from_translation(Vector3::new(0.0, 0.0, 1.0))
+        ))
+        .build();
+}
+
+fn initialize_cells(world: &mut World) {
+    // TODO: add transforms, sprites
+    const ORIGIN: Coordinate = Coordinate { x: 0, y: 0 };
+
+    world.create_entity()
+        .with(geom::Cell(ORIGIN))
+        .build();
+    world.create_entity()
+        .with(geom::Cell(Coordinate { x: 1, y: -1 }))
+        .with(geom::Speed(2.0))
+        .with(geom::Path {
+            route: ORIGIN.ring(1, hex2d::Spin::CW(hex2d::Direction::XY)),
+            index: 0,
+            to_next: 0.0,
+        })
+        .build();
 }
 
 fn main() -> amethyst::Result<()> {
