@@ -4,7 +4,5 @@ version = "0.1.0"
 authors = ["Abe Egnor <abe.egnor@gmail.com>"]
 
 [dependencies]
-specs = "0.12.1"
 hex2d = "0.2.0"
-mortal = "0.1.5"
 amethyst = "0.8.0"

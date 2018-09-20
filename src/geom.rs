@@ -1,11 +1,8 @@
 use hex2d::{self, Coordinate};
-use specs::{
+use amethyst::ecs::{
     prelude::*,
     storage::BTreeStorage,
 };
-use mortal;
-
-use screen::Screen;
 
 /** Location **/
 
@@ -16,6 +13,7 @@ impl Component for Cell {
     type Storage = VecStorage<Self>;
 }
 
+/*
 pub struct DrawCells;
 
 const SPACING: hex2d::IntegerSpacing<i32> = hex2d::IntegerSpacing::FlatTop(3, 2);
@@ -40,6 +38,7 @@ impl<'a> System<'a> for DrawCells {
         }
     }
 }
+*/
 
 /** Movement **/
 

@@ -1,15 +1,11 @@
-extern crate specs;
 extern crate hex2d;
-extern crate mortal;
 extern crate amethyst;
 
 mod geom;
-mod screen;
 
 use std::time::{Duration, Instant};
 
 use hex2d::Coordinate;
-use specs::prelude::*;
 
 use amethyst::input::{is_close_requested, is_key_down};
 use amethyst::prelude::*;
