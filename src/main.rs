@@ -9,7 +9,7 @@ use hex2d::Coordinate;
 
 use amethyst::input::{is_close_requested, is_key_down};
 use amethyst::core::cgmath::{Vector3, Matrix4};
-use amethyst::core::transform::{GlobalTransform, Transform};
+use amethyst::core::transform::{GlobalTransform, Transform, TransformBundle};
 use amethyst::prelude::*;
 use amethyst::renderer::{
     Camera, DisplayConfig, DrawFlat, Event, Pipeline, PosTex, Projection,
@@ -20,7 +20,8 @@ pub struct Main;
 
 impl<'a, 'b> State<GameData<'a, 'b>> for Main {
     fn on_start(&mut self, data: StateData<GameData>) {
-
+        initialize_cells(data.world);
+        initialize_camera(data.world);
     }
 
     fn handle_event(&mut self, _: StateData<GameData>, event: Event) -> Trans<GameData<'a, 'b>> {
@@ -56,11 +57,22 @@ fn initialize_camera(world: &mut World) {
 }
 
 fn initialize_cells(world: &mut World) {
-    // TODO: add transforms, sprites
-    const ORIGIN: Coordinate = Coordinate { x: 0, y: 0 };
+    // TODO: remove these when they're auto-handled by setup
+    world.register::<geom::Cell>();
+    world.register::<geom::Speed>();
+    world.register::<geom::Path>();
 
+    // TODO: add sprites
+    const ORIGIN: Coordinate = Coordinate { x: 0, y: 0 };
+    const SPACING: hex2d::Spacing = hex2d::Spacing::FlatTop(10.0);
+
+    let (x, y) = ORIGIN.to_pixel(SPACING);
+    let mut tf = Transform::default();
+    tf.translation = Vector3::new(x, y, 0.0);
     world.create_entity()
         .with(geom::Cell(ORIGIN))
+        .with(GlobalTransform::default())
+        .with(tf)
         .build();
     world.create_entity()
         .with(geom::Cell(Coordinate { x: 1, y: -1 }))
@@ -83,7 +95,8 @@ fn main() -> amethyst::Result<()> {
             .with_pass(DrawFlat::<PosTex>::new()),
     );
     let game_data = GameDataBuilder::default()
-        .with_bundle(RenderBundle::new(pipe, Some(config)))?;
+        .with_bundle(RenderBundle::new(pipe, Some(config)))?
+        .with_bundle(TransformBundle::new())?;
     let mut game = Application::new("./", Main, game_data)?;
     game.run();
 
