@@ -4,8 +4,6 @@ extern crate ggez;
 
 mod geom;
 
-use std::time::{Duration, Instant};
-
 use hex2d::Coordinate;
 use specs::prelude::*;
 use ggez::{
@@ -15,7 +13,8 @@ use ggez::{
 
 struct Main {
     world: World,
-    dispatcher: Dispatcher<'static, 'static>,
+    update: Dispatcher<'static, 'static>,
+    draw: Dispatcher<'static, 'static>,
 }
 
 impl Main {
@@ -25,12 +24,15 @@ impl Main {
         const TRAVEL: &str = "travel";
         const DRAW_CELLS: &str = "draw_cells";
 
-        let mut dispatcher = DispatcherBuilder::new()
+        let mut update = DispatcherBuilder::new()
             .with(geom::Travel, TRAVEL, &[])
             //.with(geom::DrawCells, DRAW_CELLS, &[TRAVEL])
             .build();
+        update.setup(&mut world.res);
 
-        dispatcher.setup(&mut world.res);
+        let mut draw = DispatcherBuilder::new()
+            .build();
+        draw.setup(&mut world.res);
 
         const ORIGIN: Coordinate = Coordinate { x: 0, y: 0 };
 
@@ -47,13 +49,13 @@ impl Main {
             })
             .build();
 
-        Ok(Main{ world, dispatcher })
+        Ok(Main{ world, update, draw })
     }
 }
 
 impl event::EventHandler for Main {
     fn update(&mut self, _ctx: &mut Context) -> GameResult<()> {
-        self.dispatcher.dispatch(&mut self.world.res);
+        self.update.dispatch(&mut self.world.res);
         self.world.maintain();
         
         Ok(())
@@ -61,7 +63,10 @@ impl event::EventHandler for Main {
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
         graphics::clear(ctx);
-        // stuff here
+
+        self.draw.dispatch(&mut self.world.res);
+        self.world.maintain();
+
         graphics::present(ctx);
 
         Ok(())
