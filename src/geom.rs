@@ -1,10 +1,12 @@
+use time::UpdateDelta;
+
 use hex2d::{self, Coordinate};
 use specs::{
     prelude::*,
     storage::BTreeStorage,
 };
 
-/** Location **/
+/* Location */
 
 #[derive(Debug)]
 pub struct Cell(pub Coordinate);
@@ -33,7 +35,7 @@ impl<'a> System<'a> for TranslateCells {
 }
 */
 
-/** Movement **/
+/* Movement */
 
 #[derive(Debug)]
 pub struct Speed(pub f32);
@@ -57,14 +59,15 @@ pub struct Travel;
 
 impl<'a> System<'a> for Travel {
     type SystemData = (
+        Read<'a, UpdateDelta>,
         ReadStorage<'a, Speed>,
         WriteStorage<'a, Cell>,
         WriteStorage<'a, Path>,
     );
 
-    fn run(&mut self, (speed, mut cell, mut path): Self::SystemData) {
+    fn run(&mut self, (delta, speed, mut cell, mut path): Self::SystemData) {
         for (speed, path, cell) in (&speed, &mut path, &mut cell).join() {
-            path.to_next += speed.0 * (1.0/60.0);  // TODO: get from main loop
+            path.to_next += speed.0 * delta.seconds();
             if path.to_next >= 1.0 {
                 path.to_next -= 1.0;
                 path.index = (path.index + 1) % path.route.len();

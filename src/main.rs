@@ -3,6 +3,9 @@ extern crate specs;
 extern crate ggez;
 
 mod geom;
+mod time;
+
+use std::time::{Duration, Instant};
 
 use hex2d::Coordinate;
 use specs::prelude::*;
@@ -11,10 +14,14 @@ use ggez::{
     Context, GameResult,
 };
 
+use time::{UpdateDelta, DrawDelta};
+
 struct Main {
     world: World,
     update: Dispatcher<'static, 'static>,
     draw: Dispatcher<'static, 'static>,
+    last_update: Instant,
+    last_draw: Instant,
 }
 
 impl Main {
@@ -36,6 +43,7 @@ impl Main {
 
         const ORIGIN: Coordinate = Coordinate { x: 0, y: 0 };
 
+        world.add_resource(DrawDelta(Duration::new(0, 0)));  // TODO: remove
         world.create_entity()
             .with(geom::Cell(ORIGIN))
             .build();
@@ -49,12 +57,17 @@ impl Main {
             })
             .build();
 
-        Ok(Main{ world, update, draw })
+        let now = Instant::now();
+        Ok(Main{ world, update, draw, last_update: now, last_draw: now })
     }
 }
 
 impl event::EventHandler for Main {
     fn update(&mut self, _ctx: &mut Context) -> GameResult<()> {
+        let now = Instant::now();
+        self.world.write_resource::<UpdateDelta>().0 = now - self.last_update;
+        self.last_update = now;
+
         self.update.dispatch(&mut self.world.res);
         self.world.maintain();
         
@@ -62,6 +75,10 @@ impl event::EventHandler for Main {
     }
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
+        let now = Instant::now();
+        self.world.write_resource::<DrawDelta>().0 = now - self.last_update;
+        self.last_update = now;
+
         graphics::clear(ctx);
 
         self.draw.dispatch(&mut self.world.res);
