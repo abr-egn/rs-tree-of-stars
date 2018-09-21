@@ -93,6 +93,7 @@ impl event::EventHandler for Main {
         self.last_draw = now;
 
         graphics::clear(ctx);
+        graphics::set_background_color(ctx, graphics::Color::new(0.0, 0.0, 0.0, 1.0));
 
         DrawCells(ctx).run_now(&mut self.world.res);
         self.world.maintain();
@@ -104,45 +105,11 @@ impl event::EventHandler for Main {
 }
 
 fn main() -> GameResult<()> {
-    let mut ctx = Context::load_from_conf(
-        "Tree of Stars", "abe.egnor@gmail.com",
-        conf::Conf::default())?;
+    let mut c = conf::Conf::default();
+    c.window_setup.title = "Tree of Stars".to_owned();
+    let mut ctx = Context::load_from_conf("Tree of Stars", "abe.egnor@gmail.com", c)?;
     let mut state = Main::new()?;
     event::run(&mut ctx, &mut state)?;
 
     Ok(())
-
-    /*
-    // This should be const but no const fn in stable yet.
-    let frame_delay = Duration::new(1, 0) / 60;
-
-    let mut quit = false;
-    while !quit {
-        let now = Instant::now();
-
-        world.read_resource::<screen::Screen>().0.clear_screen();
-
-        dispatcher.dispatch(&mut world.res);
-        world.maintain();
-
-        let screen = &world.read_resource::<screen::Screen>().0;
-        screen.refresh().unwrap();
-        let mut scr_read = screen.lock_read().unwrap();
-
-        loop {
-            let elapsed = now.elapsed();
-            if elapsed >= frame_delay { break };
-            let frame_timeout = frame_delay - elapsed;
-            let ev = if let Some(ev) = scr_read.read_event(Some(frame_timeout)).unwrap() { ev } else { continue };
-            use mortal::{Event::Key, Key::*};
-            match ev {
-                Key(Escape) => {
-                    quit = true;
-                    break;
-                },
-                _ => ()
-            };
-        }
-    }
-    */
 }
