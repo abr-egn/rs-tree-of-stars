@@ -4,5 +4,6 @@ version = "0.1.0"
 authors = ["Abe Egnor <abe.egnor@gmail.com>"]
 
 [dependencies]
-hex2d = "0.2.0"
-amethyst = "0.8.0"
+hex2d = "0.2"
+ggez = "0.4"
+specs = "0.12"

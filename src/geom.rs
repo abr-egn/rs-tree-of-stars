@@ -1,9 +1,5 @@
 use hex2d::{self, Coordinate};
-use amethyst::core::{
-    Transform,
-    cgmath::Vector3,
-};
-use amethyst::ecs::{
+use specs::{
     prelude::*,
     storage::BTreeStorage,
 };
@@ -17,6 +13,7 @@ impl Component for Cell {
     type Storage = VecStorage<Self>;
 }
 
+/*
 pub struct TranslateCells;
 
 const SPACING: hex2d::Spacing = hex2d::Spacing::FlatTop(10.0);
@@ -34,6 +31,7 @@ impl<'a> System<'a> for TranslateCells {
         }
     }
 }
+*/
 
 /** Movement **/
 

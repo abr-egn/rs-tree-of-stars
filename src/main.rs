@@ -1,138 +1,83 @@
 extern crate hex2d;
-extern crate amethyst;
+extern crate specs;
+extern crate ggez;
 
 mod geom;
 
 use std::time::{Duration, Instant};
 
 use hex2d::Coordinate;
-
-use amethyst::input::{is_close_requested, is_key_down};
-use amethyst::core::cgmath::{Vector3, Matrix4};
-use amethyst::core::transform::{GlobalTransform, Transform, TransformBundle};
-use amethyst::prelude::*;
-use amethyst::renderer::{
-    Camera, DisplayConfig, DrawFlat, Event, Pipeline, PosTex, Projection,
-    RenderBundle, Stage, VirtualKeyCode
+use specs::prelude::*;
+use ggez::{
+    conf, event, graphics,
+    Context, GameResult,
 };
 
-pub struct Main;
+struct Main {
+    world: World,
+    dispatcher: Dispatcher<'static, 'static>,
+}
 
-impl<'a, 'b> State<GameData<'a, 'b>> for Main {
-    fn on_start(&mut self, data: StateData<GameData>) {
-        initialize_cells(data.world);
-        initialize_camera(data.world);
-    }
+impl Main {
+    fn new() -> GameResult<Self> {
+        let mut world = World::new();
 
-    fn handle_event(&mut self, _: StateData<GameData>, event: Event) -> Trans<GameData<'a, 'b>> {
-        if is_close_requested(&event) || is_key_down(&event, VirtualKeyCode::Escape) {
-            Trans::Quit
-        } else {
-            Trans::None
-        }
-    }
+        const TRAVEL: &str = "travel";
+        const DRAW_CELLS: &str = "draw_cells";
 
-    fn update(&mut self, data: StateData<GameData>) -> Trans<GameData<'a, 'b>> {
-        data.data.update(&data.world);
-        Trans::None
+        let mut dispatcher = DispatcherBuilder::new()
+            .with(geom::Travel, TRAVEL, &[])
+            //.with(geom::DrawCells, DRAW_CELLS, &[TRAVEL])
+            .build();
+
+        dispatcher.setup(&mut world.res);
+
+        const ORIGIN: Coordinate = Coordinate { x: 0, y: 0 };
+
+        world.create_entity()
+            .with(geom::Cell(ORIGIN))
+            .build();
+        world.create_entity()
+            .with(geom::Cell(Coordinate { x: 1, y: -1 }))
+            .with(geom::Speed(2.0))
+            .with(geom::Path {
+                route: ORIGIN.ring(1, hex2d::Spin::CW(hex2d::Direction::XY)),
+                index: 0,
+                to_next: 0.0,
+            })
+            .build();
+
+        Ok(Main{ world, dispatcher })
     }
 }
 
-const ARENA_HEIGHT: f32 = 100.0;
-const ARENA_WIDTH: f32 = 100.0;
+impl event::EventHandler for Main {
+    fn update(&mut self, _ctx: &mut Context) -> GameResult<()> {
+        self.dispatcher.dispatch(&mut self.world.res);
+        self.world.maintain();
+        
+        Ok(())
+    }
 
-fn initialize_camera(world: &mut World) {
-    // TODO: currently 0, 0 is lower-left; change transform so it's middle
-    world.create_entity()
-        .with(Camera::from(Projection::orthographic(
-            0.0,
-            ARENA_WIDTH,
-            ARENA_HEIGHT,
-            0.0,
-        )))
-        .with(GlobalTransform(
-            Matrix4::from_translation(Vector3::new(0.0, 0.0, 1.0))
-        ))
-        .build();
+    fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
+        graphics::clear(ctx);
+        // stuff here
+        graphics::present(ctx);
+
+        Ok(())
+    }
 }
 
-fn initialize_cells(world: &mut World) {
-    // TODO: remove these when they're auto-handled by setup
-    world.register::<geom::Speed>();
-    world.register::<geom::Path>();
-
-    // TODO: add sprites
-    const ORIGIN: Coordinate = Coordinate { x: 0, y: 0 };
-
-    world.create_entity()
-        .with(GlobalTransform::default())
-        .with(Transform::default())
-        .with(geom::Cell(ORIGIN))
-        .build();
-    world.create_entity()
-        .with(GlobalTransform::default())
-        .with(Transform::default())
-        .with(geom::Cell(Coordinate { x: 1, y: -1 }))
-        .with(geom::Speed(2.0))
-        .with(geom::Path {
-            route: ORIGIN.ring(1, hex2d::Spin::CW(hex2d::Direction::XY)),
-            index: 0,
-            to_next: 0.0,
-        })
-        .build();
-}
-
-fn main() -> amethyst::Result<()> {
-    amethyst::start_logger(Default::default());
-
-    let config = DisplayConfig::load("./resources/display_config.ron");
-    let pipe = Pipeline::build().with_stage(
-        Stage::with_backbuffer()
-            .clear_target([0.0, 0.0, 0.0, 1.0], 1.0)
-            .with_pass(DrawFlat::<PosTex>::new()),
-    );
-    
-    const TRANSLATE_CELLS: &str = "translate_cells";
-
-    let game_data = GameDataBuilder::default()
-        .with_bundle(RenderBundle::new(pipe, Some(config)))?
-        .with_bundle(TransformBundle::new())?
-        .with(geom::TranslateCells, TRANSLATE_CELLS, &[]);
-    let mut game = Application::new("./", Main, game_data)?;
-    game.run();
+fn main() -> GameResult<()> {
+    let mut ctx = Context::load_from_conf(
+        "Tree of Stars", "abe.egnor@gmail.com",
+        conf::Conf::default())?;
+    let mut state = Main::new()?;
+    event::run(&mut ctx, &mut state)?;
 
     Ok(())
-}
 
-/*
-fn main() {
-    let mut world = World::new();
-
-    const TRAVEL: &str = "travel";
-    const DRAW_CELLS: &str = "draw_cells";
-
-    let mut dispatcher = DispatcherBuilder::new()
-        .with(geom::Travel, TRAVEL, &[])
-        .with(geom::DrawCells, DRAW_CELLS, &[TRAVEL])
-        .build();
-
-    dispatcher.setup(&mut world.res);
-
-    const ORIGIN: Coordinate = Coordinate { x: 0, y: 0 };
-
-    world.create_entity()
-        .with(geom::Cell(ORIGIN))
-        .build();
-    world.create_entity()
-        .with(geom::Cell(Coordinate { x: 1, y: -1 }))
-        .with(geom::Speed(2.0))
-        .with(geom::Path {
-            route: ORIGIN.ring(1, hex2d::Spin::CW(hex2d::Direction::XY)),
-            index: 0,
-            to_next: 0.0,
-        })
-        .build();
-
+    /*
     // This should be const but no const fn in stable yet.
     let frame_delay = Duration::new(1, 0) / 60;
 
@@ -164,5 +109,5 @@ fn main() {
             };
         }
     }
+    */
 }
-*/
