@@ -58,23 +58,20 @@ fn initialize_camera(world: &mut World) {
 
 fn initialize_cells(world: &mut World) {
     // TODO: remove these when they're auto-handled by setup
-    world.register::<geom::Cell>();
     world.register::<geom::Speed>();
     world.register::<geom::Path>();
 
     // TODO: add sprites
     const ORIGIN: Coordinate = Coordinate { x: 0, y: 0 };
-    const SPACING: hex2d::Spacing = hex2d::Spacing::FlatTop(10.0);
 
-    let (x, y) = ORIGIN.to_pixel(SPACING);
-    let mut tf = Transform::default();
-    tf.translation = Vector3::new(x, y, 0.0);
     world.create_entity()
-        .with(geom::Cell(ORIGIN))
         .with(GlobalTransform::default())
-        .with(tf)
+        .with(Transform::default())
+        .with(geom::Cell(ORIGIN))
         .build();
     world.create_entity()
+        .with(GlobalTransform::default())
+        .with(Transform::default())
         .with(geom::Cell(Coordinate { x: 1, y: -1 }))
         .with(geom::Speed(2.0))
         .with(geom::Path {
@@ -94,9 +91,13 @@ fn main() -> amethyst::Result<()> {
             .clear_target([0.0, 0.0, 0.0, 1.0], 1.0)
             .with_pass(DrawFlat::<PosTex>::new()),
     );
+    
+    const TRANSLATE_CELLS: &str = "translate_cells";
+
     let game_data = GameDataBuilder::default()
         .with_bundle(RenderBundle::new(pipe, Some(config)))?
-        .with_bundle(TransformBundle::new())?;
+        .with_bundle(TransformBundle::new())?
+        .with(geom::TranslateCells, TRANSLATE_CELLS, &[]);
     let mut game = Application::new("./", Main, game_data)?;
     game.run();
 

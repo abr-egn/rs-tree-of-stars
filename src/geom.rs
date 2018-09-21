@@ -1,4 +1,8 @@
 use hex2d::{self, Coordinate};
+use amethyst::core::{
+    Transform,
+    cgmath::Vector3,
+};
 use amethyst::ecs::{
     prelude::*,
     storage::BTreeStorage,
@@ -13,32 +17,23 @@ impl Component for Cell {
     type Storage = VecStorage<Self>;
 }
 
-/*
-pub struct DrawCells;
+pub struct TranslateCells;
 
-const SPACING: hex2d::IntegerSpacing<i32> = hex2d::IntegerSpacing::FlatTop(3, 2);
+const SPACING: hex2d::Spacing = hex2d::Spacing::FlatTop(10.0);
 
-impl<'a> System<'a> for DrawCells {
+impl<'a> System<'a> for TranslateCells {
     type SystemData = (
-        Read<'a, Screen>,
         ReadStorage<'a, Cell>,
+        WriteStorage<'a, Transform>,
     );
 
-    fn run(&mut self, (screen, cells): Self::SystemData) {
-        let screen = &screen.0;
-        let mortal::Size { lines, columns } = screen.size();
-        let line_off = (lines / 2) as i32;
-        let col_off = (columns / 2) as i32;
-        for Cell(coord) in cells.join() {
-            let (x, y) = coord.to_pixel_integer(SPACING);
-            let line = (y + line_off) as usize;
-            let col = (x + col_off - 1) as usize;
-            screen.write_at((line, col),   "/¯\\");
-            screen.write_at((line+1, col), "\\_/");
+    fn run(&mut self, (cells, mut trans): Self::SystemData) {
+        for (&Cell(coord), mut trans) in (&cells, &mut trans).join() {
+            let (x, y) = coord.to_pixel(SPACING);
+            trans.translation = Vector3 { x, y, z: 0.0 };
         }
     }
 }
-*/
 
 /** Movement **/
 
