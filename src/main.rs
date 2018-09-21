@@ -28,7 +28,7 @@ impl<'a, 'b> System<'a> for DrawCells<'b> {
             let (x, y) = coord.to_pixel(SPACING);
             graphics::circle(ctx,
                 graphics::DrawMode::Fill,
-                graphics::Point2::new(x + 400.0, y + 300.0),  // TODO: actual math
+                graphics::Point2::new(x, y),
                 10.0,
                 1.0,
             ).unwrap();
@@ -105,10 +105,22 @@ impl event::EventHandler for Main {
 }
 
 fn main() -> GameResult<()> {
+    const WINDOW_WIDTH: u32 = 800;
+    const WINDOW_HEIGHT: u32 = 800;
+
     let mut c = conf::Conf::default();
     c.window_setup.title = "Tree of Stars".to_owned();
+    c.window_mode.width = WINDOW_WIDTH;
+    c.window_mode.height = WINDOW_HEIGHT;
+
     let mut ctx = Context::load_from_conf("Tree of Stars", "abe.egnor@gmail.com", c)?;
     let mut state = Main::new()?;
+    graphics::set_screen_coordinates(&mut ctx, graphics::Rect {
+        x: (WINDOW_WIDTH as f32) / -2.0,
+        y: (WINDOW_HEIGHT as f32) / -2.0,
+        w: WINDOW_WIDTH as f32,
+        h: WINDOW_HEIGHT as f32,
+    })?;
     event::run(&mut ctx, &mut state)?;
 
     Ok(())

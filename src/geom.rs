@@ -15,26 +15,6 @@ impl Component for Cell {
     type Storage = VecStorage<Self>;
 }
 
-/*
-pub struct TranslateCells;
-
-const SPACING: hex2d::Spacing = hex2d::Spacing::FlatTop(10.0);
-
-impl<'a> System<'a> for TranslateCells {
-    type SystemData = (
-        ReadStorage<'a, Cell>,
-        WriteStorage<'a, Transform>,
-    );
-
-    fn run(&mut self, (cells, mut trans): Self::SystemData) {
-        for (&Cell(coord), mut trans) in (&cells, &mut trans).join() {
-            let (x, y) = coord.to_pixel(SPACING);
-            trans.translation = Vector3 { x, y, z: 0.0 };
-        }
-    }
-}
-*/
-
 /* Movement */
 
 #[derive(Debug)]
