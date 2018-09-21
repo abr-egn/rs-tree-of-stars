@@ -76,8 +76,8 @@ impl event::EventHandler for Main {
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
         let now = Instant::now();
-        self.world.write_resource::<DrawDelta>().0 = now - self.last_update;
-        self.last_update = now;
+        self.world.write_resource::<DrawDelta>().0 = now - self.last_draw;
+        self.last_draw = now;
 
         graphics::clear(ctx);
 
