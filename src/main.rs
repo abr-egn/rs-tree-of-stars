@@ -16,10 +16,29 @@ use ggez::{
 
 use time::{UpdateDelta, DrawDelta};
 
+struct DrawCells<'a>(&'a mut Context);
+
+impl<'a, 'b> System<'a> for DrawCells<'b> {
+    type SystemData = ReadStorage<'a, geom::Cell>;
+
+    fn run(&mut self, cells: Self::SystemData) {
+        const SPACING: hex2d::Spacing = hex2d::Spacing::FlatTop(10.0);
+        let ctx = &mut self.0;
+        for &geom::Cell(coord) in cells.join() {
+            let (x, y) = coord.to_pixel(SPACING);
+            graphics::circle(ctx,
+                graphics::DrawMode::Fill,
+                graphics::Point2::new(x + 400.0, y + 300.0),  // TODO: actual math
+                10.0,
+                1.0,
+            ).unwrap();
+        }
+    }
+}
+
 struct Main {
     world: World,
     update: Dispatcher<'static, 'static>,
-    draw: Dispatcher<'static, 'static>,
     last_update: Instant,
     last_draw: Instant,
 }
@@ -29,17 +48,11 @@ impl Main {
         let mut world = World::new();
 
         const TRAVEL: &str = "travel";
-        const DRAW_CELLS: &str = "draw_cells";
 
         let mut update = DispatcherBuilder::new()
             .with(geom::Travel, TRAVEL, &[])
-            //.with(geom::DrawCells, DRAW_CELLS, &[TRAVEL])
             .build();
         update.setup(&mut world.res);
-
-        let mut draw = DispatcherBuilder::new()
-            .build();
-        draw.setup(&mut world.res);
 
         const ORIGIN: Coordinate = Coordinate { x: 0, y: 0 };
 
@@ -58,7 +71,7 @@ impl Main {
             .build();
 
         let now = Instant::now();
-        Ok(Main{ world, update, draw, last_update: now, last_draw: now })
+        Ok(Main{ world, update, last_update: now, last_draw: now })
     }
 }
 
@@ -81,7 +94,7 @@ impl event::EventHandler for Main {
 
         graphics::clear(ctx);
 
-        self.draw.dispatch(&mut self.world.res);
+        DrawCells(ctx).run_now(&mut self.world.res);
         self.world.maintain();
 
         graphics::present(ctx);
