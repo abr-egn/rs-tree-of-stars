@@ -1,4 +1,4 @@
-use geom;
+use std::f32::consts::PI;
 
 use ggez::{
     graphics::{self, DrawMode, Mesh, MeshBuilder, Point2},
@@ -7,13 +7,20 @@ use ggez::{
 use hex2d;
 use specs::prelude::*;
 
+use geom;
+
 struct CellMesh(Mesh);
 
-const SPACING: hex2d::Spacing = hex2d::Spacing::FlatTop(10.0);
+const HEX_SIDE: f32 = 10.0;
+const SPACING: hex2d::Spacing = hex2d::Spacing::FlatTop(HEX_SIDE);
 
 pub fn build_sprites(world: &mut World, ctx: &mut Context) -> GameResult<()> {
+    let points: Vec<Point2> = (0..6).map(|ix| {
+        let a = (PI / 3.0) * (ix as f32);
+        Point2::new(a.cos(), a.sin()) * HEX_SIDE
+    }).collect();
     let cell = MeshBuilder::new()
-        .circle(DrawMode::Fill, Point2::new(0.0, 0.0), 10.0, 1.0)
+        .polygon(DrawMode::Fill, &points)
         .build(ctx)?;
     world.add_resource(CellMesh(cell));
 
