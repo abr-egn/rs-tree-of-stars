@@ -1,16 +1,16 @@
+extern crate ggez;
 extern crate hex2d;
 extern crate specs;
-extern crate ggez;
 
 mod draw;
 mod geom;
 
-use hex2d::Coordinate;
-use specs::prelude::*;
 use ggez::{
     conf, event, graphics, timer,
     Context, GameResult,
 };
+use hex2d::Coordinate;
+use specs::prelude::*;
 
 struct Main {
     world: World,
@@ -18,8 +18,10 @@ struct Main {
 }
 
 impl Main {
-    fn new() -> GameResult<Self> {
+    fn new(ctx: &mut Context) -> GameResult<Self> {
         let mut world = World::new();
+
+        draw::build_sprites(&mut world, ctx)?;
 
         const TRAVEL: &str = "travel";
 
@@ -77,7 +79,7 @@ fn main() -> GameResult<()> {
     c.window_mode.height = WINDOW_HEIGHT;
 
     let mut ctx = Context::load_from_conf("Tree of Stars", "abe.egnor@gmail.com", c)?;
-    let mut state = Main::new()?;
+    let mut state = Main::new(&mut ctx)?;
     graphics::set_screen_coordinates(&mut ctx, graphics::Rect {
         x: (WINDOW_WIDTH as f32) / -2.0,
         y: (WINDOW_HEIGHT as f32) / -2.0,

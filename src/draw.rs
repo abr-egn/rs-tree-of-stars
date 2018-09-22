@@ -1,11 +1,24 @@
 use geom;
 
 use ggez::{
-    graphics,
-    Context,
+    graphics::{self, DrawMode, Mesh, MeshBuilder, Point2},
+    Context, GameResult,
 };
 use hex2d;
 use specs::prelude::*;
+
+struct CellMesh(Mesh);
+
+const SPACING: hex2d::Spacing = hex2d::Spacing::FlatTop(10.0);
+
+pub fn build_sprites(world: &mut World, ctx: &mut Context) -> GameResult<()> {
+    let cell = MeshBuilder::new()
+        .circle(DrawMode::Fill, Point2::new(0.0, 0.0), 10.0, 1.0)
+        .build(ctx)?;
+    world.add_resource(CellMesh(cell));
+
+    Ok(())
+}
 
 pub fn draw(world: &mut World, ctx: &mut Context) {
     graphics::clear(ctx);
@@ -20,19 +33,16 @@ pub fn draw(world: &mut World, ctx: &mut Context) {
 struct DrawCells<'a>(&'a mut Context);
 
 impl<'a, 'b> System<'a> for DrawCells<'b> {
-    type SystemData = ReadStorage<'a, geom::Cell>;
+    type SystemData = (
+        ReadExpect<'a, CellMesh>,
+        ReadStorage<'a, geom::Cell>,
+    );
 
-    fn run(&mut self, cells: Self::SystemData) {
-        const SPACING: hex2d::Spacing = hex2d::Spacing::FlatTop(10.0);
+    fn run(&mut self, (cell_mesh, cells): Self::SystemData) {
         let ctx = &mut self.0;
         for &geom::Cell(coord) in cells.join() {
             let (x, y) = coord.to_pixel(SPACING);
-            graphics::circle(ctx,
-                graphics::DrawMode::Fill,
-                graphics::Point2::new(x, y),
-                10.0,
-                1.0,
-            ).unwrap();
+            graphics::draw(ctx, &cell_mesh.0, Point2::new(x, y), 0.0).unwrap();
         }
     }
 }
