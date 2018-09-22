@@ -1,6 +1,6 @@
 use time::UpdateDelta;
 
-use hex2d::{self, Coordinate};
+use hex2d::Coordinate;
 use specs::{
     prelude::*,
     storage::BTreeStorage,
