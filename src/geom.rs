@@ -1,5 +1,3 @@
-use time::UpdateDelta;
-
 use hex2d::Coordinate;
 use specs::{
     prelude::*,
@@ -39,15 +37,15 @@ pub struct Travel;
 
 impl<'a> System<'a> for Travel {
     type SystemData = (
-        Read<'a, UpdateDelta>,
         ReadStorage<'a, Speed>,
         WriteStorage<'a, Cell>,
         WriteStorage<'a, Path>,
     );
 
-    fn run(&mut self, (delta, speed, mut cell, mut path): Self::SystemData) {
+    fn run(&mut self, (speed, mut cell, mut path): Self::SystemData) {
+        let delta = 1.0 / (super::UPDATES_PER_SECOND as f32);
         for (speed, path, cell) in (&speed, &mut path, &mut cell).join() {
-            path.to_next += speed.0 * delta.seconds();
+            path.to_next += speed.0 * delta;
             if path.to_next >= 1.0 {
                 path.to_next -= 1.0;
                 path.index = (path.index + 1) % path.route.len();
