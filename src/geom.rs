@@ -13,7 +13,19 @@ impl Component for Cell {
     type Storage = VecStorage<Self>;
 }
 
+#[derive(Debug)]
+pub struct Link {
+    pub next: Entity /* Cell */,
+    pub prev: Entity /* Cell */,
+}
+
+impl Component for Link {
+    type Storage = VecStorage<Self>;
+}
+
 /* Movement */
+
+/*
 
 #[derive(Debug)]
 pub struct Speed(pub f32);
@@ -54,3 +66,5 @@ impl<'a> System<'a> for Travel {
         }
     }
 }
+
+*/

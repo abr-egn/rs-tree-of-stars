@@ -26,9 +26,13 @@ impl Main {
         const TRAVEL: &str = "travel";
 
         let mut update = DispatcherBuilder::new()
-            .with(geom::Travel, TRAVEL, &[])
+            //.with(geom::Travel, TRAVEL, &[])
             .build();
         update.setup(&mut world.res);
+
+        // TODO: remove these
+        world.register::<geom::Cell>();
+        world.register::<geom::Link>();
 
         const ORIGIN: Coordinate = Coordinate { x: 0, y: 0 };
 
@@ -36,13 +40,15 @@ impl Main {
             .with(geom::Cell(ORIGIN))
             .build();
         world.create_entity()
-            .with(geom::Cell(Coordinate { x: 1, y: -1 }))
+            .with(geom::Cell(Coordinate { x: 3, y: -3 }))
+            /*
             .with(geom::Speed(1.0))
             .with(geom::Path {
                 route: ORIGIN.ring(1, hex2d::Spin::CW(hex2d::Direction::XY)),
                 index: 0,
                 to_next: 0.0,
             })
+            */
             .build();
 
         Ok(Main{ world, update })
