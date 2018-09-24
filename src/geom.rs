@@ -1,9 +1,14 @@
-use std::collections::HashMap;
+use std::collections::{
+    HashMap,
+    hash_map::Entry,
+};
 
+use ggez::{GameResult, GameError};
 use hex2d::Coordinate;
 use specs::{
     prelude::*,
     storage::BTreeStorage,
+    Component,
 };
 
 #[derive(Debug)]
@@ -13,8 +18,12 @@ impl Component for Shape {
     type Storage = VecStorage<Self>;
 }
 
+type Routes = HashMap<Entity /* Source/Sink */, Vec<Entity /* Link */>>;
+
 #[derive(Debug)]
-pub struct Source;
+pub struct Source {
+    pub sinks: Routes,
+}
 
 impl Component for Source {
     type Storage = BTreeStorage<Self>;
@@ -22,11 +31,51 @@ impl Component for Source {
 
 #[derive(Debug)]
 pub struct Sink {
-    pub sources: HashMap<Entity /* source */, Vec<Entity /* Link */>>,
+    pub sources: Routes,
 }
 
 impl Component for Sink {
     type Storage = BTreeStorage<Self>;
+}
+
+#[derive(Debug)]
+
+pub struct Link {
+    pub source: Entity,
+    pub sink: Entity,
+    pub path: Vec<Coordinate>,  // source -> sink
+}
+
+impl Component for Link {
+    type Storage = BTreeStorage<Self>;
+}
+
+fn try_get_mut<'a, 'b, T: Component>(storage: &'b mut WriteStorage<'a, T>, ent: Entity) -> GameResult<&'b mut T> {
+    match storage.get_mut(ent) {
+        Some(t) => Ok(t),
+        None => Err(GameError::UnknownError("no such entity".into())),
+    }
+}
+
+pub fn connect<'a>(
+    sources: WriteStorage<'a, Source>,
+    sinks: WriteStorage<'a, Sink>,
+    source: Entity,
+    sink: Entity,
+    route: &[Entity])
+    -> GameResult<()> {
+    let mut sources = sources;
+    let mut sinks = sinks;
+
+    match (try_get_mut(&mut sources, source)?.sinks.entry(sink), try_get_mut(&mut sinks, sink)?.sources.entry(source)) {
+        (Entry::Vacant(source_route), Entry::Vacant(sink_route)) => {
+            source_route.insert(route.iter().cloned().collect());
+            sink_route.insert(route.iter().rev().cloned().collect());
+        }
+        _ => return Err(GameError::UnknownError("link already exists".into())),
+    };
+
+    Ok(())
 }
 
 /*

@@ -23,25 +23,25 @@ impl Main {
         world.register::<geom::Shape>();
         world.register::<geom::Source>();
         world.register::<geom::Sink>();
+        world.register::<geom::Link>();
 
         draw::build_sprites(&mut world, ctx)?;
 
-        const TRAVEL: &str = "travel";
-
-        let mut update = DispatcherBuilder::new()
+        let update = DispatcherBuilder::new()
             //.with(geom::Travel, TRAVEL, &[])
             .build();
 
         const ORIGIN: Coordinate = Coordinate { x: 0, y: 0 };
+        const SIDE: Coordinate = Coordinate { x: 12, y: -2 };
 
-        world.create_entity()
+        let center_ent = world.create_entity()
             .with(geom::Shape(
                 ORIGIN.ring(1, Spin::CW(Direction::XY))
             ))
             .build();
-        world.create_entity()
+        let side_ent = world.create_entity()
             .with(geom::Shape(
-                Coordinate { x: 12, y: -2 }.ring(1, Spin::CW(Direction::XY))
+                SIDE.ring(1, Spin::CW(Direction::XY))
             ))
             /*
             .with(geom::Speed(1.0))
@@ -52,6 +52,22 @@ impl Main {
             })
             */
             .build();
+        let link_path = ORIGIN.line_to(SIDE);
+        let link_ent = world.create_entity()
+            .with(geom::Link {
+                source: center_ent,
+                sink: side_ent,
+                path: link_path,
+            })
+            .build();
+        
+        geom::connect(
+            world.write_storage::<geom::Source>(),
+            world.write_storage::<geom::Sink>(),
+            center_ent,
+            side_ent,
+            &[link_ent],
+        )?;
 
         Ok(Main{ world, update })
     }
