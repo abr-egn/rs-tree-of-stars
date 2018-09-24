@@ -38,19 +38,13 @@ impl Main {
             .with(geom::Shape(
                 ORIGIN.ring(1, Spin::CW(Direction::XY))
             ))
+            .with(geom::Source::new())
             .build();
         let side_ent = world.create_entity()
             .with(geom::Shape(
                 SIDE.ring(1, Spin::CW(Direction::XY))
             ))
-            /*
-            .with(geom::Speed(1.0))
-            .with(geom::Path {
-                route: ORIGIN.ring(1, hex2d::Spin::CW(hex2d::Direction::XY)),
-                index: 0,
-                to_next: 0.0,
-            })
-            */
+            .with(geom::Sink::new())
             .build();
         let link_path = ORIGIN.line_to(SIDE);
         let link_ent = world.create_entity()

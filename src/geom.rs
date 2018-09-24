@@ -1,5 +1,5 @@
 use std::collections::{
-    HashMap,
+    HashMap, HashSet,
     hash_map::Entry,
 };
 
@@ -18,11 +18,13 @@ impl Component for Shape {
     type Storage = VecStorage<Self>;
 }
 
-type Routes = HashMap<Entity /* Source/Sink */, Vec<Entity /* Link */>>;
-
 #[derive(Debug)]
 pub struct Source {
-    pub sinks: Routes,
+    pub sinks: HashMap<Entity /* Sink */, Vec<Entity /* Link */>>,
+}
+
+impl Source {
+    pub fn new() -> Self { Source { sinks: HashMap::new() } }
 }
 
 impl Component for Source {
@@ -31,7 +33,11 @@ impl Component for Source {
 
 #[derive(Debug)]
 pub struct Sink {
-    pub sources: Routes,
+    pub sources: HashSet<Entity /* Source */>,
+}
+
+impl Sink {
+    pub fn new() -> Self { Sink { sources: HashSet::new() } }
 }
 
 impl Component for Sink {
@@ -67,10 +73,11 @@ pub fn connect<'a>(
     let mut sources = sources;
     let mut sinks = sinks;
 
-    match (try_get_mut(&mut sources, source)?.sinks.entry(sink), try_get_mut(&mut sinks, sink)?.sources.entry(source)) {
-        (Entry::Vacant(source_route), Entry::Vacant(sink_route)) => {
+    let sink_sources = &mut try_get_mut(&mut sinks, sink)?.sources;
+    match (try_get_mut(&mut sources, source)?.sinks.entry(sink), sink_sources.contains(&source)) {
+        (Entry::Vacant(source_route), false) => {
             source_route.insert(route.iter().cloned().collect());
-            sink_route.insert(route.iter().rev().cloned().collect());
+            sink_sources.insert(source);
         }
         _ => return Err(GameError::UnknownError("link already exists".into())),
     };
