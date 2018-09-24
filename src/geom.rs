@@ -1,29 +1,33 @@
+use std::collections::HashMap;
+
 use hex2d::Coordinate;
 use specs::{
     prelude::*,
     storage::BTreeStorage,
 };
 
-/* Location */
-
 #[derive(Debug)]
-pub struct Cell(pub Coordinate);
+pub struct Shape(pub Vec<Coordinate>);
 
-impl Component for Cell {
+impl Component for Shape {
     type Storage = VecStorage<Self>;
 }
 
 #[derive(Debug)]
-pub struct Link {
-    pub next: Entity /* Cell */,
-    pub prev: Entity /* Cell */,
+pub struct Source;
+
+impl Component for Source {
+    type Storage = BTreeStorage<Self>;
 }
 
-impl Component for Link {
-    type Storage = VecStorage<Self>;
+#[derive(Debug)]
+pub struct Sink {
+    pub sources: HashMap<Entity /* source */, Vec<Entity /* Link */>>,
 }
 
-/* Movement */
+impl Component for Sink {
+    type Storage = BTreeStorage<Self>;
+}
 
 /*
 

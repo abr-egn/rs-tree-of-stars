@@ -42,14 +42,16 @@ struct DrawCells<'a>(&'a mut Context);
 impl<'a, 'b> System<'a> for DrawCells<'b> {
     type SystemData = (
         ReadExpect<'a, CellMesh>,
-        ReadStorage<'a, geom::Cell>,
+        ReadStorage<'a, geom::Shape>,
     );
 
-    fn run(&mut self, (cell_mesh, cells): Self::SystemData) {
+    fn run(&mut self, (cell_mesh, shapes): Self::SystemData) {
         let ctx = &mut self.0;
-        for &geom::Cell(coord) in cells.join() {
-            let (x, y) = coord.to_pixel(SPACING);
-            graphics::draw(ctx, &cell_mesh.0, Point2::new(x, y), 0.0).unwrap();
+        for &geom::Shape(ref coords) in shapes.join() {
+            for coord in coords {
+                let (x, y) = coord.to_pixel(SPACING);
+                graphics::draw(ctx, &cell_mesh.0, Point2::new(x, y), 0.0).unwrap();
+            }
         }
     }
 }

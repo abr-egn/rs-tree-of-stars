@@ -9,7 +9,7 @@ use ggez::{
     conf, event, graphics, timer,
     Context, GameResult,
 };
-use hex2d::Coordinate;
+use hex2d::{Coordinate, Direction, Spin};
 use specs::prelude::*;
 
 struct Main {
@@ -20,6 +20,9 @@ struct Main {
 impl Main {
     fn new(ctx: &mut Context) -> GameResult<Self> {
         let mut world = World::new();
+        world.register::<geom::Shape>();
+        world.register::<geom::Source>();
+        world.register::<geom::Sink>();
 
         draw::build_sprites(&mut world, ctx)?;
 
@@ -28,19 +31,18 @@ impl Main {
         let mut update = DispatcherBuilder::new()
             //.with(geom::Travel, TRAVEL, &[])
             .build();
-        update.setup(&mut world.res);
-
-        // TODO: remove these
-        world.register::<geom::Cell>();
-        world.register::<geom::Link>();
 
         const ORIGIN: Coordinate = Coordinate { x: 0, y: 0 };
 
         world.create_entity()
-            .with(geom::Cell(ORIGIN))
+            .with(geom::Shape(
+                ORIGIN.ring(1, Spin::CW(Direction::XY))
+            ))
             .build();
         world.create_entity()
-            .with(geom::Cell(Coordinate { x: 3, y: -3 }))
+            .with(geom::Shape(
+                Coordinate { x: 12, y: -2 }.ring(1, Spin::CW(Direction::XY))
+            ))
             /*
             .with(geom::Speed(1.0))
             .with(geom::Path {
