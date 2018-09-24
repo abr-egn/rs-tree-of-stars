@@ -28,6 +28,7 @@ impl Main {
     fn new(ctx: &mut Context) -> GameResult<Self> {
         let mut world = World::new();
         world.register::<geom::Shape>();
+        world.register::<geom::Center>();
         world.register::<geom::Source>();
         world.register::<geom::Sink>();
         world.register::<geom::Link>();
