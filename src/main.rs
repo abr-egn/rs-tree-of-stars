@@ -3,21 +3,26 @@ extern crate hex2d;
 extern crate specs;
 
 mod draw;
+mod game;
 mod geom;
 
-use std::collections::HashSet;
+use std::{
+    fmt::Debug,
+};
 
 use ggez::{
     conf, event, graphics, timer,
     Context, GameResult,
 };
-use hex2d::{Coordinate, Direction, Spin};
+use hex2d::{Coordinate};
 use specs::prelude::*;
 
 struct Main {
     world: World,
     update: Dispatcher<'static, 'static>,
 }
+
+fn dbg<T: Debug>(t: T) -> String { format!("{:?}", t) }
 
 impl Main {
     fn new(ctx: &mut Context) -> GameResult<Self> {
@@ -33,37 +38,15 @@ impl Main {
             //.with(geom::Travel, TRAVEL, &[])
             .build();
 
-        const ORIGIN: Coordinate = Coordinate { x: 0, y: 0 };
-        const SIDE: Coordinate = Coordinate { x: 12, y: -2 };
+        let center_ent = game::make_node(&mut world, Coordinate { x: 0, y: 0 });
+        world.write_storage().insert(center_ent, geom::Source::new()).map_err(dbg)?;
 
-        let center_ent = world.create_entity()
-            .with(geom::Shape(
-                ORIGIN.ring(1, Spin::CW(Direction::XY))
-            ))
-            .with(geom::Source::new())
-            .build();
-        let side_ent = world.create_entity()
-            .with(geom::Shape(
-                SIDE.ring(1, Spin::CW(Direction::XY))
-            ))
-            .with(geom::Sink::new())
-            .build();
-        let link_path = ORIGIN.line_to(SIDE);
-        let mut link_excl = HashSet::<Coordinate>::new();
-        ORIGIN.for_each_in_range(1, |c| { link_excl.insert(c); });
-        SIDE.for_each_in_range(1, |c| { link_excl.insert(c); });
-        let link_ent = world.create_entity()
-            .with(geom::Shape(link_path.iter().cloned()
-                .filter(|c| !link_excl.contains(c))
-                .collect()))
-            .with(geom::Link {
-                source: center_ent,
-                sink: side_ent,
-                path: link_path,
-            })
-            .build();
+        let side_ent = game::make_node(&mut world, Coordinate { x: 12, y: -2 });
+        world.write_storage().insert(side_ent, geom::Sink::new()).map_err(dbg)?;
         
-        geom::connect(
+        let link_ent = game::make_link(&mut world, center_ent, side_ent)?;
+        
+        game::connect(
             world.write_storage::<geom::Source>(),
             world.write_storage::<geom::Sink>(),
             center_ent,
