@@ -5,7 +5,10 @@ use ggez::{
     Context, GameResult,
 };
 use hex2d;
-use specs::prelude::*;
+use specs::{
+    prelude::*,
+    Entities,
+};
 
 use geom;
 
@@ -41,13 +44,20 @@ struct DrawCells<'a>(&'a mut Context);
 
 impl<'a, 'b> System<'a> for DrawCells<'b> {
     type SystemData = (
+        Entities<'a>,
         ReadExpect<'a, CellMesh>,
         ReadStorage<'a, geom::Shape>,
+        ReadStorage<'a, geom::Link>,
     );
 
-    fn run(&mut self, (cell_mesh, shapes): Self::SystemData) {
+    fn run(&mut self, (entities, cell_mesh, shapes, links): Self::SystemData) {
         let ctx = &mut self.0;
-        for &geom::Shape(ref coords) in shapes.join() {
+        for (entity, &geom::Shape(ref coords)) in (&*entities, &shapes).join() {
+            graphics::set_color(ctx, if links.get(entity).is_some() {
+                graphics::Color::new(0.0, 1.0, 0.0, 1.0)
+            } else {
+                graphics::Color::new(1.0, 1.0, 1.0, 1.0)
+            }).unwrap();
             for coord in coords {
                 let (x, y) = coord.to_pixel(SPACING);
                 graphics::draw(ctx, &cell_mesh.0, Point2::new(x, y), 0.0).unwrap();

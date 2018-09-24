@@ -5,6 +5,8 @@ extern crate specs;
 mod draw;
 mod geom;
 
+use std::collections::HashSet;
+
 use ggez::{
     conf, event, graphics, timer,
     Context, GameResult,
@@ -47,7 +49,13 @@ impl Main {
             .with(geom::Sink::new())
             .build();
         let link_path = ORIGIN.line_to(SIDE);
+        let mut link_excl = HashSet::<Coordinate>::new();
+        ORIGIN.for_each_in_range(1, |c| { link_excl.insert(c); });
+        SIDE.for_each_in_range(1, |c| { link_excl.insert(c); });
         let link_ent = world.create_entity()
+            .with(geom::Shape(link_path.iter().cloned()
+                .filter(|c| !link_excl.contains(c))
+                .collect()))
             .with(geom::Link {
                 source: center_ent,
                 sink: side_ent,
