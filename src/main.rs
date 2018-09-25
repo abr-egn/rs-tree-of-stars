@@ -17,6 +17,12 @@ use ggez::{
 use hex2d::{Coordinate};
 use specs::prelude::*;
 
+pub const HEX_SIDE: f32 = 10.0;
+pub const SPACING: hex2d::Spacing = hex2d::Spacing::FlatTop(HEX_SIDE);
+
+pub const UPDATES_PER_SECOND: u32 = 60;
+pub const UPDATE_DELTA: f32 = 1.0 / (UPDATES_PER_SECOND as f32);
+
 struct Main {
     world: World,
     update: Dispatcher<'static, 'static>,
@@ -32,7 +38,7 @@ impl Main {
         world.register::<geom::Source>();
         world.register::<geom::Sink>();
         world.register::<geom::Link>();
-        world.register::<geom::Packet>();
+        world.register::<geom::Motion>();
 
         draw::build_sprites(&mut world, ctx)?;
 
@@ -59,16 +65,15 @@ impl Main {
             top_ent,
             &[side_link, top_link],
         )?;
-
+        /*
         world.create_entity()
             .with(geom::Packet::new(&[side_link, top_link], 1.0))
             .build();
+            */
 
         Ok(Main{ world, update })
     }
 }
-
-pub const UPDATES_PER_SECOND: u32 = 60;
 
 impl event::EventHandler for Main {
     fn update(&mut self, ctx: &mut Context) -> GameResult<()> {

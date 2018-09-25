@@ -2,12 +2,20 @@ use std::collections::{
     HashMap, HashSet,
 };
 
+use ggez::{
+    nalgebra,
+    GameResult, GameError,
+};
 use hex2d::Coordinate;
 use specs::{
     prelude::*,
     storage::BTreeStorage,
     Component,
 };
+
+use game;
+
+type Point = nalgebra::Point2<f32>;
 
 #[derive(Debug)]
 pub struct Shape(pub Vec<Coordinate>);
@@ -50,7 +58,6 @@ impl Component for Sink {
 }
 
 #[derive(Debug)]
-
 pub struct Link {
     pub source: Entity,
     pub sink: Entity,
@@ -62,16 +69,69 @@ impl Component for Link {
 }
 
 #[derive(Debug)]
-pub struct Packet {
-    pub route: Vec<Entity /* Link */>,
+pub struct Motion {
+    pub from: Point,
+    pub to: Point,
+    pub dist: f32,
     pub speed: f32,
-    pub route_index: usize,
-    pub path_index: usize,
-    pub to_next: f32,
+    pub at: f32,
+}
+
+impl Motion {
+    pub fn new(from: Coordinate, to: Coordinate, speed: f32) -> Self {
+        let (fx, fy) = from.to_pixel(super::SPACING);
+        let (tx, ty) = to.to_pixel(super::SPACING);
+        let from = Point::new(fx, fy);
+        let to = Point::new(tx, ty);
+        let dist = nalgebra::distance(&from, &to);
+        Motion { from, to, dist, speed, at: 0.0 }
+    }
+}
+
+impl Component for Motion {
+    type Storage = BTreeStorage<Self>;
+}
+
+#[derive(Debug)]
+pub struct Travel;
+
+impl<'a> System<'a> for Travel {
+    type SystemData = (
+        WriteStorage<'a, Motion>,
+    );
+
+    fn run(&mut self, (mut motions, ): Self::SystemData) {
+        for motion in (&mut motions).join() {
+            if motion.at >= 1.0 { continue };
+            motion.at += (motion.speed * super::UPDATE_DELTA) / motion.dist;
+        }
+    }
+}
+
+/*
+#[derive(Debug)]
+pub struct Packet {
+    route: Vec<Entity /* Link */>,
+    speed: f32,
+    route_index: usize,
+    path_index: usize,
+    to_next: f32,
+    from_hex: Coordinate,
+    to_hex: Coordinate,
 }
 
 impl Packet {
-    pub fn new(route: &[Entity], speed: f32) -> Self {
+    pub fn new<'a>(
+        sources: &ReadStorage<'a, Source>,
+        centers: &ReadStorage<'a, Center>,
+        links: &ReadStorage<'a, Link>,
+        source: Entity, sink: Entity, speed: f32
+        ) -> GameResult<Self> {
+        let source_val = game::try_get(sources, source)?;
+        let route = if let Some(r) = source_val.sinks.get(&sink) { r } else {
+            return Err(GameError::UnknownError("no route to sink".into()));
+        };
+        /*
         Packet {
             route: route.to_owned(),
             speed: speed,
@@ -79,9 +139,25 @@ impl Packet {
             path_index: 0,
             to_next: 0.0,
         }
+        */
+        unimplemented!()
     }
 
     pub fn done(&self) -> bool { self.route_index >= self.route.len() }
+
+    fn update<'a>(&mut self, links: &ReadStorage<'a, Link>) {
+        if self.done() { return };
+        self.to_next += self.speed * super::UPDATE_DELTA;  // TODO: speed / distance
+        if self.to_next >= 1.0 {
+            self.to_next -= 1.0;
+            self.path_index += 1;
+            let link = if let Some(l) = links.get(self.route[self.route_index]) { l } else { return };
+            if self.path_index >= link.path.len() {
+                self.path_index = 0;
+                self.route_index += 1;
+            }
+        }
+    }
 }
 
 impl Component for Packet {
@@ -97,19 +173,9 @@ impl<'a> System<'a> for Travel {
     );
 
     fn run(&mut self, (links, mut packets): Self::SystemData) {
-        let delta = 1.0 / (super::UPDATES_PER_SECOND as f32);
         for packet in (&mut packets).join() {
-            if packet.done() { continue };
-            packet.to_next += packet.speed * delta;
-            if packet.to_next >= 1.0 {
-                packet.to_next -= 1.0;
-                packet.path_index += 1;
-                let link = if let Some(l) = links.get(packet.route[packet.route_index]) { l } else { continue };
-                if packet.path_index >= link.path.len() {
-                    packet.path_index = 0;
-                    packet.route_index += 1;
-                }
-            }
+            packet.update(&links);
         }
     }
 }
+*/

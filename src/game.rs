@@ -18,36 +18,37 @@ pub fn make_node(world: &mut World, center: Coordinate) -> Entity {
         .build()
 }
 
-fn try_get<'a, 'b, T: Component>(storage: &'b ReadStorage<'a, T>, ent: Entity) -> GameResult<&'b T> {
+pub fn try_get<'a, 'b, T: Component>(storage: &'b ReadStorage<'a, T>, ent: Entity) -> GameResult<&'b T> {
     match storage.get(ent) {
         Some(t) => Ok(t),
-        None => Err(GameError::UnknownError("no such entity".into())),
+        None => Err(GameError::UnknownError("no such component".into())),
     }
 }
 
-fn try_get_mut<'a, 'b, T: Component>(storage: &'b mut WriteStorage<'a, T>, ent: Entity) -> GameResult<&'b mut T> {
+pub fn try_get_mut<'a, 'b, T: Component>(storage: &'b mut WriteStorage<'a, T>, ent: Entity) -> GameResult<&'b mut T> {
     match storage.get_mut(ent) {
         Some(t) => Ok(t),
-        None => Err(GameError::UnknownError("no such entity".into())),
+        None => Err(GameError::UnknownError("no such component".into())),
     }
 }
 
 pub fn make_link(world: &mut World, source: Entity, sink: Entity) -> GameResult<Entity> {
-    let path;
+    let mut path = vec![];
     let mut link_excl;
     {
         let centers = world.read_storage::<Center>();
         let &Center(ref source_pos) = try_get(&centers, source)?;
         let &Center(ref sink_pos) = try_get(&centers, sink)?;
-        path = source_pos.line_to(*sink_pos);
         link_excl = HashSet::<Coordinate>::new();
         source_pos.for_each_in_range(NODE_RADIUS, |c| { link_excl.insert(c); });
         sink_pos.for_each_in_range(NODE_RADIUS, |c| { link_excl.insert(c); });
+        source_pos.for_each_in_line_to(*sink_pos, |c| {
+            if link_excl.contains(&c) { return };
+            path.push(c);
+        });
     }
     let ent = world.create_entity()
-        .with(Shape(path.iter().cloned()
-                .filter(|c| !link_excl.contains(c))
-                .collect()))
+        .with(Shape(path.clone()))
         .with(Link { source, sink, path })
         .build();
     Ok(ent)
