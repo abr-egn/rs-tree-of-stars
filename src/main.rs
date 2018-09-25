@@ -32,28 +32,37 @@ impl Main {
         world.register::<geom::Source>();
         world.register::<geom::Sink>();
         world.register::<geom::Link>();
+        world.register::<geom::Packet>();
 
         draw::build_sprites(&mut world, ctx)?;
 
+        const TRAVEL: &str = "travel";
         let update = DispatcherBuilder::new()
-            //.with(geom::Travel, TRAVEL, &[])
+            .with(geom::Travel, TRAVEL, &[])
             .build();
 
         let center_ent = game::make_node(&mut world, Coordinate { x: 0, y: 0 });
         world.write_storage().insert(center_ent, geom::Source::new()).map_err(dbg)?;
 
         let side_ent = game::make_node(&mut world, Coordinate { x: 12, y: -2 });
-        world.write_storage().insert(side_ent, geom::Sink::new()).map_err(dbg)?;
+
+        let top_ent = game::make_node(&mut world, Coordinate { x: 8, y: 10 });
+        world.write_storage().insert(top_ent, geom::Sink::new()).map_err(dbg)?;
         
-        let link_ent = game::make_link(&mut world, center_ent, side_ent)?;
+        let side_link = game::make_link(&mut world, center_ent, side_ent)?;
+        let top_link = game::make_link(&mut world, side_ent, top_ent)?;
         
         game::connect(
             world.write_storage::<geom::Source>(),
             world.write_storage::<geom::Sink>(),
             center_ent,
-            side_ent,
-            &[link_ent],
+            top_ent,
+            &[side_link, top_link],
         )?;
+
+        world.create_entity()
+            .with(geom::Packet::new(&[side_link, top_link], 1.0))
+            .build();
 
         Ok(Main{ world, update })
     }

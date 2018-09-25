@@ -61,23 +61,30 @@ impl Component for Link {
     type Storage = BTreeStorage<Self>;
 }
 
-/*
-
 #[derive(Debug)]
-pub struct Speed(pub f32);
-
-impl Component for Speed {
-    type Storage = BTreeStorage<Self>;
-}
-
-#[derive(Debug)]
-pub struct Path {
-    pub route: Vec<Coordinate>,
-    pub index: usize,
+pub struct Packet {
+    pub route: Vec<Entity /* Link */>,
+    pub speed: f32,
+    pub route_index: usize,
+    pub path_index: usize,
     pub to_next: f32,
 }
 
-impl Component for Path {
+impl Packet {
+    pub fn new(route: &[Entity], speed: f32) -> Self {
+        Packet {
+            route: route.to_owned(),
+            speed: speed,
+            route_index: 0,
+            path_index: 0,
+            to_next: 0.0,
+        }
+    }
+
+    pub fn done(&self) -> bool { self.route_index >= self.route.len() }
+}
+
+impl Component for Packet {
     type Storage = BTreeStorage<Self>;
 }
 
@@ -85,22 +92,24 @@ pub struct Travel;
 
 impl<'a> System<'a> for Travel {
     type SystemData = (
-        ReadStorage<'a, Speed>,
-        WriteStorage<'a, Cell>,
-        WriteStorage<'a, Path>,
+        ReadStorage<'a, Link>,
+        WriteStorage<'a, Packet>,
     );
 
-    fn run(&mut self, (speed, mut cell, mut path): Self::SystemData) {
+    fn run(&mut self, (links, mut packets): Self::SystemData) {
         let delta = 1.0 / (super::UPDATES_PER_SECOND as f32);
-        for (speed, path, cell) in (&speed, &mut path, &mut cell).join() {
-            path.to_next += speed.0 * delta;
-            if path.to_next >= 1.0 {
-                path.to_next -= 1.0;
-                path.index = (path.index + 1) % path.route.len();
-                cell.0 = path.route[path.index];
+        for packet in (&mut packets).join() {
+            if packet.done() { continue };
+            packet.to_next += packet.speed * delta;
+            if packet.to_next >= 1.0 {
+                packet.to_next -= 1.0;
+                packet.path_index += 1;
+                let link = if let Some(l) = links.get(packet.route[packet.route_index]) { l } else { continue };
+                if packet.path_index >= link.path.len() {
+                    packet.path_index = 0;
+                    packet.route_index += 1;
+                }
             }
         }
     }
 }
-
-*/

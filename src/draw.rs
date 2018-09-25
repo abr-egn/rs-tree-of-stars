@@ -1,7 +1,7 @@
 use std::f32::consts::PI;
 
 use ggez::{
-    graphics::{self, DrawMode, Mesh, MeshBuilder, Point2},
+    graphics::{self, Color, DrawMode, Mesh, MeshBuilder, Point2},
     Context, GameResult,
 };
 use hex2d;
@@ -32,9 +32,10 @@ pub fn build_sprites(world: &mut World, ctx: &mut Context) -> GameResult<()> {
 
 pub fn draw(world: &mut World, ctx: &mut Context) {
     graphics::clear(ctx);
-    graphics::set_background_color(ctx, graphics::Color::new(0.0, 0.0, 0.0, 1.0));
+    graphics::set_background_color(ctx, Color::new(0.0, 0.0, 0.0, 1.0));
 
     DrawCells(ctx).run_now(&mut world.res);
+    DrawPackets(ctx).run_now(&mut world.res);
     world.maintain();
 
     graphics::present(ctx);
@@ -54,14 +55,34 @@ impl<'a, 'b> System<'a> for DrawCells<'b> {
         let ctx = &mut self.0;
         for (entity, &geom::Shape(ref coords)) in (&*entities, &shapes).join() {
             graphics::set_color(ctx, if links.get(entity).is_some() {
-                graphics::Color::new(0.0, 1.0, 0.0, 1.0)
+                Color::new(0.0, 1.0, 0.0, 1.0)
             } else {
-                graphics::Color::new(1.0, 1.0, 1.0, 1.0)
+                Color::new(1.0, 1.0, 1.0, 1.0)
             }).unwrap();
             for coord in coords {
                 let (x, y) = coord.to_pixel(SPACING);
                 graphics::draw(ctx, &cell_mesh.0, Point2::new(x, y), 0.0).unwrap();
             }
+        }
+    }
+}
+
+struct DrawPackets<'a>(&'a mut Context);
+
+impl<'a, 'b> System<'a> for DrawPackets<'b> {
+    type SystemData = (
+        ReadStorage<'a, geom::Link>,
+        ReadStorage<'a, geom::Packet>,
+    );
+
+    fn run(&mut self, (links, packets): Self::SystemData) {
+        let ctx = &mut self.0;
+        for packet in (&packets).join() {
+            if packet.done() { continue };
+            let link = if let Some(l) = links.get(packet.route[packet.route_index]) { l } else { continue };
+            let (x, y) = link.path[packet.path_index].to_pixel(SPACING);
+            graphics::set_color(ctx, Color::new(0.0, 0.0, 1.0, 1.0)).unwrap();
+            graphics::circle(ctx, DrawMode::Fill, Point2::new(x, y), 3.0, 0.5).unwrap();
         }
     }
 }
