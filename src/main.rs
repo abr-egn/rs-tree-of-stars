@@ -39,6 +39,7 @@ impl Main {
         world.register::<geom::Sink>();
         world.register::<geom::Link>();
         world.register::<geom::Motion>();
+        world.register::<geom::Arrived>();
 
         draw::build_sprites(&mut world, ctx)?;
 

@@ -92,18 +92,34 @@ impl Component for Motion {
     type Storage = BTreeStorage<Self>;
 }
 
+#[derive(Debug, Default)]
+pub struct Arrived;
+
+impl Component for Arrived {
+    type Storage = NullStorage<Self>;
+}
+
 #[derive(Debug)]
 pub struct Travel;
 
 impl<'a> System<'a> for Travel {
     type SystemData = (
+        Entities<'a>,
         WriteStorage<'a, Motion>,
+        WriteStorage<'a, Arrived>,
     );
 
-    fn run(&mut self, (mut motions, ): Self::SystemData) {
-        for motion in (&mut motions).join() {
+    fn run(&mut self, (entities, mut motions, mut arrived): Self::SystemData) {
+        let mut v = Vec::new();
+        for (entity, motion, ()) in (&*entities, &mut motions, !&arrived).join() {
             if motion.at >= 1.0 { continue };
             motion.at += (motion.speed * super::UPDATE_DELTA) / motion.dist;
+            if motion.at >= 1.0 {
+                v.push(entity);
+            }
+        }
+        for entity in v {
+            arrived.insert(entity, Arrived).unwrap();
         }
     }
 }
