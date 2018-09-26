@@ -4,7 +4,6 @@ use ggez::{
     graphics::{self, Color, DrawMode, Mesh, MeshBuilder, Point2},
     Context, GameResult,
 };
-use hex2d;
 use specs::{
     prelude::*,
     Entities,

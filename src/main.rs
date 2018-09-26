@@ -3,7 +3,6 @@ extern crate hex2d;
 extern crate specs;
 
 mod draw;
-mod game;
 mod geom;
 
 use std::{
@@ -48,18 +47,18 @@ impl Main {
             .with(geom::Travel, TRAVEL, &[])
             .build();
 
-        let center_ent = game::make_node(&mut world, Coordinate { x: 0, y: 0 });
+        let center_ent = geom::make_node(&mut world, Coordinate { x: 0, y: 0 });
         world.write_storage().insert(center_ent, geom::Source::new()).map_err(dbg)?;
 
-        let side_ent = game::make_node(&mut world, Coordinate { x: 12, y: -2 });
+        let side_ent = geom::make_node(&mut world, Coordinate { x: 12, y: -2 });
 
-        let top_ent = game::make_node(&mut world, Coordinate { x: 8, y: 10 });
+        let top_ent = geom::make_node(&mut world, Coordinate { x: 8, y: 10 });
         world.write_storage().insert(top_ent, geom::Sink::new()).map_err(dbg)?;
         
-        let side_link = game::make_link(&mut world, center_ent, side_ent)?;
-        let top_link = game::make_link(&mut world, side_ent, top_ent)?;
+        let side_link = geom::make_link(&mut world, center_ent, side_ent)?;
+        let top_link = geom::make_link(&mut world, side_ent, top_ent)?;
         
-        game::connect(
+        geom::connect(
             world.write_storage::<geom::Source>(),
             world.write_storage::<geom::Sink>(),
             center_ent,
