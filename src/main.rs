@@ -4,10 +4,9 @@ extern crate specs;
 
 mod draw;
 mod geom;
-
-use std::{
-    fmt::Debug,
-};
+mod graph;
+mod resource;
+mod util;
 
 use ggez::{
     conf, event, graphics, timer,
@@ -15,6 +14,8 @@ use ggez::{
 };
 use hex2d::{Coordinate};
 use specs::prelude::*;
+
+use util::*;
 
 pub const HEX_SIDE: f32 = 10.0;
 pub const SPACING: hex2d::Spacing = hex2d::Spacing::FlatTop(HEX_SIDE);
@@ -27,19 +28,20 @@ struct Main {
     update: Dispatcher<'static, 'static>,
 }
 
-fn dbg<T: Debug>(t: T) -> String { format!("{:?}", t) }
-
 impl Main {
     fn new(ctx: &mut Context) -> GameResult<Self> {
         let mut world = World::new();
+
         world.register::<geom::Shape>();
         world.register::<geom::Center>();
-        world.register::<geom::Source>();
-        world.register::<geom::Sink>();
-        world.register::<geom::Link>();
         world.register::<geom::Motion>();
         world.register::<geom::Arrived>();
-        world.register::<geom::Route>();
+
+        world.register::<graph::Link>();
+        world.register::<graph::Route>();
+
+        world.register::<resource::Source>();
+        world.register::<resource::Sink>();
 
         draw::build_sprites(&mut world, ctx)?;
 
@@ -47,32 +49,28 @@ impl Main {
         const TRAVERSE: &str = "traverse";
         let update = DispatcherBuilder::new()
             .with(geom::Travel, TRAVEL, &[])
-            .with(geom::Traverse, TRAVERSE, &[TRAVEL])
+            .with(graph::Traverse, TRAVERSE, &[TRAVEL])
             .build();
 
-        let center_ent = geom::make_node(&mut world, Coordinate { x: 0, y: 0 });
-        world.write_storage().insert(center_ent, geom::Source::new()).map_err(dbg)?;
+        let center_ent = graph::make_node(&mut world, Coordinate { x: 0, y: 0 });
+        world.write_storage().insert(center_ent, resource::Source::new()).map_err(dbg)?;
 
-        let side_ent = geom::make_node(&mut world, Coordinate { x: 12, y: -2 });
+        let side_ent = graph::make_node(&mut world, Coordinate { x: 12, y: -2 });
 
-        let top_ent = geom::make_node(&mut world, Coordinate { x: 8, y: 10 });
-        world.write_storage().insert(top_ent, geom::Sink::new()).map_err(dbg)?;
+        let top_ent = graph::make_node(&mut world, Coordinate { x: 8, y: 10 });
+        world.write_storage().insert(top_ent, resource::Sink::new()).map_err(dbg)?;
         
-        let side_link = geom::make_link(&mut world, center_ent, side_ent)?;
-        let top_link = geom::make_link(&mut world, side_ent, top_ent)?;
+        let side_link = graph::make_link(&mut world, center_ent, side_ent)?;
+        let top_link = graph::make_link(&mut world, side_ent, top_ent)?;
         
-        geom::connect(
-            world.write_storage::<geom::Source>(),
-            world.write_storage::<geom::Sink>(),
+        resource::connect(
+            world.write_storage::<resource::Source>(),
+            world.write_storage::<resource::Sink>(),
             center_ent,
             top_ent,
             &[side_link, top_link],
         )?;
-        /*
-        world.create_entity()
-            .with(geom::Packet::new(&[side_link, top_link], 1.0))
-            .build();
-            */
+
         world.create_entity()
             .with(geom::Motion::new(Coordinate { x: 0, y: 0 }, Coordinate { x: 8, y: 10 }, 1.0))
             .build();

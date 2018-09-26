@@ -10,6 +10,7 @@ use specs::{
 };
 
 use geom;
+use graph;
 
 struct CellMesh(Mesh);
 
@@ -44,7 +45,7 @@ impl<'a, 'b> System<'a> for DrawCells<'b> {
         Entities<'a>,
         ReadExpect<'a, CellMesh>,
         ReadStorage<'a, geom::Shape>,
-        ReadStorage<'a, geom::Link>,
+        ReadStorage<'a, graph::Link>,
     );
 
     fn run(&mut self, (entities, cell_mesh, shapes, links): Self::SystemData) {
@@ -85,26 +86,3 @@ impl<'a, 'b> System<'a> for DrawPackets<'b> {
         }
     }
 }
-
-/*
-impl<'a, 'b> System<'a> for DrawPackets<'b> {
-    type SystemData = (
-        ReadStorage<'a, geom::Link>,
-        ReadStorage<'a, geom::Packet>,
-    );
-
-    fn run(&mut self, (links, packets): Self::SystemData) {
-        let ctx = &mut self.0;
-        /*
-        for packet in (&packets).join() {
-            if packet.done() { continue };
-            let link = if let Some(l) = links.get(packet.route[packet.route_index]) { l } else { continue };
-            // TODO: lerp between prev, current, and next
-            let (x, y) = link.path[packet.path_index].to_pixel(SPACING);
-            graphics::set_color(ctx, Color::new(0.0, 0.0, 1.0, 1.0)).unwrap();
-            graphics::circle(ctx, DrawMode::Fill, Point2::new(x, y), 4.0, 0.5).unwrap();
-        }
-        */
-    }
-}
-*/
