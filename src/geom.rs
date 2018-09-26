@@ -72,8 +72,7 @@ impl Component for Link {
 pub struct Motion {
     pub from: Point,
     pub to: Point,
-    pub dist: f32,
-    pub speed: f32,
+    pub inc: f32,
     pub at: f32,
 }
 
@@ -84,7 +83,10 @@ impl Motion {
         let from = Point::new(fx, fy);
         let to = Point::new(tx, ty);
         let dist = nalgebra::distance(&from, &to);
-        Motion { from, to, dist, speed, at: 0.0 }
+        /* Hex center to hex center is 2 * altitude of equilateral triangle */
+        let speed_scale = 3.0f32.sqrt() * super::HEX_SIDE;
+        let inc = (speed * speed_scale * super::UPDATE_DELTA) / dist;
+        Motion { from, to, inc, at: 0.0 }
     }
 }
 
@@ -113,7 +115,7 @@ impl<'a> System<'a> for Travel {
         let mut v = Vec::new();
         for (entity, motion, ()) in (&*entities, &mut motions, !&arrived).join() {
             if motion.at >= 1.0 { continue };
-            motion.at += (motion.speed * super::UPDATE_DELTA) / motion.dist;
+            motion.at += motion.inc;
             if motion.at >= 1.0 {
                 v.push(entity);
             }

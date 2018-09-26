@@ -71,6 +71,9 @@ impl Main {
             .with(geom::Packet::new(&[side_link, top_link], 1.0))
             .build();
             */
+        world.create_entity()
+            .with(geom::Motion::new(Coordinate { x: 0, y: 0 }, Coordinate { x: 8, y: 10 }, 1.0))
+            .build();
 
         Ok(Main{ world, update })
     }

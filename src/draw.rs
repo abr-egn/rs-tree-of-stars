@@ -32,7 +32,7 @@ pub fn draw(world: &mut World, ctx: &mut Context) {
     graphics::set_background_color(ctx, Color::new(0.0, 0.0, 0.0, 1.0));
 
     DrawCells(ctx).run_now(&mut world.res);
-    //DrawPackets(ctx).run_now(&mut world.res);
+    DrawPackets(ctx).run_now(&mut world.res);
     world.maintain();
 
     graphics::present(ctx);
@@ -64,9 +64,30 @@ impl<'a, 'b> System<'a> for DrawCells<'b> {
     }
 }
 
-/*
 struct DrawPackets<'a>(&'a mut Context);
 
+impl<'a, 'b> System<'a> for DrawPackets<'b> {
+    type SystemData = (
+        Entities<'a>,
+        ReadStorage<'a, geom::Motion>,
+        ReadStorage<'a, geom::Arrived>,
+    );
+
+    fn run(&mut self, (entities, motions, arrived): Self::SystemData) {
+        let ctx = &mut self.0;
+        for (entity, motion) in (&*entities, &motions).join() {
+            let arrived = arrived.get(entity).is_some();
+            let pos = motion.from + (motion.to - motion.from)*motion.at;
+            graphics::set_color(ctx,
+                if arrived { Color::new(1.0, 0.0, 1.0, 1.0) }
+                else { Color::new(0.0, 1.0, 1.0, 1.0) }
+            ).unwrap();
+            graphics::circle(ctx, DrawMode::Fill, pos, 4.0, 0.5).unwrap();
+        }
+    }
+}
+
+/*
 impl<'a, 'b> System<'a> for DrawPackets<'b> {
     type SystemData = (
         ReadStorage<'a, geom::Link>,
