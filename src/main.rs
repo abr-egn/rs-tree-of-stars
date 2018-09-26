@@ -35,10 +35,11 @@ impl Main {
         world.register::<geom::Shape>();
         world.register::<geom::Center>();
         world.register::<geom::Motion>();
-        world.register::<geom::Arrived>();
+        world.register::<geom::MotionDone>();
 
         world.register::<graph::Link>();
         world.register::<graph::Route>();
+        world.register::<graph::RouteDone>();
 
         world.register::<resource::Source>();
         world.register::<resource::Sink>();
@@ -71,9 +72,16 @@ impl Main {
             &[side_link, top_link],
         )?;
 
-        world.create_entity()
+        let packet = world.create_entity()
             .with(geom::Motion::new(Coordinate { x: 0, y: 0 }, Coordinate { x: 8, y: 10 }, 1.0))
             .build();
+        graph::Route::start(
+            packet,
+            graph::Route::new(&[side_link, top_link], 1.0),
+            world.read_storage::<graph::Link>(),
+            world.write_storage::<geom::Motion>(),
+            world.write_storage::<graph::Route>(),
+        )?;
 
         Ok(Main{ world, update })
     }

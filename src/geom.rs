@@ -49,9 +49,9 @@ impl Component for Motion {
 }
 
 #[derive(Debug, Default)]
-pub struct Arrived;
+pub struct MotionDone;
 
-impl Component for Arrived {
+impl Component for MotionDone {
     type Storage = NullStorage<Self>;
 }
 
@@ -62,7 +62,7 @@ impl<'a> System<'a> for Travel {
     type SystemData = (
         Entities<'a>,
         WriteStorage<'a, Motion>,
-        WriteStorage<'a, Arrived>,
+        WriteStorage<'a, MotionDone>,
     );
 
     fn run(&mut self, (entities, mut motions, mut arrived): Self::SystemData) {
@@ -75,7 +75,7 @@ impl<'a> System<'a> for Travel {
             }
         }
         for entity in v {
-            arrived.insert(entity, Arrived).unwrap();
+            arrived.insert(entity, MotionDone).unwrap();
         }
     }
 }

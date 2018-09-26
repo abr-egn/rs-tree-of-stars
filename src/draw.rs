@@ -70,7 +70,7 @@ impl<'a, 'b> System<'a> for DrawPackets<'b> {
     type SystemData = (
         Entities<'a>,
         ReadStorage<'a, geom::Motion>,
-        ReadStorage<'a, geom::Arrived>,
+        ReadStorage<'a, geom::MotionDone>,
     );
 
     fn run(&mut self, (entities, motions, arrived): Self::SystemData) {
@@ -80,7 +80,7 @@ impl<'a, 'b> System<'a> for DrawPackets<'b> {
             let pos = motion.from + (motion.to - motion.from)*motion.at;
             graphics::set_color(ctx,
                 if arrived { Color::new(1.0, 0.0, 1.0, 1.0) }
-                else { Color::new(0.0, 1.0, 1.0, 1.0) }
+                else { Color::new(0.0, 0.0, 1.0, 1.0) }
             ).unwrap();
             graphics::circle(ctx, DrawMode::Fill, pos, 4.0, 0.5).unwrap();
         }

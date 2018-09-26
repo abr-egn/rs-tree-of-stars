@@ -25,14 +25,45 @@ impl Component for Link {
 #[derive(Debug)]
 pub struct Route {
     links: Vec<Entity /* Link */>,
+    speed: f32,
     link_ix: usize,
     coord_ix: usize,
+}
+
+impl Route {
+    pub fn new(links: &[Entity], speed: f32) -> Self {
+        let links = links.into();
+        Route { links, speed, link_ix: 0, coord_ix: 0 }
+    }
+
+    // TODO: this is wrong.  This moves from [0] to [1] for the initial motion, and then
+    // route traversal does [0] to [1] *again*.
+    pub fn start(
+        entity: Entity,
+        route: Route,
+        links: ReadStorage<Link>,
+        mut motions: WriteStorage<Motion>,
+        mut routes: WriteStorage<Route>)
+        -> GameResult<()> {
+        let link = try_get(&links, route.links[route.link_ix])?;
+        motions.insert(entity, Motion::new(link.path[route.coord_ix], link.path[route.coord_ix + 1], route.speed)).map_err(dbg)?;
+        routes.insert(entity, route).map_err(dbg)?;
+        Ok(())
+    }
 }
 
 impl Component for Route {
     type Storage = BTreeStorage<Self>;
 }
 
+#[derive(Debug, Default)]
+pub struct RouteDone;
+
+impl Component for RouteDone {
+    type Storage = NullStorage<Self>;
+}
+
+#[derive(Debug)]
 pub struct Traverse;
 
 impl<'a> System<'a> for Traverse {
@@ -40,24 +71,45 @@ impl<'a> System<'a> for Traverse {
         Entities<'a>,
         ReadStorage<'a, Link>,
         WriteStorage<'a, Motion>,
-        WriteStorage<'a, Arrived>,
+        WriteStorage<'a, MotionDone>,
         WriteStorage<'a, Route>,
+        WriteStorage<'a, RouteDone>,
     );
 
-    fn run(&mut self, (entities, links, mut motions, mut arrived, mut routes): Self::SystemData) {
-        //let mut v = Vec::new();
-        for (entity, motion, route, _) in (&*entities, &mut motions, &mut routes, &arrived).join() {
-            let link = if let Some(l) = links.get(route.links[route.link_ix]) { l } else {
+    fn run(&mut self, (entities, links, mut motions, mut motions_done, mut routes, mut routes_done): Self::SystemData) {
+        let mut more_motion = Vec::new();
+        let mut no_more_route = Vec::new();
+        for (entity, motion, route, _, ()) in (&*entities, &mut motions, &mut routes, &motions_done, !&routes_done).join() {
+            let mut link = if let Some(l) = links.get(route.links[route.link_ix]) { l } else {
                 // TODO: flag?
                 continue;
             };
+            let from_coord = link.path[route.coord_ix];
             route.coord_ix += 1;
             if route.coord_ix >= link.path.len() {
                 route.coord_ix = 0;
                 route.link_ix += 1;
-                // TODO: update link variable
+                if route.link_ix >= route.links.len() {
+                    no_more_route.push(entity);
+                    continue;
+                }
+                // TODO: factor out link-lookup somehow?
+                link = if let Some(l) = links.get(route.links[route.link_ix]) { l } else {
+                    // TODO: flag?
+                    continue;
+                };
             }
-            // TODO: clear arrived, reset motion, preserve motion overflow
+            let to_coord = link.path[route.coord_ix];
+            more_motion.push(entity);  // arrival flag clear
+            let rem = motion.at - 1.0;
+            *motion = Motion::new(from_coord, to_coord, route.speed);
+            motion.at = rem;
+        }
+        for entity in more_motion {
+            motions_done.remove(entity);
+        }
+        for entity in no_more_route {
+            routes_done.insert(entity, RouteDone).unwrap();
         }
     }
 }
