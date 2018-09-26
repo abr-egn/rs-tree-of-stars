@@ -36,17 +36,16 @@ impl Route {
         Route { links, speed, link_ix: 0, coord_ix: 0 }
     }
 
-    // TODO: this is wrong.  This moves from [0] to [1] for the initial motion, and then
-    // route traversal does [0] to [1] *again*.
     pub fn start(
         entity: Entity,
+        start: Coordinate,
         route: Route,
         links: ReadStorage<Link>,
         mut motions: WriteStorage<Motion>,
         mut routes: WriteStorage<Route>)
         -> GameResult<()> {
         let link = try_get(&links, route.links[route.link_ix])?;
-        motions.insert(entity, Motion::new(link.path[route.coord_ix], link.path[route.coord_ix + 1], route.speed)).map_err(dbg)?;
+        motions.insert(entity, Motion::new(start, link.path[route.coord_ix], route.speed)).map_err(dbg)?;
         routes.insert(entity, route).map_err(dbg)?;
         Ok(())
     }

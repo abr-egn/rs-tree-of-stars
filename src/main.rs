@@ -77,6 +77,7 @@ impl Main {
             .build();
         graph::Route::start(
             packet,
+            Coordinate { x: 0, y: 0 },
             graph::Route::new(&[side_link, top_link], 1.0),
             world.read_storage::<graph::Link>(),
             world.write_storage::<geom::Motion>(),
