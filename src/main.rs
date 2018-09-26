@@ -39,12 +39,15 @@ impl Main {
         world.register::<geom::Link>();
         world.register::<geom::Motion>();
         world.register::<geom::Arrived>();
+        world.register::<geom::Route>();
 
         draw::build_sprites(&mut world, ctx)?;
 
         const TRAVEL: &str = "travel";
+        const TRAVERSE: &str = "traverse";
         let update = DispatcherBuilder::new()
             .with(geom::Travel, TRAVEL, &[])
+            .with(geom::Traverse, TRAVERSE, &[TRAVEL])
             .build();
 
         let center_ent = geom::make_node(&mut world, Coordinate { x: 0, y: 0 });

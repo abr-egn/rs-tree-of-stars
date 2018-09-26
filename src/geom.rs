@@ -125,6 +125,46 @@ impl<'a> System<'a> for Travel {
     }
 }
 
+#[derive(Debug)]
+pub struct Route {
+    links: Vec<Entity /* Link */>,
+    link_ix: usize,
+    coord_ix: usize,
+}
+
+impl Component for Route {
+    type Storage = BTreeStorage<Self>;
+}
+
+pub struct Traverse;
+
+impl<'a> System<'a> for Traverse {
+    type SystemData = (
+        Entities<'a>,
+        ReadStorage<'a, Link>,
+        WriteStorage<'a, Motion>,
+        WriteStorage<'a, Arrived>,
+        WriteStorage<'a, Route>,
+    );
+
+    fn run(&mut self, (entities, links, mut motions, mut arrived, mut routes): Self::SystemData) {
+        //let mut v = Vec::new();
+        for (entity, motion, route, _) in (&*entities, &mut motions, &mut routes, &arrived).join() {
+            let link = if let Some(l) = links.get(route.links[route.link_ix]) { l } else {
+                // TODO: flag?
+                continue;
+            };
+            route.coord_ix += 1;
+            if route.coord_ix >= link.path.len() {
+                route.coord_ix = 0;
+                route.link_ix += 1;
+                // TODO: update link variable
+            }
+            // TODO: clear arrived, reset motion, preserve motion overflow
+        }
+    }
+}
+
 /*
 #[derive(Debug)]
 pub struct Packet {
