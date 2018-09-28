@@ -45,15 +45,14 @@ impl Component for Node {
 
 #[derive(Debug)]
 enum PathCoord {
-    More(Coordinate),
-    End(Coordinate),
-    NoPath,
+    More,
+    End,
 }
 
 fn path_ix(
     from_ent: Entity, to_ent: Entity, ix: usize,
     links: &ReadStorage<Link>, nodes: &ReadStorage<Node>)
-    -> GameResult<PathCoord> {
+    -> GameResult<Option<(Coordinate, PathCoord)>> {
     let from = try_get(&nodes, from_ent)?;
     let (link, coord_ix) = if let Some(&link_ent) = from.links_to.get(&to_ent) {
         let link = try_get(&links, link_ent)?;
@@ -63,16 +62,16 @@ fn path_ix(
             let link = try_get(&links, link_ent)?;
             (link, link.path.len() - 1 - ix)
         } else {
-            return Ok(PathCoord::NoPath)
+            return Ok(None)
         }
     };
     if ix >= link.path.len() {
         return Err(GameError::UnknownError("path ix past the end".into()))
     }
-    if ix == link.path.len()-1 {
-        return Ok(PathCoord::End(link.path[coord_ix]))
-    }
-    Ok(PathCoord::More(link.path[coord_ix]))
+    Ok(Some((
+        link.path[coord_ix], 
+        if ix == link.path.len()-1 { PathCoord::End } else { PathCoord::More }
+    )))
 }
 
 #[derive(Debug)]
@@ -99,11 +98,8 @@ impl Route {
         mut motions: WriteStorage<Motion>,
         mut routes: WriteStorage<Route>)
         -> GameResult<()> {
-        let first_coord = match path_ix(route_nodes[0], route_nodes[1], 0, &links, &nodes)? {
-            PathCoord::More(c) => c,
-            PathCoord::End(c) => c,
-            PathCoord::NoPath => return Err(GameError::UnknownError("invalid route".into())),
-        };
+        let (first_coord, _) = path_ix(route_nodes[0], route_nodes[1], 0, &links, &nodes)?
+            .ok_or(GameError::UnknownError("invalid route".into()))?;
         let route = Route::new(route_nodes, speed);
         motions.insert(entity, Motion::new(start, first_coord, route.speed)).map_err(dbg)?;
         routes.insert(entity, route).map_err(dbg)?;
@@ -140,32 +136,33 @@ impl<'a> System<'a> for Traverse {
         let mut more_motion = Vec::new();
         let mut no_more_route = Vec::new();
         for (entity, motion, route, _, ()) in (&*entities, &mut motions, &mut routes, &motions_done, !&routes_done).join() {
-            let (from_coord, next_path) = match path_ix(
+            let (from_coord, more) = match path_ix(
                 route.nodes[route.node_ix], route.nodes[route.node_ix+1], route.coord_ix,
                 &links, &nodes).unwrap() {
-                PathCoord::More(c) => (c, false),
-                PathCoord::End(c) => (c, true),
-                PathCoord::NoPath => {
+                Some(p) => p,
+                None => {
                     // TODO: flag?
                     continue;
                 },
             };
-            if next_path {
-                route.coord_ix = 0;
-                route.node_ix += 1;
-                if route.node_ix >= route.nodes.len()-1 {
-                    no_more_route.push(entity);
-                    continue;
-                }
-            } else {
-                route.coord_ix += 1;
+            match more {
+                PathCoord::More => {
+                    route.coord_ix += 1;
+                },
+                PathCoord::End => {
+                    route.coord_ix = 0;
+                    route.node_ix += 1;
+                    if route.node_ix >= route.nodes.len()-1 {
+                        no_more_route.push(entity);
+                        continue;
+                    }
+                },
             }
             let to_coord = match path_ix(
                 route.nodes[route.node_ix], route.nodes[route.node_ix+1], route.coord_ix,
                 &links, &nodes).unwrap() {
-                PathCoord::More(c) => c,
-                PathCoord::End(c) => c,
-                PathCoord::NoPath => {
+                Some((c, _)) => c,
+                None => {
                     // TODO: flag?
                     continue;
                 }
