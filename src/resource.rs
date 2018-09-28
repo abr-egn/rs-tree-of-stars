@@ -39,6 +39,7 @@ impl Component for Sink {
     type Storage = BTreeStorage<Self>;
 }
 
+/*
 pub fn connect<'a>(
     sources: WriteStorage<'a, Source>,
     sinks: WriteStorage<'a, Sink>,
@@ -60,3 +61,4 @@ pub fn connect<'a>(
 
     Ok(())
 }
+*/

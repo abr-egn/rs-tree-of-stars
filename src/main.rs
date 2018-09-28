@@ -38,6 +38,7 @@ impl Main {
         world.register::<geom::MotionDone>();
 
         world.register::<graph::Link>();
+        world.register::<graph::Node>();
         world.register::<graph::Route>();
         world.register::<graph::RouteDone>();
 
@@ -61,9 +62,10 @@ impl Main {
         let top_ent = graph::make_node(&mut world, Coordinate { x: 8, y: 10 });
         world.write_storage().insert(top_ent, resource::Sink::new()).map_err(dbg)?;
         
-        let side_link = graph::make_link(&mut world, center_ent, side_ent)?;
-        let top_link = graph::make_link(&mut world, side_ent, top_ent)?;
+        graph::make_link(&mut world, center_ent, side_ent)?;
+        graph::make_link(&mut world, top_ent, side_ent)?;
         
+        /*
         resource::connect(
             world.write_storage::<resource::Source>(),
             world.write_storage::<resource::Sink>(),
@@ -71,6 +73,7 @@ impl Main {
             top_ent,
             &[side_link, top_link],
         )?;
+        */
 
         let packet = world.create_entity()
             .with(geom::Motion::new(Coordinate { x: 0, y: 0 }, Coordinate { x: 8, y: 10 }, 1.0))
@@ -78,8 +81,10 @@ impl Main {
         graph::Route::start(
             packet,
             Coordinate { x: 0, y: 0 },
-            graph::Route::new(&[side_link, top_link], 1.0),
+            &[center_ent, side_ent, top_ent],
+            2.0,
             world.read_storage::<graph::Link>(),
+            world.read_storage::<graph::Node>(),
             world.write_storage::<geom::Motion>(),
             world.write_storage::<graph::Route>(),
         )?;
