@@ -1,7 +1,7 @@
 use std::f32::consts::PI;
 
 use ggez::{
-    graphics::{self, Color, DrawMode, Mesh, MeshBuilder, Point2},
+    graphics::{self, Color, DrawMode, Mesh, MeshBuilder, Point2, Vector2},
     Context, GameResult,
 };
 use specs::{
@@ -40,6 +40,7 @@ pub fn draw(world: &mut World, ctx: &mut Context) {
 
     DrawCells(ctx).run_now(&mut world.res);
     DrawPackets(ctx).run_now(&mut world.res);
+    DrawSources(ctx).run_now(&mut world.res);
     world.maintain();
 
     graphics::present(ctx);
@@ -73,19 +74,27 @@ impl<'a, 'b> System<'a> for DrawCells<'b> {
 
 struct DrawSources<'a>(&'a mut Context);
 
+const SOURCE_RADIUS: f32 = 30.0;
+
 impl<'a, 'b> System<'a> for DrawSources<'b> {
     type SystemData = (
+        ReadExpect<'a, PacketMesh>,
         ReadStorage<'a, geom::Center>,
         ReadStorage<'a, resource::Source>,
     );
 
-    fn run(&mut self, (centers, sources): Self::SystemData) {
+    fn run(&mut self, (packet_mesh, centers, sources): Self::SystemData) {
         let ctx = &mut self.0;
         for (center, source) in (&centers, &sources).join() {
+            let (x, y) = center.0.to_pixel(super::SPACING);
+            let center_pt = Point2::new(x, y);
             if source.count == 0 { continue }
             let inc = (2.0*PI) / (source.count as f32);
+            graphics::set_color(ctx, Color::new(1.0, 1.0, 0.0, 1.0)).unwrap();
             for ix in 0..source.count {
                 let angle = (ix as f32) * inc;
+                let v = Vector2::new(angle.cos(), angle.sin()) * SOURCE_RADIUS;
+                graphics::draw(ctx, &packet_mesh.0, center_pt + v, 0.0).unwrap();
             }
         }
     }
