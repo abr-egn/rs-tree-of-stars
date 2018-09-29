@@ -55,25 +55,11 @@ impl Main {
             .build();
 
         let center_ent = graph::make_node(&mut world, Coordinate { x: 0, y: 0 });
-        world.write_storage().insert(center_ent, resource::Source::new()).map_err(dbg)?;
-
         let side_ent = graph::make_node(&mut world, Coordinate { x: 12, y: -2 });
-
         let top_ent = graph::make_node(&mut world, Coordinate { x: 8, y: 10 });
-        world.write_storage().insert(top_ent, resource::Sink::new()).map_err(dbg)?;
         
         graph::make_link(&mut world, center_ent, side_ent)?;
         graph::make_link(&mut world, top_ent, side_ent)?;
-        
-        /*
-        resource::connect(
-            world.write_storage::<resource::Source>(),
-            world.write_storage::<resource::Sink>(),
-            center_ent,
-            top_ent,
-            &[side_link, top_link],
-        )?;
-        */
 
         let packet = world.create_entity()
             .with(geom::Motion::new(Coordinate { x: 0, y: 0 }, Coordinate { x: 8, y: 10 }, 1.0))

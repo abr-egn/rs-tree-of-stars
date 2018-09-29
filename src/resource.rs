@@ -13,52 +13,41 @@ use specs::{
 
 use util::*;
 
+// Epiphany: `Source` and `Sink` are *just* the input/output buffers.
+// Sinks pull from available Sources until (has + incoming) >= need.
+// Other behavior - production, reactor, etc. - are just inc/decs on
+// the Source/Sink numbers.
+
 #[derive(Debug)]
 pub struct Source {
-    pub sinks: HashMap<Entity /* Sink */, Vec<Entity /* Link */>>,
-}
-
-impl Source {
-    pub fn new() -> Self { Source { sinks: HashMap::new() } }
+    pub count: usize,
 }
 
 impl Component for Source {
     type Storage = BTreeStorage<Self>;
 }
 
-#[derive(Debug)]
-pub struct Sink {
-    pub sources: HashSet<Entity /* Source */>,
+impl Source {
+    pub fn new() -> Self { Source { count: 0 } }
 }
 
-impl Sink {
-    pub fn new() -> Self { Sink { sources: HashSet::new() } }
+#[derive(Debug)]
+pub struct Sink {
+    pub want: usize,
+    pub count: usize,
+    pub in_transit: usize,
+    pub sources: HashMap<Entity /* Source */, Vec<Entity /* Node */>>,
 }
 
 impl Component for Sink {
     type Storage = BTreeStorage<Self>;
 }
 
-/*
-pub fn connect<'a>(
-    sources: WriteStorage<'a, Source>,
-    sinks: WriteStorage<'a, Sink>,
-    source: Entity,
-    sink: Entity,
-    route: &[Entity])
-    -> GameResult<()> {
-    let mut sources = sources;
-    let mut sinks = sinks;
-
-    let sink_sources = &mut try_get_mut(&mut sinks, sink)?.sources;
-    match (try_get_mut(&mut sources, source)?.sinks.entry(sink), sink_sources.contains(&source)) {
-        (hash_map::Entry::Vacant(source_route), false) => {
-            source_route.insert(route.iter().cloned().collect());
-            sink_sources.insert(source);
+impl Sink {
+    pub fn new(want: usize) -> Self {
+        Sink {
+            want, count: 0, in_transit: 0,
+            sources: HashMap::new(),
         }
-        _ => return Err(GameError::UnknownError("link already exists".into())),
-    };
-
-    Ok(())
+    }
 }
-*/
