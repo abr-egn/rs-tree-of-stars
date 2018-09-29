@@ -1,17 +1,11 @@
 use std::collections::{
-    hash_map,
-    HashMap, HashSet,
+    HashMap,
 };
 
-use ggez::{
-    GameResult, GameError,
-};
 use specs::{
     prelude::*,
     storage::BTreeStorage,
 };
-
-use util::*;
 
 // Epiphany: `Source` and `Sink` are *just* the input/output buffers.
 // Sinks pull from available Sources until (has + incoming) >= need.

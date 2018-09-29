@@ -3,8 +3,9 @@ use std::f32::consts::PI;
 use ggez::{
     graphics::{
         self,
-        Color, BlendMode, DrawMode, DrawParam, Mesh, MeshBuilder, Point2, Vector2,
+        Color, BlendMode, DrawMode, DrawParam, Mesh, Point2, Vector2,
     },
+    timer::get_time_since_start,
     Context, GameResult,
 };
 use specs::{
@@ -94,6 +95,12 @@ impl<'a, 'b> System<'a> for DrawCells<'b> {
 struct DrawSources<'a>(&'a mut Context);
 
 const SOURCE_RADIUS: f32 = 30.0;
+const SOURCE_ORBIT_SPEED: f32 = 1.0;
+
+fn now_f32(ctx: &Context) -> f32 {
+    let dt = get_time_since_start(ctx);
+    (dt.as_secs() as f32) + ((dt.subsec_micros() as f32) * 1e-6)
+}
 
 impl<'a, 'b> System<'a> for DrawSources<'b> {
     type SystemData = (
@@ -104,6 +111,7 @@ impl<'a, 'b> System<'a> for DrawSources<'b> {
 
     fn run(&mut self, (packet_sprite, centers, sources): Self::SystemData) {
         let ctx = &mut self.0;
+        let orbit = (now_f32(ctx) * SOURCE_ORBIT_SPEED) % (2.0 * PI);
         for (center, source) in (&centers, &sources).join() {
             let (x, y) = center.0.to_pixel(super::SPACING);
             let center_pt = Point2::new(x, y);
@@ -111,7 +119,7 @@ impl<'a, 'b> System<'a> for DrawSources<'b> {
             let inc = (2.0*PI) / (source.count as f32);
             graphics::set_color(ctx, Color::new(0.0, 1.0, 0.0, 1.0)).unwrap();
             for ix in 0..source.count {
-                let angle = (ix as f32) * inc;
+                let angle = (ix as f32) * inc + orbit;
                 let v = Vector2::new(angle.cos(), angle.sin()) * SOURCE_RADIUS;
                 graphics::draw(ctx, &*packet_sprite, center_pt + v, 0.0).unwrap();
             }
