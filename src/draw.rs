@@ -1,7 +1,10 @@
 use std::f32::consts::PI;
 
 use ggez::{
-    graphics::{self, Color, DrawMode, Mesh, MeshBuilder, Point2, Vector2},
+    graphics::{
+        self,
+        Color, BlendMode, DrawMode, DrawParam, Mesh, MeshBuilder, Point2, Vector2,
+    },
     Context, GameResult,
 };
 use specs::{
@@ -14,22 +17,38 @@ use graph;
 use resource;
 
 struct CellMesh(Mesh);
-struct PacketMesh(Mesh);
+
+struct PacketSprite {
+    outline: Mesh,
+    fill: Mesh,
+}
+
+impl graphics::Drawable for PacketSprite {
+    fn draw_ex(&self, ctx: &mut Context, mut param: DrawParam) -> GameResult<()> {
+        self.fill.draw_ex(ctx, param)?;
+        param.color = Some(Color::new(0.0, 0.0, 0.0, 1.0));
+        self.outline.draw_ex(ctx, param)?;
+        Ok(())
+    }
+    fn set_blend_mode(&mut self, mode: Option<BlendMode>) {
+        self.outline.set_blend_mode(mode);
+        self.fill.set_blend_mode(mode);
+    }
+    fn get_blend_mode(&self) -> Option<BlendMode> { self.outline.get_blend_mode() }
+}
 
 pub fn build_sprites(world: &mut World, ctx: &mut Context) -> GameResult<()> {
     let points: Vec<Point2> = (0..6).map(|ix| {
         let a = (PI / 3.0) * (ix as f32);
         Point2::new(a.cos(), a.sin()) * super::HEX_SIDE
     }).collect();
-    let cell = MeshBuilder::new()
-        .polygon(DrawMode::Fill, &points)
-        .build(ctx)?;
-    world.add_resource(CellMesh(cell));
+    world.add_resource(CellMesh(Mesh::new_polygon(ctx, DrawMode::Fill, &points)?));
 
-    let packet = MeshBuilder::new()
-        .circle(DrawMode::Fill, Point2::new(0.0, 0.0), 4.0, 0.5)
-        .build(ctx)?;
-    world.add_resource(PacketMesh(packet));
+    let origin = Point2::new(0.0, 0.0);
+    world.add_resource(PacketSprite {
+        outline: Mesh::new_circle(ctx, DrawMode::Line(1.0), origin, 4.0, 0.5)?,
+        fill: Mesh::new_circle(ctx, DrawMode::Fill, origin, 4.0, 0.5)?,
+    });
 
     Ok(())
 }
@@ -78,12 +97,12 @@ const SOURCE_RADIUS: f32 = 30.0;
 
 impl<'a, 'b> System<'a> for DrawSources<'b> {
     type SystemData = (
-        ReadExpect<'a, PacketMesh>,
+        ReadExpect<'a, PacketSprite>,
         ReadStorage<'a, geom::Center>,
         ReadStorage<'a, resource::Source>,
     );
 
-    fn run(&mut self, (packet_mesh, centers, sources): Self::SystemData) {
+    fn run(&mut self, (packet_sprite, centers, sources): Self::SystemData) {
         let ctx = &mut self.0;
         for (center, source) in (&centers, &sources).join() {
             let (x, y) = center.0.to_pixel(super::SPACING);
@@ -94,7 +113,7 @@ impl<'a, 'b> System<'a> for DrawSources<'b> {
             for ix in 0..source.count {
                 let angle = (ix as f32) * inc;
                 let v = Vector2::new(angle.cos(), angle.sin()) * SOURCE_RADIUS;
-                graphics::draw(ctx, &packet_mesh.0, center_pt + v, 0.0).unwrap();
+                graphics::draw(ctx, &*packet_sprite, center_pt + v, 0.0).unwrap();
             }
         }
     }
@@ -104,13 +123,13 @@ struct DrawPackets<'a>(&'a mut Context);
 
 impl<'a, 'b> System<'a> for DrawPackets<'b> {
     type SystemData = (
-        ReadExpect<'a, PacketMesh>,
+        ReadExpect<'a, PacketSprite>,
         Entities<'a>,
         ReadStorage<'a, geom::Motion>,
         ReadStorage<'a, geom::MotionDone>,
     );
 
-    fn run(&mut self, (packet_mesh, entities, motions, arrived): Self::SystemData) {
+    fn run(&mut self, (packet_sprite, entities, motions, arrived): Self::SystemData) {
         let ctx = &mut self.0;
         for (entity, motion) in (&*entities, &motions).join() {
             let arrived = arrived.get(entity).is_some();
@@ -119,7 +138,7 @@ impl<'a, 'b> System<'a> for DrawPackets<'b> {
                 if arrived { Color::new(1.0, 0.0, 1.0, 1.0) }
                 else { Color::new(0.0, 0.0, 1.0, 1.0) }
             ).unwrap();
-            graphics::draw(ctx, &packet_mesh.0, pos, 0.0).unwrap();
+            graphics::draw(ctx, &*packet_sprite, pos, 0.0).unwrap();
         }
     }
 }
