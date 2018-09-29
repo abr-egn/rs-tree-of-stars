@@ -26,7 +26,7 @@ struct PacketSprite {
 impl graphics::Drawable for PacketSprite {
     fn draw_ex(&self, ctx: &mut Context, mut param: DrawParam) -> GameResult<()> {
         self.fill.draw_ex(ctx, param)?;
-        param.color = Some(Color::new(0.0, 0.0, 0.0, 1.0));
+        param.color = Some(Color::new(1.0, 1.0, 1.0, 1.0));
         self.outline.draw_ex(ctx, param)?;
         Ok(())
     }
@@ -46,7 +46,7 @@ pub fn build_sprites(world: &mut World, ctx: &mut Context) -> GameResult<()> {
 
     let origin = Point2::new(0.0, 0.0);
     world.add_resource(PacketSprite {
-        outline: Mesh::new_circle(ctx, DrawMode::Line(1.0), origin, 4.0, 0.5)?,
+        outline: Mesh::new_circle(ctx, DrawMode::Line(0.5), origin, 4.0, 0.5)?,
         fill: Mesh::new_circle(ctx, DrawMode::Fill, origin, 4.0, 0.5)?,
     });
 
@@ -109,7 +109,7 @@ impl<'a, 'b> System<'a> for DrawSources<'b> {
             let center_pt = Point2::new(x, y);
             if source.count == 0 { continue }
             let inc = (2.0*PI) / (source.count as f32);
-            graphics::set_color(ctx, Color::new(1.0, 1.0, 0.0, 1.0)).unwrap();
+            graphics::set_color(ctx, Color::new(0.0, 1.0, 0.0, 1.0)).unwrap();
             for ix in 0..source.count {
                 let angle = (ix as f32) * inc;
                 let v = Vector2::new(angle.cos(), angle.sin()) * SOURCE_RADIUS;
