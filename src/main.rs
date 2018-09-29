@@ -109,6 +109,7 @@ fn main() -> GameResult<()> {
 
     let mut c = conf::Conf::default();
     c.window_setup.title = "Tree of Stars".to_owned();
+    c.window_setup.samples = conf::NumSamples::Eight;
     c.window_mode.width = WINDOW_WIDTH;
     c.window_mode.height = WINDOW_HEIGHT;
 
