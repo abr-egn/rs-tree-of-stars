@@ -11,8 +11,10 @@ use specs::{
 
 use geom;
 use graph;
+use resource;
 
 struct CellMesh(Mesh);
+struct PacketMesh(Mesh);
 
 pub fn build_sprites(world: &mut World, ctx: &mut Context) -> GameResult<()> {
     let points: Vec<Point2> = (0..6).map(|ix| {
@@ -23,6 +25,11 @@ pub fn build_sprites(world: &mut World, ctx: &mut Context) -> GameResult<()> {
         .polygon(DrawMode::Fill, &points)
         .build(ctx)?;
     world.add_resource(CellMesh(cell));
+
+    let packet = MeshBuilder::new()
+        .circle(DrawMode::Fill, Point2::new(0.0, 0.0), 4.0, 0.5)
+        .build(ctx)?;
+    world.add_resource(PacketMesh(packet));
 
     Ok(())
 }
@@ -42,13 +49,13 @@ struct DrawCells<'a>(&'a mut Context);
 
 impl<'a, 'b> System<'a> for DrawCells<'b> {
     type SystemData = (
-        Entities<'a>,
         ReadExpect<'a, CellMesh>,
+        Entities<'a>,
         ReadStorage<'a, geom::Shape>,
         ReadStorage<'a, graph::Link>,
     );
 
-    fn run(&mut self, (entities, cell_mesh, shapes, links): Self::SystemData) {
+    fn run(&mut self, (cell_mesh, entities, shapes, links): Self::SystemData) {
         let ctx = &mut self.0;
         for (entity, &geom::Shape(ref coords)) in (&*entities, &shapes).join() {
             graphics::set_color(ctx, if links.get(entity).is_some() {
@@ -64,16 +71,37 @@ impl<'a, 'b> System<'a> for DrawCells<'b> {
     }
 }
 
+struct DrawSources<'a>(&'a mut Context);
+
+impl<'a, 'b> System<'a> for DrawSources<'b> {
+    type SystemData = (
+        ReadStorage<'a, geom::Center>,
+        ReadStorage<'a, resource::Source>,
+    );
+
+    fn run(&mut self, (centers, sources): Self::SystemData) {
+        let ctx = &mut self.0;
+        for (center, source) in (&centers, &sources).join() {
+            if source.count == 0 { continue }
+            let inc = (2.0*PI) / (source.count as f32);
+            for ix in 0..source.count {
+                let angle = (ix as f32) * inc;
+            }
+        }
+    }
+}
+
 struct DrawPackets<'a>(&'a mut Context);
 
 impl<'a, 'b> System<'a> for DrawPackets<'b> {
     type SystemData = (
+        ReadExpect<'a, PacketMesh>,
         Entities<'a>,
         ReadStorage<'a, geom::Motion>,
         ReadStorage<'a, geom::MotionDone>,
     );
 
-    fn run(&mut self, (entities, motions, arrived): Self::SystemData) {
+    fn run(&mut self, (packet_mesh, entities, motions, arrived): Self::SystemData) {
         let ctx = &mut self.0;
         for (entity, motion) in (&*entities, &motions).join() {
             let arrived = arrived.get(entity).is_some();
@@ -82,7 +110,7 @@ impl<'a, 'b> System<'a> for DrawPackets<'b> {
                 if arrived { Color::new(1.0, 0.0, 1.0, 1.0) }
                 else { Color::new(0.0, 0.0, 1.0, 1.0) }
             ).unwrap();
-            graphics::circle(ctx, DrawMode::Fill, pos, 4.0, 0.5).unwrap();
+            graphics::draw(ctx, &packet_mesh.0, pos, 0.0).unwrap();
         }
     }
 }

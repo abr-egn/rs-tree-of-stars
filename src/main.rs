@@ -55,8 +55,14 @@ impl Main {
             .build();
 
         let center_ent = graph::make_node(&mut world, Coordinate { x: 0, y: 0 });
+        let mut source = resource::Source::new();
+        source.count = 5;
+        world.write_storage::<resource::Source>().insert(center_ent, source)
+            .map_err(dbg)?;
         let side_ent = graph::make_node(&mut world, Coordinate { x: 12, y: -2 });
         let top_ent = graph::make_node(&mut world, Coordinate { x: 8, y: 10 });
+        world.write_storage::<resource::Sink>().insert(top_ent, resource::Sink::new(5))
+            .map_err(dbg)?;
         
         graph::make_link(&mut world, center_ent, side_ent)?;
         graph::make_link(&mut world, top_ent, side_ent)?;
