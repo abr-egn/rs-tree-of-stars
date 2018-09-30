@@ -7,6 +7,9 @@ use specs::{
     storage::BTreeStorage,
 };
 
+use geom;
+use graph;
+
 // Epiphany: `Source` and `Sink` are *just* the input/output buffers.
 // Sinks pull from available Sources until (has + incoming) >= need.
 // Other behavior - production, reactor, etc. - are just inc/decs on
@@ -42,6 +45,29 @@ impl Sink {
         Sink {
             want, count: 0, in_transit: 0,
             sources: HashMap::new(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Pull;
+
+impl<'a> System<'a> for Pull {
+    type SystemData = (
+        ReadStorage<'a, graph::Link>,
+        ReadStorage<'a, graph::Node>,
+        WriteStorage<'a, geom::Motion>,
+        WriteStorage<'a, graph::Route>,
+        WriteStorage<'a, Source>,
+        WriteStorage<'a, Sink>,
+    );
+
+    fn run(&mut self, (links, nodes, mut motions, mut routes, mut sources, mut sinks): Self::SystemData) {
+        for sink in sinks.join() {
+            if sink.count + sink.in_transit >= sink.want { continue }
+            for (source, route) in &sink.sources {
+                
+            }
         }
     }
 }

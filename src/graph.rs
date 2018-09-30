@@ -44,6 +44,30 @@ impl Component for Node {
 }
 
 #[derive(Debug)]
+enum PathDir {
+    Fwd,
+    Rev,
+}
+
+fn try_get_link<'a>(
+    from_ent: Entity, to_ent: Entity,
+    links: &'a ReadStorage<Link>, nodes: &ReadStorage<Node>)
+    -> GameResult<Option<(&'a Link, PathDir)>> {
+    let from = try_get(&nodes, from_ent)?;
+    if let Some(&link_ent) = from.links_to.get(&to_ent) {
+        let link = try_get(&links, link_ent)?;
+        Ok(Some((link, PathDir::Fwd)))
+    } else {
+        if let Some(&link_ent) = from.links_from.get(&to_ent) {
+            let link = try_get(&links, link_ent)?;
+            Ok(Some((link, PathDir::Rev)))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+#[derive(Debug)]
 enum PathCoord {
     More,
     End,
@@ -53,17 +77,10 @@ fn path_ix(
     from_ent: Entity, to_ent: Entity, ix: usize,
     links: &ReadStorage<Link>, nodes: &ReadStorage<Node>)
     -> GameResult<Option<(Coordinate, PathCoord)>> {
-    let from = try_get(&nodes, from_ent)?;
-    let (link, coord_ix) = if let Some(&link_ent) = from.links_to.get(&to_ent) {
-        let link = try_get(&links, link_ent)?;
-        (link, ix)
-    } else {
-        if let Some(&link_ent) = from.links_from.get(&to_ent) {
-            let link = try_get(&links, link_ent)?;
-            (link, link.path.len() - 1 - ix)
-        } else {
-            return Ok(None)
-        }
+    let (link, coord_ix) = match try_get_link(from_ent, to_ent, links, nodes)? {
+        None => return Ok(None),
+        Some((link, PathDir::Fwd)) => (link, ix),
+        Some((link, PathDir::Rev)) => (link, link.path.len() - 1 - ix),
     };
     if ix >= link.path.len() {
         return Err(GameError::UnknownError("path ix past the end".into()))
@@ -73,6 +90,14 @@ fn path_ix(
         if ix == link.path.len()-1 { PathCoord::End } else { PathCoord::More }
     )))
 }
+
+/*
+fn path_len(
+    from_ent: Entity, to_ent: Entity,
+    links: &ReadStorage<Link>, nodes: &ReadStorage<Node>)
+    -> GameResult<Option<usize>> {
+}
+*/
 
 #[derive(Debug)]
 pub struct Route {
