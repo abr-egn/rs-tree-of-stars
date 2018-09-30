@@ -73,21 +73,10 @@ impl Main {
         graph::make_link(&mut world, center_ent, side_ent)?;
         graph::make_link(&mut world, top_ent, side_ent)?;
 
-        /*
-        let packet = world.create_entity()
-            .with(resource::Packet)
-            .build();
-        graph::Route::start(
-            packet,
-            Coordinate { x: 0, y: 0 },
-            &[center_ent, side_ent, top_ent],
-            2.0,
-            world.read_storage::<graph::Link>(),
-            world.read_storage::<graph::Node>(),
-            world.write_storage::<geom::Motion>(),
-            world.write_storage::<graph::Route>(),
+        resource::connect(
+            center_ent, top_ent, &[center_ent, side_ent, top_ent],
+            &mut world.write_storage::<resource::Sink>(),
         )?;
-        */
 
         Ok(Main{ world, update })
     }

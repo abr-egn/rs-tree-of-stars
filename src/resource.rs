@@ -3,6 +3,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use ggez::GameResult;
 use specs::{
     prelude::*,
     storage::BTreeStorage,
@@ -104,6 +105,10 @@ impl<'a> System<'a> for Pull {
                 }
                 candidates.push((route_time, *source_ent, on_cd));
             }
+            if candidates.is_empty() {
+                // TODO: flag
+                continue
+            }
             candidates.sort_unstable();
             let (_, source_ent, on_cd) = candidates[0];
             if on_cd { continue }
@@ -130,4 +135,22 @@ impl<'a> System<'a> for Pull {
             ).unwrap();
         }
     }
+}
+
+pub fn connect(
+    source_ent: Entity,
+    sink_ent: Entity,
+    route: &[Entity],
+    sinks: &mut WriteStorage<Sink>,
+) -> GameResult<()> {
+    let sink = try_get_mut(sinks, sink_ent)?;
+    sink.sources.insert(
+        source_ent,
+        Connection {
+            route: route.into(),
+            last_pull: Instant::now(),  // TODO: this is wrong.  No InfinitePast?
+        }
+    );
+
+    Ok(())
 }
