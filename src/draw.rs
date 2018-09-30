@@ -8,6 +8,7 @@ use ggez::{
     timer::get_time_since_start,
     Context, GameResult,
 };
+use hex2d::Coordinate;
 use specs::{
     prelude::*,
     Entities,
@@ -62,6 +63,7 @@ pub fn draw(world: &mut World, ctx: &mut Context) {
     DrawCells(ctx).run_now(&mut world.res);
     DrawPackets(ctx).run_now(&mut world.res);
     DrawSources(ctx).run_now(&mut world.res);
+    DrawSinks(ctx).run_now(&mut world.res);
     world.maintain();
 
     graphics::present(ctx);
@@ -93,12 +95,30 @@ impl<'a, 'b> System<'a> for DrawCells<'b> {
     }
 }
 
-struct DrawSources<'a>(&'a mut Context);
-
-const SOURCE_RADIUS: f32 = 30.0;
-const SOURCE_ORBIT_SPEED: f32 = 1.0;
-
 fn now_f32(ctx: &Context) -> f32 { util::duration_f32(get_time_since_start(ctx)) }
+
+fn draw_orbit(
+    ctx: &mut Context, sprite: &PacketSprite, color: Color,
+    orbit_radius: f32, orbit_speed: f32,
+    coord: Coordinate, count: usize,
+) -> GameResult<()> {
+    if count == 0 { return Ok(()) }
+
+    let orbit = (now_f32(ctx) * orbit_speed) % (2.0 * PI);
+    let (x, y) = coord.to_pixel(super::SPACING);
+    let center_pt = Point2::new(x, y);
+    let inc = (2.0*PI) / (count as f32);
+    graphics::set_color(ctx, color).unwrap();
+    for ix in 0..count {
+        let angle = (ix as f32) * inc + orbit;
+        let v = Vector2::new(angle.cos(), angle.sin()) * orbit_radius;
+        graphics::draw(ctx, sprite, center_pt + v, 0.0).unwrap();
+    }
+
+    Ok(())
+}
+
+struct DrawSources<'a>(&'a mut Context);
 
 impl<'a, 'b> System<'a> for DrawSources<'b> {
     type SystemData = (
@@ -109,18 +129,33 @@ impl<'a, 'b> System<'a> for DrawSources<'b> {
 
     fn run(&mut self, (packet_sprite, centers, sources): Self::SystemData) {
         let ctx = &mut self.0;
-        let orbit = (now_f32(ctx) * SOURCE_ORBIT_SPEED) % (2.0 * PI);
         for (center, source) in (&centers, &sources).join() {
-            let (x, y) = center.0.to_pixel(super::SPACING);
-            let center_pt = Point2::new(x, y);
-            if source.has == 0 { continue }
-            let inc = (2.0*PI) / (source.has as f32);
-            graphics::set_color(ctx, Color::new(0.0, 1.0, 0.0, 1.0)).unwrap();
-            for ix in 0..source.has {
-                let angle = (ix as f32) * inc + orbit;
-                let v = Vector2::new(angle.cos(), angle.sin()) * SOURCE_RADIUS;
-                graphics::draw(ctx, &*packet_sprite, center_pt + v, 0.0).unwrap();
-            }
+            draw_orbit(
+                ctx, &*packet_sprite, Color::new(0.0, 1.0, 0.0, 1.0),
+                /* radius= */ 30.0, /* speed= */ 1.0,
+                center.0, source.has,
+            ).unwrap();
+        }
+    }
+}
+
+struct DrawSinks<'a>(&'a mut Context);
+
+impl<'a, 'b> System<'a> for DrawSinks<'b> {
+    type SystemData = (
+        ReadExpect<'a, PacketSprite>,
+        ReadStorage<'a, geom::Center>,
+        ReadStorage<'a, resource::Sink>,
+    );
+
+    fn run(&mut self, (packet_sprite, centers, sinks): Self::SystemData) {
+        let ctx = &mut self.0;
+        for (center, sink) in (&centers, &sinks).join() {
+            draw_orbit(
+                ctx, &*packet_sprite, Color::new(0.0, 0.0, 0.0, 1.0),
+                /* radius= */ 15.0, /* speed= */ -0.5,
+                center.0, sink.has,
+            ).unwrap();
         }
     }
 }
@@ -130,21 +165,15 @@ struct DrawPackets<'a>(&'a mut Context);
 impl<'a, 'b> System<'a> for DrawPackets<'b> {
     type SystemData = (
         ReadExpect<'a, PacketSprite>,
-        Entities<'a>,
         ReadStorage<'a, geom::Motion>,
-        ReadStorage<'a, geom::MotionDone>,
         ReadStorage<'a, resource::Packet>,
     );
 
-    fn run(&mut self, (packet_sprite, entities, motions, arrived, packets): Self::SystemData) {
+    fn run(&mut self, (packet_sprite, motions, packets): Self::SystemData) {
         let ctx = &mut self.0;
-        for (entity, motion, _) in (&*entities, &motions, &packets).join() {
-            let arrived = arrived.get(entity).is_some();
+        for (motion, _) in (&motions, &packets).join() {
             let pos = motion.from + (motion.to - motion.from)*motion.at;
-            graphics::set_color(ctx,
-                if arrived { Color::new(1.0, 0.0, 1.0, 1.0) }
-                else { Color::new(0.0, 0.0, 1.0, 1.0) }
-            ).unwrap();
+            graphics::set_color(ctx, Color::new(0.0, 0.0, 1.0, 1.0)).unwrap();
             graphics::draw(ctx, &*packet_sprite, pos, 0.0).unwrap();
         }
     }
