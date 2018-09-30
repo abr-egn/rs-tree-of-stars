@@ -40,7 +40,7 @@ struct Connection {
 #[derive(Debug)]
 pub struct Sink {
     pub want: usize,
-    pub count: usize,
+    pub has: usize,
     pub in_transit: usize,
     sources: HashMap<Entity /* Source */, Connection>,
 }
@@ -52,14 +52,16 @@ impl Component for Sink {
 impl Sink {
     pub fn new(want: usize) -> Self {
         Sink {
-            want, count: 0, in_transit: 0,
+            want, has: 0, in_transit: 0,
             sources: HashMap::new(),
         }
     }
 }
 
 #[derive(Debug)]
-pub struct Packet;
+pub struct Packet {
+    sink: Entity,
+}
 
 impl Component for Packet {
     type Storage = BTreeStorage<Self>;
@@ -88,8 +90,8 @@ impl<'a> System<'a> for Pull {
     type SystemData = PullData<'a>;
 
     fn run(&mut self, mut data: Self::SystemData) {
-        for sink in (&mut data.sinks).join() {
-            if sink.count + sink.in_transit >= sink.want { continue }
+        for (entity, sink) in (&*data.entities, &mut data.sinks).join() {
+            if sink.has + sink.in_transit >= sink.want { continue }
             let mut candidates: Vec<(Duration, Entity, bool)> = vec![];
             let now = Instant::now();
             for (source_ent, conn) in &sink.sources {
@@ -122,7 +124,7 @@ impl<'a> System<'a> for Pull {
             sink.in_transit += 1;
 
             let packet = data.entities.create();
-            data.packets.insert(packet, Packet).unwrap();
+            data.packets.insert(packet, Packet { sink: entity }).unwrap();
             graph::Route::start(
                 packet,
                 coord,
@@ -133,6 +135,27 @@ impl<'a> System<'a> for Pull {
                 &mut data.motions,
                 &mut data.routes,
             ).unwrap();
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Receive;
+
+impl<'a> System<'a> for Receive {
+    type SystemData = (
+        Entities<'a>,
+        ReadStorage<'a, graph::RouteDone>,
+        ReadStorage<'a, Packet>,
+        WriteStorage<'a, Sink>,
+    );
+
+    fn run(&mut self, (entities, route_done, packets, mut sinks): Self::SystemData) {
+        for (entity, _, packet) in (&*entities, &route_done, &packets).join() {
+            let sink = try_get_mut(&mut sinks, packet.sink).unwrap();
+            sink.in_transit -= 1;
+            sink.has += 1;
+            entities.delete(entity).unwrap();
         }
     }
 }

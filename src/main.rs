@@ -54,10 +54,12 @@ impl Main {
         const TRAVEL: &str = "travel";
         const TRAVERSE: &str = "traverse";
         const PULL: &str = "pull";
+        const RECEIVE: &str = "receive";
         let update = DispatcherBuilder::new()
             .with(geom::Travel, TRAVEL, &[])
             .with(graph::Traverse, TRAVERSE, &[TRAVEL])
             .with(resource::Pull, PULL, &[])
+            .with(resource::Receive, RECEIVE, &[PULL])
             .build();
 
         let center_ent = graph::make_node(&mut world, Coordinate { x: 0, y: 0 });
