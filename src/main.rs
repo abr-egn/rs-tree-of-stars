@@ -44,6 +44,7 @@ impl Main {
 
         world.register::<resource::Source>();
         world.register::<resource::Sink>();
+        world.register::<resource::Packet>();
 
         draw::build_sprites(&mut world, ctx)?;
 
@@ -68,7 +69,7 @@ impl Main {
         graph::make_link(&mut world, top_ent, side_ent)?;
 
         let packet = world.create_entity()
-            .with(geom::Motion::new(Coordinate { x: 0, y: 0 }, Coordinate { x: 8, y: 10 }, 1.0))
+            .with(resource::Packet)
             .build();
         graph::Route::start(
             packet,

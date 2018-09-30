@@ -51,6 +51,13 @@ impl Sink {
 }
 
 #[derive(Debug)]
+pub struct Packet;
+
+impl Component for Packet {
+    type Storage = BTreeStorage<Self>;
+}
+
+#[derive(Debug)]
 pub struct Pull;
 
 impl<'a> System<'a> for Pull {

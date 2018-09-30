@@ -135,11 +135,12 @@ impl<'a, 'b> System<'a> for DrawPackets<'b> {
         Entities<'a>,
         ReadStorage<'a, geom::Motion>,
         ReadStorage<'a, geom::MotionDone>,
+        ReadStorage<'a, resource::Packet>,
     );
 
-    fn run(&mut self, (packet_sprite, entities, motions, arrived): Self::SystemData) {
+    fn run(&mut self, (packet_sprite, entities, motions, arrived, packets): Self::SystemData) {
         let ctx = &mut self.0;
-        for (entity, motion) in (&*entities, &motions).join() {
+        for (entity, motion, _) in (&*entities, &motions, &packets).join() {
             let arrived = arrived.get(entity).is_some();
             let pos = motion.from + (motion.to - motion.from)*motion.at;
             graphics::set_color(ctx,
