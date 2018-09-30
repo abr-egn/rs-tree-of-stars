@@ -131,10 +131,10 @@ impl Route {
         start: Coordinate,
         route_nodes: &[Entity],
         speed: f32,
-        links: ReadStorage<Link>,
-        nodes: ReadStorage<Node>,
-        mut motions: WriteStorage<Motion>,
-        mut routes: WriteStorage<Route>)
+        links: &ReadStorage<Link>,
+        nodes: &ReadStorage<Node>,
+        motions: &mut WriteStorage<Motion>,
+        routes: &mut WriteStorage<Route>)
         -> GameResult<()> {
         let (first_coord, _) = path_ix(route_nodes[0], route_nodes[1], 0, &links, &nodes)?;
         let route = Route::new(route_nodes, speed);

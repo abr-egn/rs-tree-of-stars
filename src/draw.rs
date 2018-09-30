@@ -16,6 +16,7 @@ use specs::{
 use geom;
 use graph;
 use resource;
+use util;
 
 struct CellMesh(Mesh);
 
@@ -97,10 +98,7 @@ struct DrawSources<'a>(&'a mut Context);
 const SOURCE_RADIUS: f32 = 30.0;
 const SOURCE_ORBIT_SPEED: f32 = 1.0;
 
-fn now_f32(ctx: &Context) -> f32 {
-    let dt = get_time_since_start(ctx);
-    (dt.as_secs() as f32) + ((dt.subsec_micros() as f32) * 1e-6)
-}
+fn now_f32(ctx: &Context) -> f32 { util::duration_f32(get_time_since_start(ctx)) }
 
 impl<'a, 'b> System<'a> for DrawSources<'b> {
     type SystemData = (

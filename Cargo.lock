@@ -1328,6 +1328,8 @@ version = "0.1.0"
 dependencies = [
  "ggez 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex2d 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "shred 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "shred-derive 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "specs 0.12.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 

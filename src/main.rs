@@ -1,5 +1,8 @@
 extern crate ggez;
 extern crate hex2d;
+extern crate shred;
+#[macro_use]
+extern crate shred_derive;
 extern crate specs;
 
 mod draw;
@@ -50,9 +53,11 @@ impl Main {
 
         const TRAVEL: &str = "travel";
         const TRAVERSE: &str = "traverse";
+        const PULL: &str = "pull";
         let update = DispatcherBuilder::new()
             .with(geom::Travel, TRAVEL, &[])
             .with(graph::Traverse, TRAVERSE, &[TRAVEL])
+            .with(resource::Pull, PULL, &[])
             .build();
 
         let center_ent = graph::make_node(&mut world, Coordinate { x: 0, y: 0 });
@@ -68,6 +73,7 @@ impl Main {
         graph::make_link(&mut world, center_ent, side_ent)?;
         graph::make_link(&mut world, top_ent, side_ent)?;
 
+        /*
         let packet = world.create_entity()
             .with(resource::Packet)
             .build();
@@ -81,6 +87,7 @@ impl Main {
             world.write_storage::<geom::Motion>(),
             world.write_storage::<graph::Route>(),
         )?;
+        */
 
         Ok(Main{ world, update })
     }
