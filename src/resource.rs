@@ -9,6 +9,7 @@ use specs::{
 
 use geom;
 use graph;
+use util::*;
 
 // Epiphany: `Source` and `Sink` are *just* the input/output buffers.
 // Sinks pull from available Sources until (has + incoming) >= need.
@@ -17,7 +18,7 @@ use graph;
 
 #[derive(Debug)]
 pub struct Source {
-    pub count: usize,
+    pub has: usize,
 }
 
 impl Component for Source {
@@ -25,7 +26,7 @@ impl Component for Source {
 }
 
 impl Source {
-    pub fn new() -> Self { Source { count: 0 } }
+    pub fn new() -> Self { Source { has: 0 } }
 }
 
 #[derive(Debug)]
@@ -65,9 +66,17 @@ impl<'a> System<'a> for Pull {
     fn run(&mut self, (links, nodes, mut motions, mut routes, mut sources, mut sinks): Self::SystemData) {
         for sink in sinks.join() {
             if sink.count + sink.in_transit >= sink.want { continue }
-            for (source, route) in &sink.sources {
-                
+            let mut candidates: Vec<(usize, Entity)> = vec![];
+            for (source_ent, route) in &sink.sources {
+                let source = try_get_mut(&mut sources, *source_ent).unwrap();
+                if source.has == 0 { continue }
+                match graph::route_len(route, &links, &nodes).unwrap() {
+                    None => continue,  // TODO: flag?
+                    Some(s) => candidates.push((s, *source_ent)),
+                }
             }
+            candidates.sort_unstable();
+            // TODO: start packet from closest candidate, decrement source.has, increment sink.in_transit
         }
     }
 }

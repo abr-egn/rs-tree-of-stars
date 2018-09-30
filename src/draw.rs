@@ -115,10 +115,10 @@ impl<'a, 'b> System<'a> for DrawSources<'b> {
         for (center, source) in (&centers, &sources).join() {
             let (x, y) = center.0.to_pixel(super::SPACING);
             let center_pt = Point2::new(x, y);
-            if source.count == 0 { continue }
-            let inc = (2.0*PI) / (source.count as f32);
+            if source.has == 0 { continue }
+            let inc = (2.0*PI) / (source.has as f32);
             graphics::set_color(ctx, Color::new(0.0, 1.0, 0.0, 1.0)).unwrap();
-            for ix in 0..source.count {
+            for ix in 0..source.has {
                 let angle = (ix as f32) * inc + orbit;
                 let v = Vector2::new(angle.cos(), angle.sin()) * SOURCE_RADIUS;
                 graphics::draw(ctx, &*packet_sprite, center_pt + v, 0.0).unwrap();

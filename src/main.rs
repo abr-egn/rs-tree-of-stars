@@ -56,7 +56,7 @@ impl Main {
 
         let center_ent = graph::make_node(&mut world, Coordinate { x: 0, y: 0 });
         let mut source = resource::Source::new();
-        source.count = 5;
+        source.has = 5;
         world.write_storage::<resource::Source>().insert(center_ent, source)
             .map_err(dbg)?;
         let side_ent = graph::make_node(&mut world, Coordinate { x: 12, y: -2 });

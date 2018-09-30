@@ -91,13 +91,31 @@ fn path_ix(
     )))
 }
 
-/*
 fn path_len(
     from_ent: Entity, to_ent: Entity,
     links: &ReadStorage<Link>, nodes: &ReadStorage<Node>)
     -> GameResult<Option<usize>> {
+    let link = match try_get_link(from_ent, to_ent, links, nodes)? {
+        None => return Ok(None),
+        Some((link, _)) => link,
+    };
+    Ok(Some(link.path.len()))
 }
-*/
+
+pub fn route_len(
+    route: &[Entity],
+    links: &ReadStorage<Link>, nodes: &ReadStorage<Node>)
+    -> GameResult<Option<usize>> {
+    let mut total: usize = 0;
+    for ix in 0..route.len()-1 {
+        match path_len(route[ix], route[ix+1], links, nodes)? {
+            None => return Ok(None),
+            Some(s) => total += s,
+        }
+    }
+
+    Ok(Some(total))
+}
 
 #[derive(Debug)]
 pub struct Route {
