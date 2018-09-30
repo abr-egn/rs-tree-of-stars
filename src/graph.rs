@@ -76,45 +76,40 @@ enum PathCoord {
 fn path_ix(
     from_ent: Entity, to_ent: Entity, ix: usize,
     links: &ReadStorage<Link>, nodes: &ReadStorage<Node>)
-    -> GameResult<Option<(Coordinate, PathCoord)>> {
+    -> GameResult<(Coordinate, PathCoord)> {
     let (link, coord_ix) = match try_get_link(from_ent, to_ent, links, nodes)? {
-        None => return Ok(None),
+        None => return Err(GameError::UnknownError("invalid path".into())),
         Some((link, PathDir::Fwd)) => (link, ix),
         Some((link, PathDir::Rev)) => (link, link.path.len() - 1 - ix),
     };
     if ix >= link.path.len() {
         return Err(GameError::UnknownError("path ix past the end".into()))
     }
-    Ok(Some((
+    Ok((
         link.path[coord_ix], 
         if ix == link.path.len()-1 { PathCoord::End } else { PathCoord::More }
-    )))
+    ))
 }
 
 fn path_len(
     from_ent: Entity, to_ent: Entity,
     links: &ReadStorage<Link>, nodes: &ReadStorage<Node>)
-    -> GameResult<Option<usize>> {
-    let link = match try_get_link(from_ent, to_ent, links, nodes)? {
-        None => return Ok(None),
-        Some((link, _)) => link,
-    };
-    Ok(Some(link.path.len()))
+    -> GameResult<usize> {
+    let (link, _) = try_get_link(from_ent, to_ent, links, nodes)?
+        .ok_or(GameError::UnknownError("invalid path".into()))?;
+    Ok(link.path.len())
 }
 
 pub fn route_len(
     route: &[Entity],
     links: &ReadStorage<Link>, nodes: &ReadStorage<Node>)
-    -> GameResult<Option<usize>> {
+    -> GameResult<usize> {
     let mut total: usize = 0;
     for ix in 0..route.len()-1 {
-        match path_len(route[ix], route[ix+1], links, nodes)? {
-            None => return Ok(None),
-            Some(s) => total += s,
-        }
+        total += path_len(route[ix], route[ix+1], links, nodes)?;
     }
 
-    Ok(Some(total))
+    Ok(total)
 }
 
 #[derive(Debug)]
@@ -141,8 +136,7 @@ impl Route {
         mut motions: WriteStorage<Motion>,
         mut routes: WriteStorage<Route>)
         -> GameResult<()> {
-        let (first_coord, _) = path_ix(route_nodes[0], route_nodes[1], 0, &links, &nodes)?
-            .ok_or(GameError::UnknownError("invalid route".into()))?;
+        let (first_coord, _) = path_ix(route_nodes[0], route_nodes[1], 0, &links, &nodes)?;
         let route = Route::new(route_nodes, speed);
         motions.insert(entity, Motion::new(start, first_coord, route.speed)).map_err(dbg)?;
         routes.insert(entity, route).map_err(dbg)?;
@@ -179,15 +173,10 @@ impl<'a> System<'a> for Traverse {
         let mut more_motion = Vec::new();
         let mut no_more_route = Vec::new();
         for (entity, motion, route, _, ()) in (&*entities, &mut motions, &mut routes, &motions_done, !&routes_done).join() {
-            let (from_coord, more) = match path_ix(
+            let (from_coord, more) = path_ix(
                 route.nodes[route.node_ix], route.nodes[route.node_ix+1], route.coord_ix,
-                &links, &nodes).unwrap() {
-                Some(p) => p,
-                None => {
-                    // TODO: flag?
-                    continue;
-                },
-            };
+                &links, &nodes)
+                .unwrap();
             match more {
                 PathCoord::More => {
                     route.coord_ix += 1;
@@ -201,15 +190,10 @@ impl<'a> System<'a> for Traverse {
                     }
                 },
             }
-            let to_coord = match path_ix(
+            let (to_coord, _) = path_ix(
                 route.nodes[route.node_ix], route.nodes[route.node_ix+1], route.coord_ix,
-                &links, &nodes).unwrap() {
-                Some((c, _)) => c,
-                None => {
-                    // TODO: flag?
-                    continue;
-                }
-            };
+                &links, &nodes)
+                .unwrap();
             more_motion.push(entity);  // arrival flag clear
             let rem = motion.at - 1.0;
             *motion = Motion::new(from_coord, to_coord, route.speed);

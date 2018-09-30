@@ -70,10 +70,9 @@ impl<'a> System<'a> for Pull {
             for (source_ent, route) in &sink.sources {
                 let source = try_get_mut(&mut sources, *source_ent).unwrap();
                 if source.has == 0 { continue }
-                match graph::route_len(route, &links, &nodes).unwrap() {
-                    None => continue,  // TODO: flag?
-                    Some(s) => candidates.push((s, *source_ent)),
-                }
+                candidates.push((
+                    graph::route_len(route, &links, &nodes).unwrap(),
+                    *source_ent));
             }
             candidates.sort_unstable();
             // TODO: start packet from closest candidate, decrement source.has, increment sink.in_transit
