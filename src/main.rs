@@ -1,5 +1,6 @@
 extern crate ggez;
 extern crate hex2d;
+extern crate petgraph;
 extern crate shred;
 #[macro_use]
 extern crate shred_derive;
@@ -41,13 +42,14 @@ impl Main {
         world.register::<geom::MotionDone>();
 
         world.register::<graph::Link>();
-        world.register::<graph::Node>();
         world.register::<graph::Route>();
         world.register::<graph::RouteDone>();
 
         world.register::<resource::Source>();
         world.register::<resource::Sink>();
         world.register::<resource::Packet>();
+
+        world.add_resource(graph::Graph::new());
 
         draw::build_sprites(&mut world, ctx)?;
 

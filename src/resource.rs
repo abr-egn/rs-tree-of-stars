@@ -76,9 +76,9 @@ pub struct Pull;
 #[derive(SystemData)]
 pub struct PullData<'a> {
     entities: Entities<'a>,
+    graph: ReadExpect<'a, graph::Graph>,
     centers: ReadStorage<'a, geom::Center>,
     links: ReadStorage<'a, graph::Link>,
-    nodes: ReadStorage<'a, graph::Node>,
     motions: WriteStorage<'a, geom::Motion>,
     routes: WriteStorage<'a, graph::Route>,
     sources: WriteStorage<'a, Source>,
@@ -98,7 +98,7 @@ impl<'a> System<'a> for Pull {
                 let source = try_get_mut(&mut data.sources, *source_ent).unwrap();
                 if source.has == 0 { continue }
                 let mut route_time = f32_duration(
-                    PACKET_SPEED * (graph::route_len(&conn.route, &data.links, &data.nodes).unwrap() as f32));
+                    PACKET_SPEED * (graph::route_len(&conn.route, &data.graph, &data.links).unwrap() as f32));
                 let mut on_cd = false;
                 let since_pull = now - conn.last_pull;
                 if since_pull < PULL_COOLDOWN {
@@ -130,8 +130,8 @@ impl<'a> System<'a> for Pull {
                 coord,
                 &conn.route,
                 PACKET_SPEED,
+                &data.graph,
                 &data.links,
-                &data.nodes,
                 &mut data.motions,
                 &mut data.routes,
             ).unwrap();
