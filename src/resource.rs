@@ -125,7 +125,7 @@ impl<'a> System<'a> for Pull {
 
             let packet = data.entities.create();
             data.packets.insert(packet, Packet { sink: entity }).unwrap();
-            graph::Route::start(
+            graph::Traverse::start(
                 packet,
                 coord,
                 &conn.route,

@@ -125,7 +125,23 @@ impl Route {
         let nodes = nodes.into();
         Route { nodes, speed, node_ix: 0, coord_ix: 0 }
     }
+}
 
+impl Component for Route {
+    type Storage = BTreeStorage<Self>;
+}
+
+#[derive(Debug, Default)]
+pub struct RouteDone;
+
+impl Component for RouteDone {
+    type Storage = NullStorage<Self>;
+}
+
+#[derive(Debug)]
+pub struct Traverse;
+
+impl Traverse {
     pub fn start(
         entity: Entity,
         start: Coordinate,
@@ -144,38 +160,29 @@ impl Route {
     }
 }
 
-impl Component for Route {
-    type Storage = BTreeStorage<Self>;
+#[derive(SystemData)]
+pub struct TraverseData<'a> {
+    entities: Entities<'a>,
+    links: ReadStorage<'a, Link>,
+    nodes: ReadStorage<'a, Node>,
+    motions: WriteStorage<'a, Motion>,
+    motion_done: WriteStorage<'a, MotionDone>,
+    routes: WriteStorage<'a, Route>,
+    route_done: WriteStorage<'a, RouteDone>,
 }
-
-#[derive(Debug, Default)]
-pub struct RouteDone;
-
-impl Component for RouteDone {
-    type Storage = NullStorage<Self>;
-}
-
-#[derive(Debug)]
-pub struct Traverse;
 
 impl<'a> System<'a> for Traverse {
-    type SystemData = (
-        Entities<'a>,
-        ReadStorage<'a, Link>,
-        ReadStorage<'a, Node>,
-        WriteStorage<'a, Motion>,
-        WriteStorage<'a, MotionDone>,
-        WriteStorage<'a, Route>,
-        WriteStorage<'a, RouteDone>,
-    );
+    type SystemData = TraverseData<'a>;
 
-    fn run(&mut self, (entities, links, nodes, mut motions, mut motions_done, mut routes, mut routes_done): Self::SystemData) {
+    fn run(&mut self, mut data: Self::SystemData) {
         let mut more_motion = Vec::new();
         let mut no_more_route = Vec::new();
-        for (entity, motion, route, _, ()) in (&*entities, &mut motions, &mut routes, &motions_done, !&routes_done).join() {
+        for (entity, motion, route, _, ()) in (
+            &*data.entities, &mut data.motions, &mut data.routes,
+            &data.motion_done, !&data.route_done).join() {
             let (from_coord, more) = path_ix(
                 route.nodes[route.node_ix], route.nodes[route.node_ix+1], route.coord_ix,
-                &links, &nodes)
+                &data.links, &data.nodes)
                 .unwrap();
             match more {
                 PathCoord::More => {
@@ -192,7 +199,7 @@ impl<'a> System<'a> for Traverse {
             }
             let (to_coord, _) = path_ix(
                 route.nodes[route.node_ix], route.nodes[route.node_ix+1], route.coord_ix,
-                &links, &nodes)
+                &data.links, &data.nodes)
                 .unwrap();
             more_motion.push(entity);  // arrival flag clear
             let rem = motion.at - 1.0;
@@ -200,10 +207,10 @@ impl<'a> System<'a> for Traverse {
             motion.at = rem;
         }
         for entity in more_motion {
-            motions_done.remove(entity);
+            data.motion_done.remove(entity);
         }
         for entity in no_more_route {
-            routes_done.insert(entity, RouteDone).unwrap();
+            data.route_done.insert(entity, RouteDone).unwrap();
         }
     }
 }
