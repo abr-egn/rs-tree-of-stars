@@ -67,7 +67,7 @@ fn try_get_link<'a>(
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 enum PathCoord {
     More,
     End,
@@ -118,12 +118,19 @@ pub struct Route {
     speed: f32,
     node_ix: usize,
     coord_ix: usize,
+    phase: RoutePhase,
+}
+
+#[derive(Debug, Copy, Clone)]
+enum RoutePhase {
+    ToLink(Coordinate, PathCoord),
+    ToNode(Coordinate),
 }
 
 impl Route {
-    fn new(nodes: &[Entity], speed: f32) -> Self {
+    fn new(nodes: &[Entity], speed: f32, phase: RoutePhase) -> Self {
         let nodes = nodes.into();
-        Route { nodes, speed, node_ix: 0, coord_ix: 0 }
+        Route { nodes, speed, node_ix: 0, coord_ix: 0, phase }
     }
 }
 
@@ -152,8 +159,8 @@ impl Traverse {
         motions: &mut WriteStorage<Motion>,
         routes: &mut WriteStorage<Route>)
         -> GameResult<()> {
-        let (first_coord, _) = path_ix(route_nodes[0], route_nodes[1], 0, &links, &nodes)?;
-        let route = Route::new(route_nodes, speed);
+        let (first_coord, p) = path_ix(route_nodes[0], route_nodes[1], 0, &links, &nodes)?;
+        let route = Route::new(route_nodes, speed, RoutePhase::ToLink(first_coord, p));
         motions.insert(entity, Motion::new(start, first_coord, route.speed)).map_err(dbg)?;
         routes.insert(entity, route).map_err(dbg)?;
         Ok(())
@@ -165,6 +172,7 @@ pub struct TraverseData<'a> {
     entities: Entities<'a>,
     links: ReadStorage<'a, Link>,
     nodes: ReadStorage<'a, Node>,
+    centers: ReadStorage<'a, Center>,
     motions: WriteStorage<'a, Motion>,
     motion_done: WriteStorage<'a, MotionDone>,
     routes: WriteStorage<'a, Route>,
@@ -180,27 +188,43 @@ impl<'a> System<'a> for Traverse {
         for (entity, motion, route, _, ()) in (
             &*data.entities, &mut data.motions, &mut data.routes,
             &data.motion_done, !&data.route_done).join() {
-            let (from_coord, more) = path_ix(
-                route.nodes[route.node_ix], route.nodes[route.node_ix+1], route.coord_ix,
-                &data.links, &data.nodes)
-                .unwrap();
-            match more {
-                PathCoord::More => {
-                    route.coord_ix += 1;
+            /* Given the phase of motion that has finished,
+                where is it now, and what's the next phase? */
+            let (from_coord, link_next) = match route.phase {
+                RoutePhase::ToLink(c, m) => {
+                    let l = match m {
+                        PathCoord::More => {
+                            route.coord_ix += 1;
+                            true
+                        },
+                        PathCoord::End => false,
+                    };
+                    (c, l)
                 },
-                PathCoord::End => {
+                RoutePhase::ToNode(c) => {
                     route.coord_ix = 0;
                     route.node_ix += 1;
                     if route.node_ix >= route.nodes.len()-1 {
                         no_more_route.push(entity);
-                        continue;
+                        continue
                     }
+                    (c, true)
                 },
-            }
-            let (to_coord, _) = path_ix(
-                route.nodes[route.node_ix], route.nodes[route.node_ix+1], route.coord_ix,
-                &data.links, &data.nodes)
-                .unwrap();
+            };
+            /* And given the new phase, where is it going? */
+            let to_coord = if link_next {
+                let (coord, more) = path_ix(
+                    route.nodes[route.node_ix], route.nodes[route.node_ix+1],
+                    route.coord_ix,
+                    &data.links, &data.nodes
+                ).unwrap();
+                route.phase = RoutePhase::ToLink(coord, more);
+                coord
+            } else {
+                let Center(coord) = try_get(&data.centers, route.nodes[route.node_ix+1]).unwrap();
+                route.phase = RoutePhase::ToNode(*coord);
+                *coord
+            };
             more_motion.push(entity);  // arrival flag clear
             let rem = motion.at - 1.0;
             *motion = Motion::new(from_coord, to_coord, route.speed);
