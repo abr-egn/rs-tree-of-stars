@@ -251,21 +251,22 @@ pub fn make_node(world: &mut World, center: Coordinate) -> Entity {
 
 pub fn make_link(world: &mut World, from: Entity, to: Entity) -> GameResult<Entity> {
     let mut path = vec![];
-    let mut link_excl;
+    let mut shape = vec![];
+    let mut shape_excl;
     {
         let centers = world.read_storage();
         let &Center(ref source_pos) = try_get(&centers, from)?;
         let &Center(ref sink_pos) = try_get(&centers, to)?;
-        link_excl = HashSet::<Coordinate>::new();
-        source_pos.for_each_in_range(NODE_RADIUS, |c| { link_excl.insert(c); });
-        sink_pos.for_each_in_range(NODE_RADIUS, |c| { link_excl.insert(c); });
+        shape_excl = HashSet::<Coordinate>::new();
+        source_pos.for_each_in_range(NODE_RADIUS, |c| { shape_excl.insert(c); });
+        sink_pos.for_each_in_range(NODE_RADIUS, |c| { shape_excl.insert(c); });
         source_pos.for_each_in_line_to(*sink_pos, |c| {
-            if link_excl.contains(&c) { return };
-            path.push(c);
+            if !shape_excl.contains(&c) { shape.push(c); }
+            if c != *source_pos && c != *sink_pos { path.push(c); }
         });
     }
     let ent = world.create_entity()
-        .with(Shape(path.clone()))
+        .with(Shape(shape))
         .with(Link { from, to, path })
         .build();
     let mut nodes = world.write_storage::<Node>();
