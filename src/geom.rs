@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use ggez::{
     nalgebra,
     graphics::Point2,
@@ -15,65 +13,6 @@ pub struct Shape(pub Vec<Coordinate>);
 
 impl Component for Shape {
     type Storage = VecStorage<Self>;
-}
-
-#[derive(Debug, Copy, Clone)]
-pub struct Center(pub Coordinate);
-
-impl Component for Center {
-    type Storage = FlaggedStorage<Self, BTreeStorage<Self>>;
-}
-
-#[derive(Debug)]
-pub struct Map(HashMap<Coordinate, Entity>);
-
-impl Map {
-    pub fn new() -> Self { Map(HashMap::new()) }
-
-    fn get(&self, coord: &Coordinate, centers: &ReadStorage<Center>) -> Option<(Entity, Center)> {
-        let ent = if let Some(&e) = self.0.get(coord) { e } else { return None };
-        match centers.get(ent) {
-            None => None,  // TODO: flag for cleanup
-            Some(c) => Some((ent, *c))
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct MapUpdate {
-    inserted: ReaderId<InsertedFlag>,
-    modified: ReaderId<ModifiedFlag>,
-    removed: ReaderId<RemovedFlag>,
-}
-
-impl MapUpdate {
-    pub fn new(centers: &mut WriteStorage<Center>) -> Self {
-        MapUpdate {
-            inserted: centers.track_inserted(),
-            modified: centers.track_modified(),
-            removed: centers.track_removed(),
-        }
-    }
-}
-
-impl<'a> System<'a> for MapUpdate {
-    type SystemData = (
-        Entities<'a>,
-        WriteExpect<'a, Map>,
-        ReadStorage<'a, Center>,
-    );
-
-    fn run(&mut self, (entities, mut map, centers): Self::SystemData) {
-        let mut dirty = BitSet::new();
-        centers.populate_removed(&mut self.removed, &mut dirty);
-        // TODO: problem: when it's removed, the coordinate no longer exists to remove
-        // from the map.
-        /*
-        for (entity, _) in (&*entities, &dirty).join() {
-            map.0.remove(&entity);
-        }
-        */
-    }
 }
 
 #[derive(Debug)]

@@ -9,6 +9,7 @@ extern crate specs;
 mod draw;
 mod geom;
 mod graph;
+mod map;
 mod resource;
 mod util;
 
@@ -37,9 +38,10 @@ impl Main {
         let mut world = World::new();
 
         world.register::<geom::Shape>();
-        world.register::<geom::Center>();
         world.register::<geom::Motion>();
         world.register::<geom::MotionDone>();
+
+        world.register::<map::Location>();
 
         world.register::<graph::Link>();
         world.register::<graph::Route>();
@@ -49,7 +51,7 @@ impl Main {
         world.register::<resource::Sink>();
         world.register::<resource::Packet>();
 
-        world.add_resource(geom::Map::new());
+        world.add_resource(map::Map::new());
         world.add_resource(graph::Graph::new());
 
         draw::build_sprites(&mut world, ctx)?;
@@ -58,9 +60,7 @@ impl Main {
         const TRAVERSE: &str = "traverse";
         const PULL: &str = "pull";
         const RECEIVE: &str = "receive";
-        const MAP_UPDATE: &str = "map_update";
         let update = DispatcherBuilder::new()
-            .with(geom::MapUpdate::new(&mut world.write_storage()), MAP_UPDATE, &[])
             .with(geom::Travel, TRAVEL, &[])
             .with(graph::Traverse, TRAVERSE, &[TRAVEL])
             .with(resource::Pull, PULL, &[])

@@ -11,6 +11,7 @@ use specs::{
 
 use geom;
 use graph;
+use map;
 use util::*;
 
 // Epiphany: `Source` and `Sink` are *just* the input/output buffers.
@@ -77,7 +78,7 @@ pub struct Pull;
 pub struct PullData<'a> {
     entities: Entities<'a>,
     graph: ReadExpect<'a, graph::Graph>,
-    centers: ReadStorage<'a, geom::Center>,
+    locations: ReadStorage<'a, map::Location>,
     links: ReadStorage<'a, graph::Link>,
     motions: WriteStorage<'a, geom::Motion>,
     routes: WriteStorage<'a, graph::Route>,
@@ -117,7 +118,7 @@ impl<'a> System<'a> for Pull {
 
             let conn = sink.sources.get_mut(&source_ent).unwrap();
             let source = try_get_mut(&mut data.sources, source_ent).unwrap();
-            let coord = try_get(&data.centers, source_ent).unwrap().0;
+            let coord = try_get(&data.locations, source_ent).unwrap().coord();
 
             conn.last_pull = now;
             source.has -= 1;

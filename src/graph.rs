@@ -14,7 +14,8 @@ use specs::{
     Component,
 };
 
-use geom::*;
+use geom;
+use map;
 use util::*;
 
 pub struct Graph(GraphMap<Entity, Entity, petgraph::Undirected>);
@@ -152,12 +153,12 @@ impl Traverse {
         speed: f32,
         graph: &Graph,
         links: &ReadStorage<Link>,
-        motions: &mut WriteStorage<Motion>,
+        motions: &mut WriteStorage<geom::Motion>,
         routes: &mut WriteStorage<Route>,
     ) -> GameResult<()> {
         let (first_coord, p) = path_ix(route_nodes[0], route_nodes[1], 0, graph, links)?;
         let route = Route::new(route_nodes, speed, RoutePhase::ToLink(first_coord, p));
-        motions.insert(entity, Motion::new(start, first_coord, route.speed)).map_err(dbg)?;
+        motions.insert(entity, geom::Motion::new(start, first_coord, route.speed)).map_err(dbg)?;
         routes.insert(entity, route).map_err(dbg)?;
         Ok(())
     }
@@ -168,9 +169,9 @@ pub struct TraverseData<'a> {
     entities: Entities<'a>,
     graph: ReadExpect<'a, Graph>,
     links: ReadStorage<'a, Link>,
-    centers: ReadStorage<'a, Center>,
-    motions: WriteStorage<'a, Motion>,
-    motion_done: WriteStorage<'a, MotionDone>,
+    locations: ReadStorage<'a, map::Location>,
+    motions: WriteStorage<'a, geom::Motion>,
+    motion_done: WriteStorage<'a, geom::MotionDone>,
     routes: WriteStorage<'a, Route>,
     route_done: WriteStorage<'a, RouteDone>,
 }
@@ -217,13 +218,14 @@ impl<'a> System<'a> for Traverse {
                 route.phase = RoutePhase::ToLink(coord, more);
                 coord
             } else {
-                let Center(coord) = try_get(&data.centers, route.nodes[route.node_ix+1]).unwrap();
-                route.phase = RoutePhase::ToNode(*coord);
-                *coord
+                let coord = try_get(&data.locations, route.nodes[route.node_ix+1])
+                    .unwrap().coord();
+                route.phase = RoutePhase::ToNode(coord);
+                coord
             };
             more_motion.push(entity);  // arrival flag clear
             let rem = motion.at - 1.0;
-            *motion = Motion::new(from_coord, to_coord, route.speed);
+            *motion = geom::Motion::new(from_coord, to_coord, route.speed);
             motion.at = rem;
         }
         for entity in more_motion {
@@ -238,10 +240,12 @@ impl<'a> System<'a> for Traverse {
 const NODE_RADIUS: i32 = 1;
 
 pub fn make_node(world: &mut World, center: Coordinate) -> Entity {
-    world.create_entity()
-        .with(Center(center))
-        .with(Shape(center.ring(NODE_RADIUS, Spin::CW(Direction::XY))))
-        .build()
+    let ent = world.create_entity()
+        .with(geom::Shape(center.ring(NODE_RADIUS, Spin::CW(Direction::XY))))
+        .build();
+    world.write_resource::<map::Map>()
+        .set(&mut world.write_storage(), center, ent);
+    ent
 }
 
 pub fn make_link(world: &mut World, from: Entity, to: Entity) -> GameResult<Entity> {
@@ -249,19 +253,19 @@ pub fn make_link(world: &mut World, from: Entity, to: Entity) -> GameResult<Enti
     let mut shape = vec![];
     let mut shape_excl;
     {
-        let centers = world.read_storage();
-        let &Center(ref source_pos) = try_get(&centers, from)?;
-        let &Center(ref sink_pos) = try_get(&centers, to)?;
+        let locations = world.read_storage::<map::Location>();
+        let source_pos = try_get(&locations, from)?.coord();
+        let sink_pos = try_get(&locations, to)?.coord();
         shape_excl = HashSet::<Coordinate>::new();
         source_pos.for_each_in_range(NODE_RADIUS, |c| { shape_excl.insert(c); });
         sink_pos.for_each_in_range(NODE_RADIUS, |c| { shape_excl.insert(c); });
-        source_pos.for_each_in_line_to(*sink_pos, |c| {
+        source_pos.for_each_in_line_to(sink_pos, |c| {
             if !shape_excl.contains(&c) { shape.push(c); }
-            if c != *source_pos && c != *sink_pos { path.push(c); }
+            if c != source_pos && c != sink_pos { path.push(c); }
         });
     }
     let ent = world.create_entity()
-        .with(Shape(shape))
+        .with(geom::Shape(shape))
         .with(Link { from, to, path })
         .build();
     let mut graph = world.write_resource::<Graph>();
