@@ -42,4 +42,13 @@ impl Map {
         self.0.remove(&coord)
             .map(|e| { locs.remove(e); e })
     }
+    pub fn in_range(&self, center: Coordinate, radius: i32) -> Vec<Entity> {
+        let mut out = vec![];
+        center.for_each_in_range(radius, |c| {
+            if let Some(&e) = self.0.get(&c) {
+                out.push(e);
+            }
+        });
+        out
+    }
 }

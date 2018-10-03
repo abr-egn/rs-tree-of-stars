@@ -1,9 +1,9 @@
 use std::{
+    cmp::Ordering,
     collections::HashMap,
     time::{Duration, Instant},
 };
 
-use ggez::GameResult;
 use specs::{
     prelude::*,
     storage::BTreeStorage,
@@ -33,17 +33,12 @@ impl Source {
 }
 
 #[derive(Debug)]
-struct Connection {
-    route: Vec<Entity /* Node */>,
-    last_pull: Instant,
-}
-
-#[derive(Debug)]
 pub struct Sink {
     pub want: usize,
+    pub range: i32,
     pub has: usize,
     pub in_transit: usize,
-    sources: HashMap<Entity /* Source */, Connection>,
+    last_pull: HashMap<Entity /* Source */, Instant>,
 }
 
 impl Component for Sink {
@@ -51,10 +46,10 @@ impl Component for Sink {
 }
 
 impl Sink {
-    pub fn new(want: usize) -> Self {
+    pub fn new(want: usize, range: i32) -> Self {
         Sink {
-            want, has: 0, in_transit: 0,
-            sources: HashMap::new(),
+            want, range, has: 0, in_transit: 0,
+            last_pull: HashMap::new(),
         }
     }
 }
@@ -78,6 +73,7 @@ pub struct Pull;
 pub struct PullData<'a> {
     entities: Entities<'a>,
     graph: ReadExpect<'a, graph::Graph>,
+    map: ReadExpect<'a, map::Map>,
     locations: ReadStorage<'a, map::Location>,
     links: ReadStorage<'a, graph::Link>,
     motions: WriteStorage<'a, geom::Motion>,
@@ -87,40 +83,64 @@ pub struct PullData<'a> {
     packets: WriteStorage<'a, Packet>,
 }
 
+#[derive(PartialEq, Eq)]
+struct Candidate {
+    source: Entity,
+    route: Vec<Entity>,
+    route_time: Duration,
+    on_cooldown: bool,
+}
+
+impl Ord for Candidate {
+    fn cmp(&self, other: &Candidate) -> Ordering { self.route_time.cmp(&other.route_time) }
+}
+
+impl PartialOrd for Candidate {
+    fn partial_cmp(&self, other: &Candidate) -> Option<Ordering> { Some(self.cmp(other)) }
+}
+
 impl<'a> System<'a> for Pull {
     type SystemData = PullData<'a>;
 
     fn run(&mut self, mut data: Self::SystemData) {
-        for (entity, sink) in (&*data.entities, &mut data.sinks).join() {
+        for (entity, loc, sink) in (&*data.entities, &data.locations, &mut data.sinks).join() {
             if sink.has + sink.in_transit >= sink.want { continue }
-            let mut candidates: Vec<(Duration, Entity, bool)> = vec![];
+
+            let mut candidates: Vec<Candidate> = vec![];
             let now = Instant::now();
-            for (source_ent, conn) in &sink.sources {
-                let source = try_get_mut(&mut data.sources, *source_ent).unwrap();
+            for source_ent in data.map.in_range(loc.coord(), sink.range) {
+                let source = if let Some(s) = data.sources.get_mut(source_ent) { s } else { continue };
                 if source.has == 0 { continue }
-                let mut route_time = f32_duration(
-                    PACKET_SPEED * (graph::route_len(&conn.route, &data.graph, &data.links).unwrap() as f32));
-                let mut on_cd = false;
-                let since_pull = now - conn.last_pull;
-                if since_pull < PULL_COOLDOWN {
-                    route_time += PULL_COOLDOWN - since_pull;
-                    on_cd = true;
-                }
-                candidates.push((route_time, *source_ent, on_cd));
+                let (len, route) = if let Some(p) = data.graph.route(
+                    &data.links, &data.locations, source_ent, entity,
+                ) { p } else { continue };
+                let mut route_time = f32_duration(PACKET_SPEED * (len as f32));
+                let mut on_cooldown = false;
+                match sink.last_pull.get(&source_ent) {
+                    None => (),
+                    Some(&last_pull) => {
+                        let since_pull = now - last_pull;
+                        if since_pull < PULL_COOLDOWN {
+                            route_time += PULL_COOLDOWN - since_pull;
+                            on_cooldown = true;
+                        }
+                    }
+                };
+                candidates.push(Candidate { source: source_ent, route, route_time, on_cooldown });
             }
+
             if candidates.is_empty() {
-                // TODO: flag
+                // TODO: flag for "blocked" display
                 continue
             }
             candidates.sort_unstable();
-            let (_, source_ent, on_cd) = candidates[0];
-            if on_cd { continue }
+            let candidate = &candidates[0];
+            if candidate.on_cooldown { continue }
 
-            let conn = sink.sources.get_mut(&source_ent).unwrap();
-            let source = try_get_mut(&mut data.sources, source_ent).unwrap();
-            let coord = try_get(&data.locations, source_ent).unwrap().coord();
+            let source = try_get_mut(&mut data.sources, candidate.source).unwrap();
+            let coord = try_get(&data.locations, candidate.source).unwrap().coord();
 
-            conn.last_pull = now;
+            sink.last_pull.insert(candidate.source, now);
             source.has -= 1;
             sink.in_transit += 1;
 
@@ -129,7 +149,7 @@ impl<'a> System<'a> for Pull {
             graph::Traverse::start(
                 packet,
                 coord,
-                &conn.route,
+                &candidate.route,
                 PACKET_SPEED,
                 &data.graph,
                 &data.links,
@@ -159,22 +179,4 @@ impl<'a> System<'a> for Receive {
             entities.delete(entity).unwrap();
         }
     }
-}
-
-pub fn connect(
-    source_ent: Entity,
-    sink_ent: Entity,
-    route: &[Entity],
-    sinks: &mut WriteStorage<Sink>,
-) -> GameResult<()> {
-    let sink = try_get_mut(sinks, sink_ent)?;
-    sink.sources.insert(
-        source_ent,
-        Connection {
-            route: route.into(),
-            last_pull: Instant::now(),  // TODO: this is wrong.  No InfinitePast?
-        }
-    );
-
-    Ok(())
 }

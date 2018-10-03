@@ -1,5 +1,6 @@
-use std::collections::{
-    HashSet,
+use std::{
+    cmp::max,
+    collections::HashSet,
 };
 
 use ggez::{GameResult, GameError};
@@ -22,6 +23,23 @@ pub struct Graph(GraphMap<Entity, Entity, petgraph::Undirected>);
 
 impl Graph {
     pub fn new() -> Self { Graph(GraphMap::new()) }
+    pub fn route(
+        &self, links: &ReadStorage<Link>, locs: &ReadStorage<map::Location>,
+        from: Entity, to: Entity) -> Option<(usize, Vec<Entity>)> {
+        let from_coord = try_get(locs, from).unwrap().coord();
+        petgraph::algo::astar(
+            /* graph= */ &self.0,
+            /* start= */ from,
+            /* is_goal= */ |ent| { ent == to },
+            /* edge_cost= */ |(_, _, &link_ent)| {
+                try_get(links, link_ent).unwrap().path.len()
+            },
+            /* estimate_cost= */ |ent| {
+                let ent_coord = try_get(locs, ent).unwrap().coord();
+                max(0, from_coord.distance(ent_coord) - 2) as usize
+            },
+        )
+    }
 }
 
 #[derive(Debug)]
@@ -84,29 +102,6 @@ fn path_ix(
         link.path[coord_ix], 
         if ix == link.path.len()-1 { PathCoord::End } else { PathCoord::More }
     ))
-}
-
-fn path_len(
-    from_ent: Entity, to_ent: Entity,
-    graph: &Graph,
-    links: &ReadStorage<Link>,
-) -> GameResult<usize> {
-    let (link, _) = try_get_link(from_ent, to_ent, graph, links)?
-        .ok_or(GameError::UnknownError("invalid path".into()))?;
-    Ok(link.path.len())
-}
-
-pub fn route_len(
-    route: &[Entity],
-    graph: &Graph,
-    links: &ReadStorage<Link>,
-) -> GameResult<usize> {
-    let mut total: usize = 0;
-    for ix in 0..route.len()-1 {
-        total += path_len(route[ix], route[ix+1], graph, links)?;
-    }
-
-    Ok(total)
 }
 
 #[derive(Debug)]
