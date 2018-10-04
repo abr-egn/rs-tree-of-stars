@@ -123,7 +123,6 @@ impl<'a> System<'a> for Pull {
                         let since_pull = now - last_pull;
                         if since_pull < PULL_COOLDOWN {
                             let cd = PULL_COOLDOWN - since_pull;
-                            println!("Cooldown: {:?}", cd);
                             route_time += cd;
                             on_cooldown = true;
                         }
@@ -143,11 +142,7 @@ impl<'a> System<'a> for Pull {
             let source = try_get_mut(&mut data.sources, candidate.source).unwrap();
             let coord = try_get(&data.locations, candidate.source).unwrap().coord();
 
-            println!("Pull at {:?}", now);
-            match sink.last_pull.insert(candidate.source, now) {
-                Some(prev) => println!("  delta {:?}", now - prev),
-                None => (),
-            };
+            sink.last_pull.insert(candidate.source, now);
             source.has -= 1;
             sink.in_transit += 1;
 
