@@ -14,6 +14,7 @@ use specs::{
 };
 
 use geom;
+use graph;
 use resource;
 use util;
 
@@ -125,17 +126,17 @@ struct DrawSources<'a>(&'a mut Context);
 impl<'a, 'b> System<'a> for DrawSources<'b> {
     type SystemData = (
         ReadExpect<'a, PacketSprite>,
-        ReadStorage<'a, geom::Location>,
+        ReadStorage<'a, graph::Node>,
         ReadStorage<'a, resource::Source>,
     );
 
-    fn run(&mut self, (packet_sprite, locations, sources): Self::SystemData) {
+    fn run(&mut self, (packet_sprite, nodes, sources): Self::SystemData) {
         let ctx = &mut self.0;
-        for (loc, source) in (&locations, &sources).join() {
+        for (node, source) in (&nodes, &sources).join() {
             draw_orbit(
                 ctx, &*packet_sprite, Color::new(0.0, 1.0, 0.0, 1.0),
                 /* radius= */ 30.0, /* speed= */ 1.0,
-                loc.coord(), source.has,
+                node.at(), source.has,
             ).unwrap();
         }
     }
@@ -146,17 +147,17 @@ struct DrawSinks<'a>(&'a mut Context);
 impl<'a, 'b> System<'a> for DrawSinks<'b> {
     type SystemData = (
         ReadExpect<'a, PacketSprite>,
-        ReadStorage<'a, geom::Location>,
+        ReadStorage<'a, graph::Node>,
         ReadStorage<'a, resource::Sink>,
     );
 
-    fn run(&mut self, (packet_sprite, locations, sinks): Self::SystemData) {
+    fn run(&mut self, (packet_sprite, nodes, sinks): Self::SystemData) {
         let ctx = &mut self.0;
-        for (loc, sink) in (&locations, &sinks).join() {
+        for (node, sink) in (&nodes, &sinks).join() {
             draw_orbit(
                 ctx, &*packet_sprite, Color::new(0.0, 0.0, 0.0, 1.0),
                 /* radius= */ 15.0, /* speed= */ -0.5,
-                loc.coord(), sink.has,
+                node.at(), sink.has,
             ).unwrap();
         }
     }

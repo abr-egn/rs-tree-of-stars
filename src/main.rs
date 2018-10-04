@@ -43,7 +43,7 @@ impl Main {
 
         world.register::<geom::Motion>();
         world.register::<geom::MotionDone>();
-        world.register::<geom::Location>();
+        world.register::<geom::Space>();
 
         world.register::<graph::Link>();
         world.register::<graph::Node>();
@@ -73,13 +73,13 @@ impl Main {
             .with(resource::Receive, RECEIVE, &[PULL])
             .build();
 
-        let center_ent = graph::make_node(&mut world, Coordinate { x: 0, y: 0 });
+        let center_ent = graph::make_node(&mut world, Coordinate { x: 0, y: 0 })?;
         let mut source = resource::Source::new();
         source.has = 10;
         world.write_storage::<resource::Source>().insert(center_ent, source)
             .map_err(dbg)?;
-        let side_ent = graph::make_node(&mut world, Coordinate { x: 12, y: -2 });
-        let top_ent = graph::make_node(&mut world, Coordinate { x: 8, y: 10 });
+        let side_ent = graph::make_node(&mut world, Coordinate { x: 12, y: -2 })?;
+        let top_ent = graph::make_node(&mut world, Coordinate { x: 8, y: 10 })?;
         world.write_storage::<resource::Sink>().insert(top_ent, resource::Sink::new(5, 20))
             .map_err(dbg)?;
         

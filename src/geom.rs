@@ -1,14 +1,17 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use ggez::{
     nalgebra,
     graphics::Point2,
+    GameResult, GameError,
 };
 use hex2d::Coordinate;
 use specs::{
     prelude::*,
     storage::BTreeStorage,
 };
+
+use util::*;
 
 #[derive(Debug)]
 pub struct Motion {
@@ -69,14 +72,16 @@ impl<'a> System<'a> for Travel {
 }
 
 #[derive(Debug)]
-pub struct Location(Coordinate);
+pub struct Space(HashSet<Coordinate>);
 
-impl Location {
-    pub fn new(coord: Coordinate) -> Self { Location(coord) }
-    pub fn coord(&self) -> Coordinate { self.0 }
+impl Space {
+    pub fn new<T>(coords: T) -> Self
+        where T: IntoIterator<Item=Coordinate>,
+    { Space(coords.into_iter().collect()) }
+    pub fn coords(&self) -> &HashSet<Coordinate> { &self.0 }
 }
 
-impl Component for Location {
+impl Component for Space {
     type Storage = BTreeStorage<Self>;
 }
 
@@ -87,22 +92,31 @@ impl Map {
     pub fn new() -> Self { Map(HashMap::new()) }
     #[allow(unused)]
     pub fn get(&self, coord: Coordinate) -> Option<&Entity> { self.0.get(&coord) }
+    pub fn is_occupied(&self, space: &Space) -> bool {
+        space.coords().iter().any(|c| self.0.get(c).is_some())
+    }
     pub fn set(
-        &mut self, locs: &mut WriteStorage<Location>,
-        coord: Coordinate, ent: Entity,
-    ) -> Option<Entity> {
-        let old = self.0.insert(coord, ent)
-            .map(|e| { locs.remove(e); e });
-        locs.insert(ent, Location::new(coord)).unwrap();
-        old
+        &mut self, locs: &mut WriteStorage<Space>,
+        ent: Entity, space: Space,
+    ) -> GameResult<()> {
+        if self.is_occupied(&space) {
+            return Err(GameError::UnknownError("occupied space".into()))
+        }
+        for &c in space.coords() { self.0.insert(c, ent); }
+        locs.insert(ent, space).unwrap();
+        Ok(())
     }
     #[allow(unused)]
     pub fn clear(
-        &mut self, locs: &mut WriteStorage<Location>,
-        coord: Coordinate,
-    ) -> Option<Entity> {
-        self.0.remove(&coord)
-            .map(|e| { locs.remove(e); e })
+        &mut self, locs: &mut WriteStorage<Space>,
+        ent: Entity,
+    ) -> GameResult<()> {
+        {
+            let space = try_get_mut(locs, ent)?;
+            for c in space.coords() { self.0.remove(c); }
+        }
+        locs.remove(ent);
+        Ok(())
     }
     pub fn in_range(&self, center: Coordinate, radius: i32) -> Vec<Entity> {
         let mut out = vec![];

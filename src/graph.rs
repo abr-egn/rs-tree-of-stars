@@ -247,7 +247,7 @@ impl<'a> System<'a> for Traverse {
 
 const NODE_RADIUS: i32 = 1;
 
-pub fn make_node(world: &mut World, center: Coordinate) -> Entity {
+pub fn make_node(world: &mut World, center: Coordinate) -> GameResult<Entity> {
     let ent = world.create_entity()
         .with(draw::Shape {
             coords: center.ring(NODE_RADIUS, Spin::CW(Direction::XY)),
@@ -255,9 +255,11 @@ pub fn make_node(world: &mut World, center: Coordinate) -> Entity {
         })
         .with(Node { at: center })
         .build();
-    world.write_resource::<geom::Map>()
-        .set(&mut world.write_storage(), center, ent);
-    ent
+    world.write_resource::<geom::Map>().set(
+        &mut world.write_storage(), ent,
+        geom::Space::new(center.range(NODE_RADIUS)),
+    )?;
+    Ok(ent)
 }
 
 pub fn make_link(world: &mut World, from: Entity, to: Entity) -> GameResult<Entity> {
@@ -278,11 +280,15 @@ pub fn make_link(world: &mut World, from: Entity, to: Entity) -> GameResult<Enti
     }
     let ent = world.create_entity()
         .with(draw::Shape {
-            coords: shape,
+            coords: shape.clone(),
             color: graphics::Color::new(0.0, 1.0, 0.0, 1.0),
         })
         .with(Link { from, to, path })
         .build();
+    world.write_resource::<geom::Map>().set(
+        &mut world.write_storage(), ent,
+        geom::Space::new(shape),
+    )?;
     let mut graph = world.write_resource::<Graph>();
     graph.0.add_edge(from, to, ent);
     Ok(ent)
