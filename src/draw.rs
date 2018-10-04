@@ -11,14 +11,22 @@ use ggez::{
 use hex2d::Coordinate;
 use specs::{
     prelude::*,
-    Entities,
 };
 
 use geom;
-use graph;
 use map;
 use resource;
 use util;
+
+#[derive(Debug)]
+pub struct Shape {
+    pub coords: Vec<Coordinate>,
+    pub color: Color,
+}
+
+impl Component for Shape {
+    type Storage = VecStorage<Self>;
+}
 
 struct CellMesh(Mesh);
 
@@ -75,20 +83,14 @@ struct DrawCells<'a>(&'a mut Context);
 impl<'a, 'b> System<'a> for DrawCells<'b> {
     type SystemData = (
         ReadExpect<'a, CellMesh>,
-        Entities<'a>,
-        ReadStorage<'a, geom::Shape>,
-        ReadStorage<'a, graph::Link>,
+        ReadStorage<'a, Shape>,
     );
 
-    fn run(&mut self, (cell_mesh, entities, shapes, links): Self::SystemData) {
+    fn run(&mut self, (cell_mesh, shapes): Self::SystemData) {
         let ctx = &mut self.0;
-        for (entity, &geom::Shape(ref coords)) in (&*entities, &shapes).join() {
-            graphics::set_color(ctx, if links.get(entity).is_some() {
-                Color::new(0.0, 1.0, 0.0, 1.0)
-            } else {
-                Color::new(1.0, 1.0, 1.0, 1.0)
-            }).unwrap();
-            for coord in coords {
+        for shape in shapes.join() {
+            graphics::set_color(ctx, shape.color).unwrap();
+            for coord in &shape.coords {
                 let (x, y) = coord.to_pixel(super::SPACING);
                 graphics::draw(ctx, &cell_mesh.0, Point2::new(x, y), 0.0).unwrap();
             }

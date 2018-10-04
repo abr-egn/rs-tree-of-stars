@@ -3,7 +3,7 @@ use std::{
     collections::HashSet,
 };
 
-use ggez::{GameResult, GameError};
+use ggez::{graphics, GameResult, GameError};
 use hex2d::{Coordinate, Direction, Spin};
 use petgraph::{
     self,
@@ -15,6 +15,7 @@ use specs::{
     Component,
 };
 
+use draw;
 use geom;
 use map;
 use util::*;
@@ -236,7 +237,10 @@ const NODE_RADIUS: i32 = 1;
 
 pub fn make_node(world: &mut World, center: Coordinate) -> Entity {
     let ent = world.create_entity()
-        .with(geom::Shape(center.ring(NODE_RADIUS, Spin::CW(Direction::XY))))
+        .with(draw::Shape {
+            coords: center.ring(NODE_RADIUS, Spin::CW(Direction::XY)),
+            color: graphics::Color::new(1.0, 1.0, 1.0, 1.0),
+        })
         .build();
     world.write_resource::<map::Map>()
         .set(&mut world.write_storage(), center, ent);
@@ -260,7 +264,10 @@ pub fn make_link(world: &mut World, from: Entity, to: Entity) -> GameResult<Enti
         });
     }
     let ent = world.create_entity()
-        .with(geom::Shape(shape))
+        .with(draw::Shape {
+            coords: shape,
+            color: graphics::Color::new(0.0, 1.0, 0.0, 1.0),
+        })
         .with(Link { from, to, path })
         .build();
     let mut graph = world.write_resource::<Graph>();

@@ -42,7 +42,6 @@ impl Main {
     fn new(ctx: &mut Context) -> GameResult<Self> {
         let mut world = World::new();
 
-        world.register::<geom::Shape>();
         world.register::<geom::Motion>();
         world.register::<geom::MotionDone>();
 
@@ -55,6 +54,8 @@ impl Main {
         world.register::<resource::Source>();
         world.register::<resource::Sink>();
         world.register::<resource::Packet>();
+
+        world.register::<draw::Shape>();
 
         world.add_resource(Now(Instant::now()));
         world.add_resource(map::Map::new());

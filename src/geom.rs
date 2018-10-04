@@ -9,13 +9,6 @@ use specs::{
 };
 
 #[derive(Debug)]
-pub struct Shape(pub Vec<Coordinate>);
-
-impl Component for Shape {
-    type Storage = VecStorage<Self>;
-}
-
-#[derive(Debug)]
 pub struct Motion {
     pub from: Point2,
     pub to: Point2,
