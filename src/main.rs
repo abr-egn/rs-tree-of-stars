@@ -124,6 +124,12 @@ impl event::EventHandler for Main {
         let scr_mx: f32 = x + (w * rel_mx);
         let scr_my: f32 = y + (h * rel_my);
         println!("  => {} {}", scr_mx, scr_my);
+        let coord: Coordinate = Coordinate::from_pixel(scr_mx, scr_my, SPACING);
+        println!("  => {:?}", coord);
+        match self.world.read_resource::<geom::Map>().get(coord) {
+            None => println!("  => nothin'"),
+            Some(ent) => println!("  => {:?}", ent),
+        }
     }
 }
 
