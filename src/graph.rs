@@ -17,7 +17,6 @@ use specs::{
 
 use draw;
 use geom;
-use map;
 use util::*;
 
 pub struct Graph(GraphMap<Entity, Entity, petgraph::Undirected>);
@@ -25,7 +24,7 @@ pub struct Graph(GraphMap<Entity, Entity, petgraph::Undirected>);
 impl Graph {
     pub fn new() -> Self { Graph(GraphMap::new()) }
     pub fn route(
-        &self, links: &ReadStorage<Link>, locs: &ReadStorage<map::Location>,
+        &self, links: &ReadStorage<Link>, locs: &ReadStorage<geom::Location>,
         from: Entity, to: Entity) -> Option<(usize, Vec<Entity>)> {
         let from_coord = try_get(locs, from).unwrap().coord();
         petgraph::algo::astar(
@@ -165,7 +164,7 @@ pub struct TraverseData<'a> {
     entities: Entities<'a>,
     graph: ReadExpect<'a, Graph>,
     links: ReadStorage<'a, Link>,
-    locations: ReadStorage<'a, map::Location>,
+    locations: ReadStorage<'a, geom::Location>,
     motions: WriteStorage<'a, geom::Motion>,
     motion_done: WriteStorage<'a, geom::MotionDone>,
     routes: WriteStorage<'a, Route>,
@@ -242,7 +241,7 @@ pub fn make_node(world: &mut World, center: Coordinate) -> Entity {
             color: graphics::Color::new(1.0, 1.0, 1.0, 1.0),
         })
         .build();
-    world.write_resource::<map::Map>()
+    world.write_resource::<geom::Map>()
         .set(&mut world.write_storage(), center, ent);
     ent
 }
@@ -252,7 +251,7 @@ pub fn make_link(world: &mut World, from: Entity, to: Entity) -> GameResult<Enti
     let mut shape = vec![];
     let mut shape_excl;
     {
-        let locations = world.read_storage::<map::Location>();
+        let locations = world.read_storage::<geom::Location>();
         let source_pos = try_get(&locations, from)?.coord();
         let sink_pos = try_get(&locations, to)?.coord();
         shape_excl = HashSet::<Coordinate>::new();

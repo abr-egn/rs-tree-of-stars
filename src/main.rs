@@ -9,7 +9,6 @@ extern crate specs;
 mod draw;
 mod geom;
 mod graph;
-mod map;
 mod resource;
 mod util;
 
@@ -44,8 +43,7 @@ impl Main {
 
         world.register::<geom::Motion>();
         world.register::<geom::MotionDone>();
-
-        world.register::<map::Location>();
+        world.register::<geom::Location>();
 
         world.register::<graph::Link>();
         world.register::<graph::Route>();
@@ -58,7 +56,7 @@ impl Main {
         world.register::<draw::Shape>();
 
         world.add_resource(Now(Instant::now()));
-        world.add_resource(map::Map::new());
+        world.add_resource(geom::Map::new());
         world.add_resource(graph::Graph::new());
 
         draw::build_sprites(&mut world, ctx)?;

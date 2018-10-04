@@ -11,7 +11,6 @@ use specs::{
 
 use geom;
 use graph;
-use map;
 use util::*;
 
 // Epiphany: `Source` and `Sink` are *just* the input/output buffers.
@@ -74,8 +73,8 @@ pub struct PullData<'a> {
     entities: Entities<'a>,
     now: ReadExpect<'a, super::Now>,
     graph: ReadExpect<'a, graph::Graph>,
-    map: ReadExpect<'a, map::Map>,
-    locations: ReadStorage<'a, map::Location>,
+    map: ReadExpect<'a, geom::Map>,
+    locations: ReadStorage<'a, geom::Location>,
     links: ReadStorage<'a, graph::Link>,
     motions: WriteStorage<'a, geom::Motion>,
     routes: WriteStorage<'a, graph::Route>,

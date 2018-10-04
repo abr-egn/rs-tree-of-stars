@@ -14,7 +14,6 @@ use specs::{
 };
 
 use geom;
-use map;
 use resource;
 use util;
 
@@ -126,7 +125,7 @@ struct DrawSources<'a>(&'a mut Context);
 impl<'a, 'b> System<'a> for DrawSources<'b> {
     type SystemData = (
         ReadExpect<'a, PacketSprite>,
-        ReadStorage<'a, map::Location>,
+        ReadStorage<'a, geom::Location>,
         ReadStorage<'a, resource::Source>,
     );
 
@@ -147,7 +146,7 @@ struct DrawSinks<'a>(&'a mut Context);
 impl<'a, 'b> System<'a> for DrawSinks<'b> {
     type SystemData = (
         ReadExpect<'a, PacketSprite>,
-        ReadStorage<'a, map::Location>,
+        ReadStorage<'a, geom::Location>,
         ReadStorage<'a, resource::Sink>,
     );
 
