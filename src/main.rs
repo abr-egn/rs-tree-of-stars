@@ -13,6 +13,8 @@ mod map;
 mod resource;
 mod util;
 
+use std::time::{Duration, Instant};
+
 use ggez::{
     conf, event, graphics, timer,
     Context, GameResult,
@@ -27,6 +29,9 @@ pub const SPACING: hex2d::Spacing = hex2d::Spacing::FlatTop(HEX_SIDE);
 
 pub const UPDATES_PER_SECOND: u32 = 60;
 pub const UPDATE_DELTA: f32 = 1.0 / (UPDATES_PER_SECOND as f32);
+pub const UPDATE_DURATION: Duration = Duration::from_nanos(1_000_000_000 / (UPDATES_PER_SECOND as u64));
+
+pub struct Now(pub Instant);
 
 struct Main {
     world: World,
@@ -51,6 +56,7 @@ impl Main {
         world.register::<resource::Sink>();
         world.register::<resource::Packet>();
 
+        world.add_resource(Now(Instant::now()));
         world.add_resource(map::Map::new());
         world.add_resource(graph::Graph::new());
 
@@ -87,6 +93,7 @@ impl Main {
 impl event::EventHandler for Main {
     fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
         while timer::check_update_time(ctx, UPDATES_PER_SECOND) {
+            self.world.write_resource::<Now>().0 += UPDATE_DURATION;
             self.update.dispatch(&mut self.world.res);
             self.world.maintain();
         }

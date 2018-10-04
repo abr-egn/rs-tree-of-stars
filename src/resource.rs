@@ -72,6 +72,7 @@ pub struct Pull;
 #[derive(SystemData)]
 pub struct PullData<'a> {
     entities: Entities<'a>,
+    now: ReadExpect<'a, super::Now>,
     graph: ReadExpect<'a, graph::Graph>,
     map: ReadExpect<'a, map::Map>,
     locations: ReadStorage<'a, map::Location>,
@@ -107,7 +108,7 @@ impl<'a> System<'a> for Pull {
             if sink.has + sink.in_transit >= sink.want { continue }
 
             let mut candidates: Vec<Candidate> = vec![];
-            let now = Instant::now();
+            let now = data.now.0;
             for source_ent in data.map.in_range(loc.coord(), sink.range) {
                 let source = if let Some(s) = data.sources.get_mut(source_ent) { s } else { continue };
                 if source.has == 0 { continue }
@@ -121,7 +122,9 @@ impl<'a> System<'a> for Pull {
                     Some(&last_pull) => {
                         let since_pull = now - last_pull;
                         if since_pull < PULL_COOLDOWN {
-                            route_time += PULL_COOLDOWN - since_pull;
+                            let cd = PULL_COOLDOWN - since_pull;
+                            println!("Cooldown: {:?}", cd);
+                            route_time += cd;
                             on_cooldown = true;
                         }
                     }
@@ -140,7 +143,11 @@ impl<'a> System<'a> for Pull {
             let source = try_get_mut(&mut data.sources, candidate.source).unwrap();
             let coord = try_get(&data.locations, candidate.source).unwrap().coord();
 
-            sink.last_pull.insert(candidate.source, now);
+            println!("Pull at {:?}", now);
+            match sink.last_pull.insert(candidate.source, now) {
+                Some(prev) => println!("  delta {:?}", now - prev),
+                None => (),
+            };
             source.has -= 1;
             sink.in_transit += 1;
 
