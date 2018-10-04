@@ -90,6 +90,9 @@ impl Main {
     }
 }
 
+const WINDOW_WIDTH: u32 = 800;
+const WINDOW_HEIGHT: u32 = 800;
+
 impl event::EventHandler for Main {
     fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
         while timer::check_update_time(ctx, UPDATES_PER_SECOND) {
@@ -107,12 +110,24 @@ impl event::EventHandler for Main {
         timer::yield_now();
         Ok(())
     }
+
+    fn mouse_button_up_event(
+        &mut self, ctx: &mut Context,
+        _button: event::MouseButton, mx: i32, my: i32,
+    ) {
+        println!("Click at {}, {}", mx, my);
+        // TODO: there *has* to be a more direct way to do this - multiply by transform
+        // matrix or something - but the types involved there are baffling.
+        let rel_mx: f32 = (mx as f32) / (WINDOW_WIDTH as f32);
+        let rel_my: f32 = (my as f32) / (WINDOW_HEIGHT as f32);
+        let graphics::Rect { x, y, w, h } = graphics::get_screen_coordinates(ctx);
+        let scr_mx: f32 = x + (w * rel_mx);
+        let scr_my: f32 = y + (h * rel_my);
+        println!("  => {} {}", scr_mx, scr_my);
+    }
 }
 
 fn main() -> GameResult<()> {
-    const WINDOW_WIDTH: u32 = 800;
-    const WINDOW_HEIGHT: u32 = 800;
-
     let mut c = conf::Conf::default();
     c.window_setup.title = "Tree of Stars".to_owned();
     c.window_setup.samples = conf::NumSamples::Eight;
