@@ -1,6 +1,6 @@
 use std::{
     cmp::Ordering,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     time::{Duration, Instant},
 };
 
@@ -74,7 +74,7 @@ pub struct PullData<'a> {
     now: ReadExpect<'a, super::Now>,
     graph: ReadExpect<'a, graph::Graph>,
     map: ReadExpect<'a, geom::Map>,
-    locations: ReadStorage<'a, geom::Location>,
+    nodes: ReadStorage<'a, graph::Node>,
     links: ReadStorage<'a, graph::Link>,
     motions: WriteStorage<'a, geom::Motion>,
     routes: WriteStorage<'a, graph::Route>,
@@ -103,16 +103,28 @@ impl<'a> System<'a> for Pull {
     type SystemData = PullData<'a>;
 
     fn run(&mut self, mut data: Self::SystemData) {
-        for (entity, loc, sink) in (&*data.entities, &data.locations, &mut data.sinks).join() {
+        for (entity, sink_node, sink) in (&*data.entities, &data.nodes, &mut data.sinks).join() {
             if sink.has + sink.in_transit >= sink.want { continue }
 
             let mut candidates: Vec<Candidate> = vec![];
             let now = data.now.0;
-            for source_ent in data.map.in_range(loc.coord(), sink.range) {
-                let source = if let Some(s) = data.sources.get_mut(source_ent) { s } else { continue };
-                if source.has == 0 { continue }
+            let sources: HashSet<Entity> = {
+                // struct field sub-borrow so the filter_map closure doesn't try to borrow the
+                // whole `data` struct
+                let data_sources = &data.sources;
+                data.map.in_range(sink_node.at(), sink.range)
+                    .into_iter()
+                    .filter_map(|source_ent| {
+                        match data_sources.get(source_ent) {
+                            Some(source) if source.has > 0 => Some(source_ent),
+                            _ => None,
+                        }
+                    })
+                    .collect()
+            };
+            for source_ent in sources {
                 let (len, route) = if let Some(p) = data.graph.route(
-                    &data.links, &data.locations, source_ent, entity,
+                    &data.links, &data.nodes, source_ent, entity,
                 ) { p } else { continue };
                 let mut route_time = f32_duration(PACKET_SPEED * (len as f32));
                 let mut on_cooldown = false;
@@ -139,7 +151,7 @@ impl<'a> System<'a> for Pull {
             if candidate.on_cooldown { continue }
 
             let source = try_get_mut(&mut data.sources, candidate.source).unwrap();
-            let coord = try_get(&data.locations, candidate.source).unwrap().coord();
+            let coord = try_get(&data.nodes, candidate.source).unwrap().at();
 
             sink.last_pull.insert(candidate.source, now);
             source.has -= 1;

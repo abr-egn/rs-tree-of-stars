@@ -46,6 +46,7 @@ impl Main {
         world.register::<geom::Location>();
 
         world.register::<graph::Link>();
+        world.register::<graph::Node>();
         world.register::<graph::Route>();
         world.register::<graph::RouteDone>();
 

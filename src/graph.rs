@@ -24,9 +24,9 @@ pub struct Graph(GraphMap<Entity, Entity, petgraph::Undirected>);
 impl Graph {
     pub fn new() -> Self { Graph(GraphMap::new()) }
     pub fn route(
-        &self, links: &ReadStorage<Link>, locs: &ReadStorage<geom::Location>,
+        &self, links: &ReadStorage<Link>, nodes: &ReadStorage<Node>,
         from: Entity, to: Entity) -> Option<(usize, Vec<Entity>)> {
-        let from_coord = try_get(locs, from).unwrap().coord();
+        let from_coord = try_get(nodes, from).unwrap().at;
         petgraph::algo::astar(
             /* graph= */ &self.0,
             /* start= */ from,
@@ -35,11 +35,24 @@ impl Graph {
                 try_get(links, link_ent).unwrap().path.len()
             },
             /* estimate_cost= */ |ent| {
-                let ent_coord = try_get(locs, ent).unwrap().coord();
+                let ent_coord = try_get(nodes, ent).unwrap().at;
                 max(0, from_coord.distance(ent_coord) - 2) as usize
             },
         )
     }
+}
+
+#[derive(Debug)]
+pub struct Node {
+    at: Coordinate,
+}
+
+impl Node {
+    pub fn at(&self) -> Coordinate { self.at }
+}
+
+impl Component for Node {
+    type Storage = BTreeStorage<Self>;
 }
 
 #[derive(Debug)]
@@ -164,7 +177,7 @@ pub struct TraverseData<'a> {
     entities: Entities<'a>,
     graph: ReadExpect<'a, Graph>,
     links: ReadStorage<'a, Link>,
-    locations: ReadStorage<'a, geom::Location>,
+    nodes: ReadStorage<'a, Node>,
     motions: WriteStorage<'a, geom::Motion>,
     motion_done: WriteStorage<'a, geom::MotionDone>,
     routes: WriteStorage<'a, Route>,
@@ -213,8 +226,8 @@ impl<'a> System<'a> for Traverse {
                 route.phase = RoutePhase::ToLink(coord, more);
                 coord
             } else {
-                let coord = try_get(&data.locations, route.nodes[route.node_ix+1])
-                    .unwrap().coord();
+                let coord = try_get(&data.nodes, route.nodes[route.node_ix+1])
+                    .unwrap().at;
                 route.phase = RoutePhase::ToNode(coord);
                 coord
             };
@@ -240,6 +253,7 @@ pub fn make_node(world: &mut World, center: Coordinate) -> Entity {
             coords: center.ring(NODE_RADIUS, Spin::CW(Direction::XY)),
             color: graphics::Color::new(1.0, 1.0, 1.0, 1.0),
         })
+        .with(Node { at: center })
         .build();
     world.write_resource::<geom::Map>()
         .set(&mut world.write_storage(), center, ent);
@@ -251,9 +265,9 @@ pub fn make_link(world: &mut World, from: Entity, to: Entity) -> GameResult<Enti
     let mut shape = vec![];
     let mut shape_excl;
     {
-        let locations = world.read_storage::<geom::Location>();
-        let source_pos = try_get(&locations, from)?.coord();
-        let sink_pos = try_get(&locations, to)?.coord();
+        let nodes = world.read_storage::<Node>();
+        let source_pos = try_get(&nodes, from)?.at;
+        let sink_pos = try_get(&nodes, to)?.at;
         shape_excl = HashSet::<Coordinate>::new();
         source_pos.for_each_in_range(NODE_RADIUS, |c| { shape_excl.insert(c); });
         sink_pos.for_each_in_range(NODE_RADIUS, |c| { shape_excl.insert(c); });
