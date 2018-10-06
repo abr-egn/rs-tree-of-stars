@@ -255,6 +255,13 @@ pub fn node_space(center: Coordinate) -> Vec<Coordinate> {
     center.range(NODE_RADIUS)
 }
 
+pub fn space_for_node(map: &geom::Map, center: Coordinate) -> bool {
+    for coord in node_space(center) {
+        if map.get(coord).is_some() { return false }
+    }
+    true
+}
+
 pub fn make_node(world: &mut World, center: Coordinate) -> GameResult<Entity> {
     let ent = world.create_entity()
         .with(draw::Shape {

@@ -219,7 +219,7 @@ impl <'a, 'b> System<'a> for DrawMouseWidget<'b> {
                 }
             },
             ui::MWKind::PlaceNode => {
-                let color = if space_for_node(&*map, coord) {
+                let color = if graph::space_for_node(&*map, coord) {
                     Color::new(0.8, 0.8, 0.8, 0.5)
                 } else {
                     Color::new(0.8, 0.0, 0.0, 0.5)
@@ -232,13 +232,6 @@ impl <'a, 'b> System<'a> for DrawMouseWidget<'b> {
             },
         }
     }
-}
-
-fn space_for_node(map: &geom::Map, center: Coordinate) -> bool {
-    for coord in graph::node_space(center) {
-        if map.get(coord).is_some() { return false }
-    }
-    true
 }
 
 struct DrawTextWidgets<'a>(&'a mut Context);
