@@ -92,12 +92,12 @@ impl Mode for PlaceMode {
     fn on_stop(&mut self, world: &mut World, _: &mut Context) {
         world.write_resource::<MouseWidget>().kind = MWKind::Highlight;
     }
-    fn on_event(&mut self, world: &mut World, _: &mut Context, event: Event) -> EventAction {
+    fn on_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> EventAction {
         match event {
             Event::KeyDown { keycode: Some(Keycode::N), .. } |
             Event::KeyDown { keycode: Some(Keycode::Escape), .. } => EventAction::Pop,
-            Event::MouseButtonDown { .. } => {
-                let coord = world.read_resource::<MouseWidget>().coord.unwrap();
+            Event::MouseButtonDown { x, y, .. } => {
+                let coord = pixel_to_coord(ctx, x, y);
                 if !graph::space_for_node(&*world.read_resource::<geom::Map>(), coord) {
                     return EventAction::Done
                 }
