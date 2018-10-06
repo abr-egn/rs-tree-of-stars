@@ -9,7 +9,7 @@ extern crate specs;
 mod draw;
 mod geom;
 mod graph;
-//mod mode;
+mod mode;
 mod resource;
 mod ui;
 mod util;
@@ -17,7 +17,7 @@ mod util;
 use std::time::{Duration, Instant};
 
 use ggez::{
-    conf, event, graphics,
+    conf, event, graphics, timer,
     Context, GameResult,
 };
 use hex2d::{Coordinate};
@@ -30,72 +30,64 @@ pub const UPDATE_DELTA: f32 = 1.0 / (UPDATES_PER_SECOND as f32);
 pub const UPDATE_DURATION: Duration = Duration::from_nanos(1_000_000_000 / (UPDATES_PER_SECOND as u64));
 
 pub struct Now(pub Instant);
+pub struct Paused(pub bool);
 
-pub struct Main {
-    pub world: World,
-    update: Dispatcher<'static, 'static>,
+fn make_world(ctx: &mut Context) -> GameResult<World> {
+    let mut world = World::new();
+
+    world.register::<geom::Motion>();
+    world.register::<geom::MotionDone>();
+    world.register::<geom::Space>();
+
+    world.register::<graph::Link>();
+    world.register::<graph::Node>();
+    world.register::<graph::Route>();
+    world.register::<graph::RouteDone>();
+
+    world.register::<resource::Source>();
+    world.register::<resource::Sink>();
+    world.register::<resource::Packet>();
+
+    world.register::<draw::Shape>();
+
+    world.register::<ui::TextWidget>();
+
+    world.add_resource(Now(Instant::now()));
+    world.add_resource(Paused(false));
+    world.add_resource(geom::Map::new());
+    world.add_resource(graph::Graph::new());
+
+    draw::build_sprites(&mut world, ctx)?;
+    ui::prep_world(&mut world);
+
+    let center_ent = graph::make_node(&mut world, Coordinate { x: 0, y: 0 })?;
+    let mut source = resource::Source::new();
+    source.has = 10;
+    world.write_storage::<resource::Source>().insert(center_ent, source)
+        .map_err(dbg)?;
+    let side_ent = graph::make_node(&mut world, Coordinate { x: 12, y: -2 })?;
+    let top_ent = graph::make_node(&mut world, Coordinate { x: 8, y: 10 })?;
+    world.write_storage::<resource::Sink>().insert(top_ent, resource::Sink::new(5, 20))
+        .map_err(dbg)?;
+    
+    graph::make_link(&mut world, center_ent, side_ent)?;
+    graph::make_link(&mut world, top_ent, side_ent)?;
+
+    Ok(world)
 }
 
-impl Main {
-    fn new(ctx: &mut Context) -> GameResult<Self> {
-        let mut world = World::new();
+fn make_update() -> Dispatcher<'static, 'static> {
+    const TRAVEL: &str = "travel";
+    const TRAVERSE: &str = "traverse";
+    const PULL: &str = "pull";
+    const RECEIVE: &str = "receive";
 
-        world.register::<geom::Motion>();
-        world.register::<geom::MotionDone>();
-        world.register::<geom::Space>();
-
-        world.register::<graph::Link>();
-        world.register::<graph::Node>();
-        world.register::<graph::Route>();
-        world.register::<graph::RouteDone>();
-
-        world.register::<resource::Source>();
-        world.register::<resource::Sink>();
-        world.register::<resource::Packet>();
-
-        world.register::<draw::Shape>();
-
-        world.register::<ui::TextWidget>();
-        world.register::<ui::ActiveWidget>();
-
-        world.add_resource(Now(Instant::now()));
-        world.add_resource(geom::Map::new());
-        world.add_resource(graph::Graph::new());
-
-        draw::build_sprites(&mut world, ctx)?;
-
-        const TRAVEL: &str = "travel";
-        const TRAVERSE: &str = "traverse";
-        const PULL: &str = "pull";
-        const RECEIVE: &str = "receive";
-        let update = DispatcherBuilder::new()
-            .with(geom::Travel, TRAVEL, &[])
-            .with(graph::Traverse, TRAVERSE, &[TRAVEL])
-            .with(resource::Pull, PULL, &[])
-            .with(resource::Receive, RECEIVE, &[PULL])
-            .build();
-
-        let center_ent = graph::make_node(&mut world, Coordinate { x: 0, y: 0 })?;
-        let mut source = resource::Source::new();
-        source.has = 10;
-        world.write_storage::<resource::Source>().insert(center_ent, source)
-            .map_err(dbg)?;
-        let side_ent = graph::make_node(&mut world, Coordinate { x: 12, y: -2 })?;
-        let top_ent = graph::make_node(&mut world, Coordinate { x: 8, y: 10 })?;
-        world.write_storage::<resource::Sink>().insert(top_ent, resource::Sink::new(5, 20))
-            .map_err(dbg)?;
-        
-        graph::make_link(&mut world, center_ent, side_ent)?;
-        graph::make_link(&mut world, top_ent, side_ent)?;
-
-        Ok(Main{ world, update })
-    }
-
-    pub fn update(&mut self) {
-        self.world.write_resource::<Now>().0 += UPDATE_DURATION;
-        self.update.dispatch(&mut self.world.res);
-        self.world.maintain();
-    }
+    DispatcherBuilder::new()
+        .with(geom::Travel, TRAVEL, &[])
+        .with(graph::Traverse, TRAVERSE, &[TRAVEL])
+        .with(resource::Pull, PULL, &[])
+        .with(resource::Receive, RECEIVE, &[PULL])
+        .build()
 }
 
 pub const WINDOW_WIDTH: u32 = 800;
@@ -115,8 +107,37 @@ fn main() -> GameResult<()> {
         w: WINDOW_WIDTH as f32,
         h: WINDOW_HEIGHT as f32,
     })?;
-    let mut ui = ui::UI::new(Main::new(&mut ctx)?)?;
-    event::run(&mut ctx, &mut ui)?;
+    let mut events = event::Events::new(&ctx)?;
+
+    let mut world = make_world(&mut ctx)?;
+    let mut update = make_update();
+    let mut stack = mode::Stack::new();
+    stack.push(&mut world, &mut ctx, ui::PlayMode::new());
+
+    let mut running = true;
+    while running {
+        ctx.timer_context.tick();
+
+        for event in events.poll() {
+            ctx.process_event(&event);
+            use event::Event;
+            match event {
+                Event::Quit { .. } => { running = false; break },
+                ev => stack.handle(&mut world, &mut ctx, ev),
+            }
+        }
+        if !running { break }
+
+        while timer::check_update_time(&mut ctx, UPDATES_PER_SECOND) {
+                if world.read_resource::<Paused>().0 { continue }
+                world.write_resource::<Now>().0 += UPDATE_DURATION;
+                update.dispatch(&mut world.res);
+                world.maintain();
+        }
+
+        draw::draw(&mut world, &mut ctx);
+        timer::yield_now();
+    }
 
     Ok(())
 }

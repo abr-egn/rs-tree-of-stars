@@ -1,6 +1,7 @@
 use ggez::{
-    event, graphics::{self, Point2, TextCached}, timer,
-    Context, GameResult,
+    event::{Event, Keycode},
+    graphics::{self, Point2, TextCached},
+    Context,
 };
 use hex2d::Coordinate;
 use specs::{
@@ -9,41 +10,88 @@ use specs::{
 };
 
 use draw;
-use geom;
+use mode::{Mode, EventAction};
 
-pub struct UI {
-    pub main: super::Main,
-    pause_text: Entity,
-    paused: bool,
-    mode: Mode,
+pub fn prep_world(world: &mut World) {
+    world.add_resource(MouseWidget {
+        coord: None,
+        kind: MWKind::Highlight,
+    });
 }
 
-impl UI {
-    pub fn new(mut main: super::Main) -> GameResult<Self> {
-        main.world.add_resource(MouseWidget {
-            coord: None,
-            kind: MWKind::Highlight,
-        });
-        let pause_text = main.world.create_entity()
-            .with(TextWidget {
-                text: TextCached::new("PAUSED")?,
-                pos: Point2::new(0.0, 0.0),
-            })
-            .build();
-        Ok(UI {
-            main,
-            pause_text,
-            paused: false,
-            mode: Mode::Normal,
-        })
+pub struct PlayMode;
+
+impl PlayMode {
+    pub fn new() -> Box<Mode> { Box::new(PlayMode) }
+}
+
+impl Mode for PlayMode {
+    fn on_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> EventAction {
+        match event {
+            Event::MouseMotion { x, y, .. } => {
+                let coord = pixel_to_coord(ctx, x, y);
+                world.write_resource::<MouseWidget>().coord = Some(coord);
+            },
+            Event::KeyDown { keycode: Some(kc), .. } => {
+                match kc {
+                    Keycode::P => return EventAction::Push(PauseMode::new()),
+                    Keycode::N => return EventAction::Push(PlaceMode::new()),
+                    _ => (),
+                }
+            },
+            _ => (),
+        }
+        EventAction::Done
     }
 }
 
+struct PauseMode {
+    widget: Option<Entity>,
+}
 
-#[derive(Debug)]
-enum Mode {
-    Normal,
-    PlaceNode,
+impl PauseMode {
+    fn new() -> Box<Mode> { Box::new(PauseMode { widget: None }) }
+}
+
+impl Mode for PauseMode {
+    fn on_start(&mut self, world: &mut World, _: &mut Context) {
+        world.write_resource::<super::Paused>().0 = true;
+        let ent = world.create_entity()
+            .with(TextWidget {
+                text: TextCached::new("PAUSED").unwrap(),
+                pos: Point2::new(0.0, 0.0),
+            })
+            .build();
+        self.widget = Some(ent);
+    }
+    fn on_stop(&mut self, world: &mut World, _: &mut Context) {
+        world.write_resource::<super::Paused>().0 = false;
+        world.delete_entity(self.widget.unwrap()).unwrap();
+    }
+    fn on_event(&mut self, _: &mut World, _: &mut Context, event: Event) -> EventAction {
+        match event {
+            Event::KeyDown { keycode: Some(Keycode::P), .. } => EventAction::Pop,
+            _ => EventAction::Continue,
+        }
+    }
+}
+
+struct PlaceMode;
+
+impl PlaceMode {
+    fn new() -> Box<Mode> { Box::new(PlaceMode) }
+}
+
+impl Mode for PlaceMode {
+    fn on_start(&mut self, world: &mut World, _: &mut Context) {
+        world.write_resource::<MouseWidget>().kind = MWKind::PlaceNode;
+    }
+    fn on_stop(&mut self, world: &mut World, _: &mut Context) {
+        world.write_resource::<MouseWidget>().kind = MWKind::Highlight;
+    }
+    fn on_event(&mut self, _world: &mut World, _: &mut Context, _event: Event) -> EventAction {
+        EventAction::Continue
+    }
 }
 
 #[derive(Debug)]
@@ -56,13 +104,6 @@ impl Component for TextWidget {
     type Storage = BTreeStorage<Self>;
 }
 
-#[derive(Debug, Default)]
-pub struct ActiveWidget;
-
-impl Component for ActiveWidget {
-    type Storage = NullStorage<Self>;
-}
-
 #[derive(Debug)]
 pub struct MouseWidget {
     pub coord: Option<Coordinate>,
@@ -72,64 +113,7 @@ pub struct MouseWidget {
 #[derive(Debug)]
 pub enum MWKind {
     Highlight,
-}
-
-impl event::EventHandler for UI {
-    fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
-        while timer::check_update_time(ctx, super::UPDATES_PER_SECOND) {
-            if self.paused { continue }
-            self.main.update();
-        }
-        Ok(())
-    }
-
-    fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
-        draw::draw(&mut self.main.world, ctx);
-
-        timer::yield_now();
-        Ok(())
-    }
-
-    fn mouse_button_up_event(
-        &mut self, ctx: &mut Context,
-        _button: event::MouseButton, mx: i32, my: i32,
-    ) {
-        println!("Click at {}, {}", mx, my);
-        let coord = pixel_to_coord(ctx, mx, my);
-        println!("  => {:?}", coord);
-        match self.main.world.read_resource::<geom::Map>().get(coord) {
-            None => println!("  => nothin'"),
-            Some(ent) => println!("  => {:?}", ent),
-        }
-    }
-
-    fn mouse_motion_event(
-        &mut self, ctx: &mut Context,
-        _state: event::MouseState,
-        mx: i32, my: i32, _xrel: i32, _yrel: i32,
-    ) {
-        let coord = pixel_to_coord(ctx, mx, my);
-        self.main.world.write_resource::<MouseWidget>().coord = Some(coord);
-    }
-
-    fn key_down_event(
-        &mut self, _: &mut Context,
-        keycode: event::Keycode, _: event::Mod, _repeat: bool,
-    ) {
-        use event::Keycode::*;
-        match keycode {
-            P => {
-                self.paused = !self.paused;
-                let mut active = self.main.world.write_storage::<ActiveWidget>();
-                if self.paused {
-                    active.insert(self.pause_text, ActiveWidget).unwrap();
-                } else {
-                    active.remove(self.pause_text);
-                }
-            },
-            _ => (),
-        }
-    }
+    PlaceNode,
 }
 
 fn pixel_to_coord(ctx: &Context, mx: i32, my: i32) -> Coordinate {

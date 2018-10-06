@@ -196,12 +196,13 @@ struct DrawMouseWidget<'a>(&'a mut Context);
 impl <'a, 'b> System<'a> for DrawMouseWidget<'b> {
     type SystemData = (
         ReadExpect<'a, OutlineSprite>,
+        ReadExpect<'a, CellMesh>,
         ReadExpect<'a, ui::MouseWidget>,
         ReadExpect<'a, geom::Map>,
         ReadStorage<'a, geom::Space>,
     );
 
-    fn run(&mut self, (outline, mw, map, spaces): Self::SystemData) {
+    fn run(&mut self, (outline, cell, mw, map, spaces): Self::SystemData) {
         let ctx = &mut self.0;
 
         let coord = if let Some(c) = mw.coord { c } else { return };
@@ -217,6 +218,13 @@ impl <'a, 'b> System<'a> for DrawMouseWidget<'b> {
                     graphics::draw(ctx, &outline.0, Point2::new(x, y), 0.0).unwrap();
                 }
             },
+            ui::MWKind::PlaceNode => {
+                graphics::set_color(ctx, Color::new(0.8, 0.8, 0.8, 0.5)).unwrap();
+                for c in graph::node_shape(coord) {
+                    let (x, y) = c.to_pixel(SPACING);
+                    graphics::draw(ctx, &cell.0, Point2::new(x, y), 0.0).unwrap();
+                }
+            },
         }
     }
 }
@@ -226,13 +234,12 @@ struct DrawTextWidgets<'a>(&'a mut Context);
 impl<'a, 'b> System<'a> for DrawTextWidgets<'b> {
     type SystemData = (
         ReadStorage<'a, ui::TextWidget>,
-        ReadStorage<'a, ui::ActiveWidget>,
     );
 
-    fn run(&mut self, (widgets, active): Self::SystemData) {
+    fn run(&mut self, (widgets, ): Self::SystemData) {
         let ctx = &mut self.0;
         graphics::set_color(ctx, Color::new(0.5, 1.0, 0.5, 1.0)).unwrap();
-        for (widget, _) in (&widgets, &active).join() {
+        for widget in widgets.join() {
             graphics::draw(ctx, &widget.text, widget.pos, 0.0).unwrap();
         }
     }

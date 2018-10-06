@@ -247,10 +247,14 @@ impl<'a> System<'a> for Traverse {
 
 const NODE_RADIUS: i32 = 1;
 
+pub fn node_shape(center: Coordinate) -> Vec<Coordinate> {
+    center.ring(NODE_RADIUS, Spin::CW(Direction::XY))
+}
+
 pub fn make_node(world: &mut World, center: Coordinate) -> GameResult<Entity> {
     let ent = world.create_entity()
         .with(draw::Shape {
-            coords: center.ring(NODE_RADIUS, Spin::CW(Direction::XY)),
+            coords: node_shape(center),
             color: graphics::Color::new(1.0, 1.0, 1.0, 1.0),
         })
         .with(Node { at: center })
