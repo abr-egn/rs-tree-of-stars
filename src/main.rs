@@ -17,7 +17,7 @@ mod util;
 use std::time::{Duration, Instant};
 
 use ggez::{
-    conf, event, graphics, timer,
+    conf, event, graphics,
     Context, GameResult,
 };
 use hex2d::{Coordinate};
@@ -88,14 +88,10 @@ impl Main {
         Ok(Main{ world, update })
     }
 
-    pub fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
-        while timer::check_update_time(ctx, UPDATES_PER_SECOND) {
-            self.world.write_resource::<Now>().0 += UPDATE_DURATION;
-            self.update.dispatch(&mut self.world.res);
-            self.world.maintain();
-        }
-        
-        Ok(())
+    pub fn update(&mut self) {
+        self.world.write_resource::<Now>().0 += UPDATE_DURATION;
+        self.update.dispatch(&mut self.world.res);
+        self.world.maintain();
     }
 }
 
@@ -116,7 +112,7 @@ fn main() -> GameResult<()> {
         w: WINDOW_WIDTH as f32,
         h: WINDOW_HEIGHT as f32,
     })?;
-    let mut ui = ui::UI { main: Main::new(&mut ctx)? };
+    let mut ui = ui::UI::new(Main::new(&mut ctx)?);
     event::run(&mut ctx, &mut ui)?;
 
     Ok(())

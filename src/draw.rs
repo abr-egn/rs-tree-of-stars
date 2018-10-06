@@ -31,6 +31,9 @@ impl Component for Shape {
     type Storage = VecStorage<Self>;
 }
 
+#[derive(Debug)]
+pub struct MouseCoord(pub Option<Coordinate>);
+
 struct CellMesh(Mesh);
 
 struct PacketSprite {
@@ -73,8 +76,6 @@ pub fn build_sprites(world: &mut World, ctx: &mut Context) -> GameResult<()> {
 
     Ok(())
 }
-
-pub struct MouseCoord(pub Option<Coordinate>);
 
 pub fn draw(world: &mut World, ctx: &mut Context) {
     DrawCells(ctx).run_now(&mut world.res);
