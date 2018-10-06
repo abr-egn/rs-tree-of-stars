@@ -93,6 +93,17 @@ impl Main {
 const WINDOW_WIDTH: u32 = 800;
 const WINDOW_HEIGHT: u32 = 800;
 
+fn pixel_to_coord(ctx: &Context, mx: i32, my: i32) -> Coordinate {
+    // TODO: there *has* to be a more direct way to do this - multiply by transform
+    // matrix or something - but the types involved there are baffling.
+    let rel_mx: f32 = (mx as f32) / (WINDOW_WIDTH as f32);
+    let rel_my: f32 = (my as f32) / (WINDOW_HEIGHT as f32);
+    let graphics::Rect { x, y, w, h } = graphics::get_screen_coordinates(ctx);
+    let scr_mx: f32 = x + (w * rel_mx);
+    let scr_my: f32 = y + (h * rel_my);
+    Coordinate::from_pixel(scr_mx, scr_my, SPACING)
+}
+
 impl event::EventHandler for Main {
     fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
         while timer::check_update_time(ctx, UPDATES_PER_SECOND) {
@@ -116,20 +127,21 @@ impl event::EventHandler for Main {
         _button: event::MouseButton, mx: i32, my: i32,
     ) {
         println!("Click at {}, {}", mx, my);
-        // TODO: there *has* to be a more direct way to do this - multiply by transform
-        // matrix or something - but the types involved there are baffling.
-        let rel_mx: f32 = (mx as f32) / (WINDOW_WIDTH as f32);
-        let rel_my: f32 = (my as f32) / (WINDOW_HEIGHT as f32);
-        let graphics::Rect { x, y, w, h } = graphics::get_screen_coordinates(ctx);
-        let scr_mx: f32 = x + (w * rel_mx);
-        let scr_my: f32 = y + (h * rel_my);
-        println!("  => {} {}", scr_mx, scr_my);
-        let coord: Coordinate = Coordinate::from_pixel(scr_mx, scr_my, SPACING);
+        let coord = pixel_to_coord(ctx, mx, my);
         println!("  => {:?}", coord);
         match self.world.read_resource::<geom::Map>().get(coord) {
             None => println!("  => nothin'"),
             Some(ent) => println!("  => {:?}", ent),
         }
+    }
+
+    fn mouse_motion_event(
+        &mut self, ctx: &mut Context,
+        _state: event::MouseState,
+        mx: i32, my: i32, _xrel: i32, _yrel: i32,
+    ) {
+        let coord = pixel_to_coord(ctx, mx, my);
+        *self.world.write_resource::<draw::MouseCoord>() = draw::MouseCoord(Some(coord));
     }
 }
 

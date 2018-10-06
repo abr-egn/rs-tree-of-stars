@@ -35,6 +35,8 @@ struct PacketSprite {
     fill: Mesh,
 }
 
+struct OutlineSprite(Mesh);
+
 impl graphics::Drawable for PacketSprite {
     fn draw_ex(&self, ctx: &mut Context, mut param: DrawParam) -> GameResult<()> {
         self.fill.draw_ex(ctx, param)?;
@@ -55,6 +57,7 @@ pub fn build_sprites(world: &mut World, ctx: &mut Context) -> GameResult<()> {
         Point2::new(a.cos(), a.sin()) * super::HEX_SIDE
     }).collect();
     world.add_resource(CellMesh(Mesh::new_polygon(ctx, DrawMode::Fill, &points)?));
+    world.add_resource(OutlineSprite(Mesh::new_polygon(ctx, DrawMode::Line(0.5), &points)?));
 
     let origin = Point2::new(0.0, 0.0);
     world.add_resource(PacketSprite {
@@ -62,8 +65,13 @@ pub fn build_sprites(world: &mut World, ctx: &mut Context) -> GameResult<()> {
         fill: Mesh::new_circle(ctx, DrawMode::Fill, origin, 4.0, 0.5)?,
     });
 
+    // TODO: somewhere else?
+    world.add_resource(MouseCoord(None));
+
     Ok(())
 }
+
+pub struct MouseCoord(pub Option<Coordinate>);
 
 pub fn draw(world: &mut World, ctx: &mut Context) {
     graphics::clear(ctx);
@@ -74,6 +82,14 @@ pub fn draw(world: &mut World, ctx: &mut Context) {
     DrawSources(ctx).run_now(&mut world.res);
     DrawSinks(ctx).run_now(&mut world.res);
     world.maintain();
+    if let MouseCoord(Some(coord)) = *world.read_resource::<MouseCoord>() {
+        let (x, y) = coord.to_pixel(super::SPACING);
+        graphics::set_color(ctx, Color::new(0.5, 0.5, 0.5, 1.0)).unwrap();
+        graphics::draw(
+            ctx, &world.read_resource::<OutlineSprite>().0,
+            Point2::new(x, y), 0.0,
+        ).unwrap();
+    }
 
     graphics::present(ctx);
 }
