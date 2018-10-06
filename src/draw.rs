@@ -8,7 +8,7 @@ use ggez::{
     timer::get_time_since_start,
     Context, GameResult,
 };
-use hex2d::Coordinate;
+use hex2d::{Coordinate, Spacing};
 use specs::{
     prelude::*,
 };
@@ -17,6 +17,9 @@ use geom;
 use graph;
 use resource;
 use util;
+
+pub const HEX_SIDE: f32 = 10.0;
+pub const SPACING: Spacing = Spacing::FlatTop(HEX_SIDE);
 
 #[derive(Debug)]
 pub struct Shape {
@@ -54,7 +57,7 @@ impl graphics::Drawable for PacketSprite {
 pub fn build_sprites(world: &mut World, ctx: &mut Context) -> GameResult<()> {
     let points: Vec<Point2> = (0..6).map(|ix| {
         let a = (PI / 3.0) * (ix as f32);
-        Point2::new(a.cos(), a.sin()) * super::HEX_SIDE
+        Point2::new(a.cos(), a.sin()) * HEX_SIDE
     }).collect();
     world.add_resource(CellMesh(Mesh::new_polygon(ctx, DrawMode::Fill, &points)?));
     world.add_resource(OutlineSprite(Mesh::new_polygon(ctx, DrawMode::Line(1.0), &points)?));
@@ -74,17 +77,12 @@ pub fn build_sprites(world: &mut World, ctx: &mut Context) -> GameResult<()> {
 pub struct MouseCoord(pub Option<Coordinate>);
 
 pub fn draw(world: &mut World, ctx: &mut Context) {
-    graphics::clear(ctx);
-    graphics::set_background_color(ctx, Color::new(0.0, 0.0, 0.0, 1.0));
-
     DrawCells(ctx).run_now(&mut world.res);
     DrawPackets(ctx).run_now(&mut world.res);
     DrawSources(ctx).run_now(&mut world.res);
     DrawSinks(ctx).run_now(&mut world.res);
     DrawMouseover(ctx).run_now(&mut world.res);
     world.maintain();
-
-    graphics::present(ctx);
 }
 
 struct DrawCells<'a>(&'a mut Context);
@@ -100,7 +98,7 @@ impl<'a, 'b> System<'a> for DrawCells<'b> {
         for shape in shapes.join() {
             graphics::set_color(ctx, shape.color).unwrap();
             for coord in &shape.coords {
-                let (x, y) = coord.to_pixel(super::SPACING);
+                let (x, y) = coord.to_pixel(SPACING);
                 graphics::draw(ctx, &cell_mesh.0, Point2::new(x, y), 0.0).unwrap();
             }
         }
@@ -117,7 +115,7 @@ fn draw_orbit(
     if count == 0 { return Ok(()) }
 
     let orbit = (now_f32(ctx) * orbit_speed) % (2.0 * PI);
-    let (x, y) = coord.to_pixel(super::SPACING);
+    let (x, y) = coord.to_pixel(SPACING);
     let center_pt = Point2::new(x, y);
     let inc = (2.0*PI) / (count as f32);
     graphics::set_color(ctx, color).unwrap();
@@ -210,7 +208,7 @@ impl <'a, 'b> System<'a> for DrawMouseover<'b> {
         };
         graphics::set_color(ctx, Color::new(0.5, 0.5, 0.5, 1.0)).unwrap();
         for coord in coords {
-            let (x, y) = coord.to_pixel(super::SPACING);
+            let (x, y) = coord.to_pixel(SPACING);
             graphics::draw(ctx, &outline.0, Point2::new(x, y), 0.0).unwrap();
         }
     }

@@ -11,6 +11,7 @@ mod geom;
 mod graph;
 //mod mode;
 mod resource;
+mod ui;
 mod util;
 
 use std::time::{Duration, Instant};
@@ -24,17 +25,14 @@ use specs::prelude::*;
 
 use util::*;
 
-pub const HEX_SIDE: f32 = 10.0;
-pub const SPACING: hex2d::Spacing = hex2d::Spacing::FlatTop(HEX_SIDE);
-
 pub const UPDATES_PER_SECOND: u32 = 60;
 pub const UPDATE_DELTA: f32 = 1.0 / (UPDATES_PER_SECOND as f32);
 pub const UPDATE_DURATION: Duration = Duration::from_nanos(1_000_000_000 / (UPDATES_PER_SECOND as u64));
 
 pub struct Now(pub Instant);
 
-struct Main {
-    world: World,
+pub struct Main {
+    pub world: World,
     update: Dispatcher<'static, 'static>,
 }
 
@@ -89,24 +87,8 @@ impl Main {
 
         Ok(Main{ world, update })
     }
-}
 
-const WINDOW_WIDTH: u32 = 800;
-const WINDOW_HEIGHT: u32 = 800;
-
-fn pixel_to_coord(ctx: &Context, mx: i32, my: i32) -> Coordinate {
-    // TODO: there *has* to be a more direct way to do this - multiply by transform
-    // matrix or something - but the types involved there are baffling.
-    let rel_mx: f32 = (mx as f32) / (WINDOW_WIDTH as f32);
-    let rel_my: f32 = (my as f32) / (WINDOW_HEIGHT as f32);
-    let graphics::Rect { x, y, w, h } = graphics::get_screen_coordinates(ctx);
-    let scr_mx: f32 = x + (w * rel_mx);
-    let scr_my: f32 = y + (h * rel_my);
-    Coordinate::from_pixel(scr_mx, scr_my, SPACING)
-}
-
-impl event::EventHandler for Main {
-    fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
+    pub fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
         while timer::check_update_time(ctx, UPDATES_PER_SECOND) {
             self.world.write_resource::<Now>().0 += UPDATE_DURATION;
             self.update.dispatch(&mut self.world.res);
@@ -115,36 +97,10 @@ impl event::EventHandler for Main {
         
         Ok(())
     }
-
-    fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
-        draw::draw(&mut self.world, ctx);
-
-        timer::yield_now();
-        Ok(())
-    }
-
-    fn mouse_button_up_event(
-        &mut self, ctx: &mut Context,
-        _button: event::MouseButton, mx: i32, my: i32,
-    ) {
-        println!("Click at {}, {}", mx, my);
-        let coord = pixel_to_coord(ctx, mx, my);
-        println!("  => {:?}", coord);
-        match self.world.read_resource::<geom::Map>().get(coord) {
-            None => println!("  => nothin'"),
-            Some(ent) => println!("  => {:?}", ent),
-        }
-    }
-
-    fn mouse_motion_event(
-        &mut self, ctx: &mut Context,
-        _state: event::MouseState,
-        mx: i32, my: i32, _xrel: i32, _yrel: i32,
-    ) {
-        let coord = pixel_to_coord(ctx, mx, my);
-        *self.world.write_resource::<draw::MouseCoord>() = draw::MouseCoord(Some(coord));
-    }
 }
+
+pub const WINDOW_WIDTH: u32 = 800;
+pub const WINDOW_HEIGHT: u32 = 800;
 
 fn main() -> GameResult<()> {
     let mut c = conf::Conf::default();
@@ -154,14 +110,14 @@ fn main() -> GameResult<()> {
     c.window_mode.height = WINDOW_HEIGHT;
 
     let mut ctx = Context::load_from_conf("Tree of Stars", "abe.egnor@gmail.com", c)?;
-    let mut state = Main::new(&mut ctx)?;
     graphics::set_screen_coordinates(&mut ctx, graphics::Rect {
         x: (WINDOW_WIDTH as f32) / -2.0,
         y: (WINDOW_HEIGHT as f32) / -2.0,
         w: WINDOW_WIDTH as f32,
         h: WINDOW_HEIGHT as f32,
     })?;
-    event::run(&mut ctx, &mut state)?;
+    let mut ui = ui::UI { main: Main::new(&mut ctx)? };
+    event::run(&mut ctx, &mut ui)?;
 
     Ok(())
 }

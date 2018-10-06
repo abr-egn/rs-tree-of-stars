@@ -11,6 +11,7 @@ use specs::{
     storage::BTreeStorage,
 };
 
+use draw;
 use util::*;
 
 #[derive(Debug)]
@@ -23,13 +24,13 @@ pub struct Motion {
 
 impl Motion {
     pub fn new(from: Coordinate, to: Coordinate, speed: f32) -> Self {
-        let (fx, fy) = from.to_pixel(super::SPACING);
-        let (tx, ty) = to.to_pixel(super::SPACING);
+        let (fx, fy) = from.to_pixel(draw::SPACING);
+        let (tx, ty) = to.to_pixel(draw::SPACING);
         let from = Point2::new(fx, fy);
         let to = Point2::new(tx, ty);
         let dist = nalgebra::distance(&from, &to);
         /* Hex center to hex center is 2 * altitude of equilateral triangle */
-        let speed_scale = 3.0f32.sqrt() * super::HEX_SIDE;
+        let speed_scale = 3.0f32.sqrt() * draw::HEX_SIDE;
         let inc = (speed * speed_scale * super::UPDATE_DELTA) / dist;
         Motion { from, to, inc, at: 0.0 }
     }
