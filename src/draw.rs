@@ -32,9 +32,6 @@ impl Component for Shape {
     type Storage = VecStorage<Self>;
 }
 
-#[derive(Debug)]
-pub struct MouseCoord(pub Option<Coordinate>);
-
 struct CellMesh(Mesh);
 
 struct PacketSprite {
@@ -72,9 +69,6 @@ pub fn build_sprites(world: &mut World, ctx: &mut Context) -> GameResult<()> {
         fill: Mesh::new_circle(ctx, DrawMode::Fill, origin, 4.0, 0.5)?,
     });
 
-    // TODO: somewhere else?
-    world.add_resource(MouseCoord(None));
-
     Ok(())
 }
 
@@ -86,8 +80,8 @@ pub fn draw(world: &mut World, ctx: &mut Context) {
     DrawPackets(ctx).run_now(&mut world.res);
     DrawSources(ctx).run_now(&mut world.res);
     DrawSinks(ctx).run_now(&mut world.res);
-    DrawMouseover(ctx).run_now(&mut world.res);
-    DrawWidgets(ctx).run_now(&mut world.res);
+    DrawMouseWidget(ctx).run_now(&mut world.res);
+    DrawTextWidgets(ctx).run_now(&mut world.res);
     world.maintain();
 
     graphics::present(ctx);
@@ -197,34 +191,39 @@ impl<'a, 'b> System<'a> for DrawPackets<'b> {
     }
 }
 
-struct DrawMouseover<'a>(&'a mut Context);
+struct DrawMouseWidget<'a>(&'a mut Context);
 
-impl <'a, 'b> System<'a> for DrawMouseover<'b> {
+impl <'a, 'b> System<'a> for DrawMouseWidget<'b> {
     type SystemData = (
         ReadExpect<'a, OutlineSprite>,
-        ReadExpect<'a, MouseCoord>,
+        ReadExpect<'a, ui::MouseWidget>,
         ReadExpect<'a, geom::Map>,
         ReadStorage<'a, geom::Space>,
     );
 
-    fn run(&mut self, (outline, mc, map, spaces): Self::SystemData) {
+    fn run(&mut self, (outline, mw, map, spaces): Self::SystemData) {
         let ctx = &mut self.0;
-        let mc = if let MouseCoord(Some(c)) = *mc { c } else { return };
-        let coords = match map.get(mc) {
-            None => vec![mc],
-            Some(&ent) => spaces.get(ent).unwrap().coords().iter().cloned().collect(),
-        };
-        graphics::set_color(ctx, Color::new(0.5, 0.5, 0.5, 1.0)).unwrap();
-        for coord in coords {
-            let (x, y) = coord.to_pixel(SPACING);
-            graphics::draw(ctx, &outline.0, Point2::new(x, y), 0.0).unwrap();
+
+        let coord = if let Some(c) = mw.coord { c } else { return };
+        match mw.kind {
+            ui::MWKind::Highlight => {
+                let coords = match map.get(coord) {
+                    None => vec![coord],
+                    Some(&ent) => spaces.get(ent).unwrap().coords().iter().cloned().collect(),
+                };
+                graphics::set_color(ctx, Color::new(0.5, 0.5, 0.5, 1.0)).unwrap();
+                for coord in coords {
+                    let (x, y) = coord.to_pixel(SPACING);
+                    graphics::draw(ctx, &outline.0, Point2::new(x, y), 0.0).unwrap();
+                }
+            },
         }
     }
 }
 
-struct DrawWidgets<'a>(&'a mut Context);
+struct DrawTextWidgets<'a>(&'a mut Context);
 
-impl<'a, 'b> System<'a> for DrawWidgets<'b> {
+impl<'a, 'b> System<'a> for DrawTextWidgets<'b> {
     type SystemData = (
         ReadStorage<'a, ui::TextWidget>,
         ReadStorage<'a, ui::ActiveWidget>,

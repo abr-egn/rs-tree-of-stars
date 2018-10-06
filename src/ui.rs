@@ -15,6 +15,35 @@ pub struct UI {
     pub main: super::Main,
     pause_text: Entity,
     paused: bool,
+    mode: Mode,
+}
+
+impl UI {
+    pub fn new(mut main: super::Main) -> GameResult<Self> {
+        main.world.add_resource(MouseWidget {
+            coord: None,
+            kind: MWKind::Highlight,
+        });
+        let pause_text = main.world.create_entity()
+            .with(TextWidget {
+                text: TextCached::new("PAUSED")?,
+                pos: Point2::new(0.0, 0.0),
+            })
+            .build();
+        Ok(UI {
+            main,
+            pause_text,
+            paused: false,
+            mode: Mode::Normal,
+        })
+    }
+}
+
+
+#[derive(Debug)]
+enum Mode {
+    Normal,
+    PlaceNode,
 }
 
 #[derive(Debug)]
@@ -34,20 +63,15 @@ impl Component for ActiveWidget {
     type Storage = NullStorage<Self>;
 }
 
-impl UI {
-    pub fn new(mut main: super::Main) -> GameResult<Self> {
-        let pause_text = main.world.create_entity()
-            .with(TextWidget {
-                text: TextCached::new("PAUSED")?,
-                pos: Point2::new(0.0, 0.0),
-            })
-            .build();
-        Ok(UI {
-            main,
-            pause_text,
-            paused: false,
-        })
-    }
+#[derive(Debug)]
+pub struct MouseWidget {
+    pub coord: Option<Coordinate>,
+    pub kind: MWKind,
+}
+
+#[derive(Debug)]
+pub enum MWKind {
+    Highlight,
 }
 
 impl event::EventHandler for UI {
@@ -85,7 +109,7 @@ impl event::EventHandler for UI {
         mx: i32, my: i32, _xrel: i32, _yrel: i32,
     ) {
         let coord = pixel_to_coord(ctx, mx, my);
-        *self.main.world.write_resource::<draw::MouseCoord>() = draw::MouseCoord(Some(coord));
+        self.main.world.write_resource::<MouseWidget>().coord = Some(coord);
     }
 
     fn key_down_event(
