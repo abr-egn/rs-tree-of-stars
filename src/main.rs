@@ -9,6 +9,7 @@ extern crate specs;
 mod draw;
 mod geom;
 mod graph;
+//mod mode;
 mod resource;
 mod util;
 
