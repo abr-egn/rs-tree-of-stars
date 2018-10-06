@@ -90,10 +90,15 @@ impl Mode for PlaceMode {
     fn on_stop(&mut self, world: &mut World, _: &mut Context) {
         world.write_resource::<MouseWidget>().kind = MWKind::Highlight;
     }
-    fn on_event(&mut self, _world: &mut World, _: &mut Context, _event: Event) -> EventAction {
-        EventAction::Continue
+    fn on_event(&mut self, _world: &mut World, _: &mut Context, event: Event) -> EventAction {
+        match event {
+            Event::KeyDown { keycode: Some(Keycode::N), .. } |
+            Event::KeyDown { keycode: Some(Keycode::Escape), .. } => EventAction::Pop,
+            _ => EventAction::Continue,
+        }
     }
 }
+
 
 #[derive(Debug)]
 pub struct TextWidget {

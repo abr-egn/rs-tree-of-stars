@@ -251,6 +251,10 @@ pub fn node_shape(center: Coordinate) -> Vec<Coordinate> {
     center.ring(NODE_RADIUS, Spin::CW(Direction::XY))
 }
 
+pub fn node_space(center: Coordinate) -> Vec<Coordinate> {
+    center.range(NODE_RADIUS)
+}
+
 pub fn make_node(world: &mut World, center: Coordinate) -> GameResult<Entity> {
     let ent = world.create_entity()
         .with(draw::Shape {
@@ -261,7 +265,7 @@ pub fn make_node(world: &mut World, center: Coordinate) -> GameResult<Entity> {
         .build();
     world.write_resource::<geom::Map>().set(
         &mut world.write_storage(), ent,
-        geom::Space::new(center.range(NODE_RADIUS)),
+        geom::Space::new(node_space(center)),
     )?;
     Ok(ent)
 }

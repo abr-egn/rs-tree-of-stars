@@ -219,7 +219,12 @@ impl <'a, 'b> System<'a> for DrawMouseWidget<'b> {
                 }
             },
             ui::MWKind::PlaceNode => {
-                graphics::set_color(ctx, Color::new(0.8, 0.8, 0.8, 0.5)).unwrap();
+                let color = if space_for_node(&*map, coord) {
+                    Color::new(0.8, 0.8, 0.8, 0.5)
+                } else {
+                    Color::new(0.8, 0.0, 0.0, 0.5)
+                };
+                graphics::set_color(ctx, color).unwrap();
                 for c in graph::node_shape(coord) {
                     let (x, y) = c.to_pixel(SPACING);
                     graphics::draw(ctx, &cell.0, Point2::new(x, y), 0.0).unwrap();
@@ -227,6 +232,13 @@ impl <'a, 'b> System<'a> for DrawMouseWidget<'b> {
             },
         }
     }
+}
+
+fn space_for_node(map: &geom::Map, center: Coordinate) -> bool {
+    for coord in graph::node_space(center) {
+        if map.get(coord).is_some() { return false }
+    }
+    true
 }
 
 struct DrawTextWidgets<'a>(&'a mut Context);
