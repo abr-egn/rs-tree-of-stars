@@ -57,7 +57,7 @@ pub fn build_sprites(world: &mut World, ctx: &mut Context) -> GameResult<()> {
         Point2::new(a.cos(), a.sin()) * super::HEX_SIDE
     }).collect();
     world.add_resource(CellMesh(Mesh::new_polygon(ctx, DrawMode::Fill, &points)?));
-    world.add_resource(OutlineSprite(Mesh::new_polygon(ctx, DrawMode::Line(0.5), &points)?));
+    world.add_resource(OutlineSprite(Mesh::new_polygon(ctx, DrawMode::Line(1.0), &points)?));
 
     let origin = Point2::new(0.0, 0.0);
     world.add_resource(PacketSprite {
@@ -81,15 +81,8 @@ pub fn draw(world: &mut World, ctx: &mut Context) {
     DrawPackets(ctx).run_now(&mut world.res);
     DrawSources(ctx).run_now(&mut world.res);
     DrawSinks(ctx).run_now(&mut world.res);
+    DrawMouseover(ctx).run_now(&mut world.res);
     world.maintain();
-    if let MouseCoord(Some(coord)) = *world.read_resource::<MouseCoord>() {
-        let (x, y) = coord.to_pixel(super::SPACING);
-        graphics::set_color(ctx, Color::new(0.5, 0.5, 0.5, 1.0)).unwrap();
-        graphics::draw(
-            ctx, &world.read_resource::<OutlineSprite>().0,
-            Point2::new(x, y), 0.0,
-        ).unwrap();
-    }
 
     graphics::present(ctx);
 }
@@ -194,6 +187,31 @@ impl<'a, 'b> System<'a> for DrawPackets<'b> {
             let pos = motion.from + (motion.to - motion.from)*motion.at;
             graphics::set_color(ctx, Color::new(0.0, 0.0, 1.0, 1.0)).unwrap();
             graphics::draw(ctx, &*packet_sprite, pos, 0.0).unwrap();
+        }
+    }
+}
+
+struct DrawMouseover<'a>(&'a mut Context);
+
+impl <'a, 'b> System<'a> for DrawMouseover<'b> {
+    type SystemData = (
+        ReadExpect<'a, OutlineSprite>,
+        ReadExpect<'a, MouseCoord>,
+        ReadExpect<'a, geom::Map>,
+        ReadStorage<'a, geom::Space>,
+    );
+
+    fn run(&mut self, (outline, mc, map, spaces): Self::SystemData) {
+        let ctx = &mut self.0;
+        let mc = if let MouseCoord(Some(c)) = *mc { c } else { return };
+        let coords = match map.get(mc) {
+            None => vec![mc],
+            Some(&ent) => spaces.get(ent).unwrap().coords().iter().cloned().collect(),
+        };
+        graphics::set_color(ctx, Color::new(0.5, 0.5, 0.5, 1.0)).unwrap();
+        for coord in coords {
+            let (x, y) = coord.to_pixel(super::SPACING);
+            graphics::draw(ctx, &outline.0, Point2::new(x, y), 0.0).unwrap();
         }
     }
 }
