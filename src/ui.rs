@@ -12,7 +12,7 @@ use specs::{
 use draw;
 use geom;
 use graph;
-use mode::{Mode, EventAction};
+use mode::{Mode, EventAction, TopAction};
 
 pub fn prep_world(world: &mut World) {
     world.add_resource(MouseWidget {
@@ -45,6 +45,14 @@ impl Mode for PlayMode {
         }
         EventAction::Done
     }
+    fn on_top_event(&mut self, _: &mut World, _: &mut Context, event: Event) -> TopAction {
+        match event {
+            Event::KeyDown { keycode: Some(Keycode::N), .. } => {
+                TopAction::Do(EventAction::Push(PlaceMode::new()))
+            },
+            _ => TopAction::AsEvent,
+        }
+    }
 }
 
 struct PauseMode {
@@ -72,9 +80,14 @@ impl Mode for PauseMode {
     }
     fn on_event(&mut self, _: &mut World, _: &mut Context, event: Event) -> EventAction {
         match event {
-            Event::KeyDown { keycode: Some(Keycode::P), .. } => EventAction::Pop,
             Event::MouseMotion { .. } => EventAction::Continue,
             _ => EventAction::Done,
+        }
+    }
+    fn on_top_event(&mut self, _: &mut World, _: &mut Context, event: Event) -> TopAction {
+        match event {
+            Event::KeyDown { keycode: Some(Keycode::P), .. } => TopAction::Pop,
+            _ => TopAction::AsEvent,
         }
     }
 }
@@ -92,23 +105,34 @@ impl Mode for PlaceMode {
     fn on_stop(&mut self, world: &mut World, _: &mut Context) {
         world.write_resource::<MouseWidget>().kind = MWKind::Highlight;
     }
-    fn on_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> EventAction {
+    fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {
         match event {
             Event::KeyDown { keycode: Some(Keycode::N), .. } |
-            Event::KeyDown { keycode: Some(Keycode::Escape), .. } => EventAction::Pop,
+            Event::KeyDown { keycode: Some(Keycode::Escape), .. } => TopAction::Pop,
             Event::MouseButtonDown { x, y, .. } => {
                 let coord = pixel_to_coord(ctx, x, y);
                 if !graph::space_for_node(&*world.read_resource::<geom::Map>(), coord) {
-                    return EventAction::Done
+                    return TopAction::Do(EventAction::Done)
                 }
                 graph::make_node(world, coord).unwrap();
-                EventAction::Pop
+                TopAction::Pop
             },
-            _ => EventAction::Continue,
+            _ => TopAction::AsEvent,
         }
     }
 }
 
+/*
+struct NodeSelected(Entity);
+
+impl NodeSelected {
+    fn new(node: Entity) -> Box<Mode> { Box::new(NodeSelected(node)) }
+}
+
+impl Mode for NodeSelected {
+
+}
+*/
 
 #[derive(Debug)]
 pub struct TextWidget {

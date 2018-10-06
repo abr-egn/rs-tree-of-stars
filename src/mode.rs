@@ -4,18 +4,26 @@ use ggez::{
 };
 use specs::prelude::*;
 
+pub enum TopAction {
+    Do(EventAction),
+    AsEvent,
+    Pop,
+}
+
 pub enum EventAction {
     Continue,
     Done,
-    Pop,
     Push(Box<Mode>),
 }
 
 pub trait Mode {
     fn on_start(&mut self, _world: &mut World, _ctx: &mut Context) { }
-    fn on_stop(&mut self, _world: &mut World, _ctx: &mut Context) { }
+    fn on_stop(&mut self, _world: &mut World, _ctx: &mut Context) { }    
     fn on_event(&mut self, _world: &mut World, _ctx: &mut Context, _event: event::Event) -> EventAction {
         EventAction::Continue
+    }
+    fn on_top_event(&mut self, _world: &mut World, _ctx: &mut Context, _event: event::Event) -> TopAction {
+        TopAction::AsEvent
     }
 }
 
@@ -36,10 +44,14 @@ impl Stack {
     pub fn handle(&mut self, world: &mut World, ctx: &mut Context, event: event::Event) {
         let len = self.0.len();
         if len == 0 { return }
-        match self.0[len-1].on_event(world, ctx, event.clone()) {
+        let ea = match self.0[len-1].on_top_event(world, ctx, event.clone()) {
+            TopAction::Do(ea) => ea,
+            TopAction::AsEvent => self.0[len-1].on_event(world, ctx, event.clone()),
+            TopAction::Pop => { self.pop(world, ctx); return },
+        };
+        match ea {
             EventAction::Continue => (),
             EventAction::Done => return,
-            EventAction::Pop => { self.pop(world, ctx); return },
             EventAction::Push(act) => { self.push(world, ctx, act); return },
         }
         if len < 2 { return }
@@ -48,7 +60,6 @@ impl Stack {
             match self.0[ix].on_event(world, ctx, event.clone()) {
                 EventAction::Continue => (),
                 EventAction::Done => return,
-                EventAction::Pop => panic!("out-of-order pop"),
                 EventAction::Push(act) => { self.push(world, ctx, act); return },
             }
             if ix == 0 { break }
