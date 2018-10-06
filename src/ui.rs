@@ -1,23 +1,52 @@
 use ggez::{
-    event, graphics, timer,
+    event, graphics::{self, Point2, TextCached}, timer,
     Context, GameResult,
 };
 use hex2d::Coordinate;
+use specs::{
+    prelude::*,
+    storage::BTreeStorage,
+};
 
 use draw;
 use geom;
 
 pub struct UI {
     pub main: super::Main,
+    pause_text: Entity,
     paused: bool,
 }
 
+#[derive(Debug)]
+pub struct TextWidget {
+    pub text: TextCached,
+    pub pos: Point2,
+}
+
+impl Component for TextWidget {
+    type Storage = BTreeStorage<Self>;
+}
+
+#[derive(Debug, Default)]
+pub struct ActiveWidget;
+
+impl Component for ActiveWidget {
+    type Storage = NullStorage<Self>;
+}
+
 impl UI {
-    pub fn new(main: super::Main) -> Self {
-        UI {
+    pub fn new(mut main: super::Main) -> GameResult<Self> {
+        let pause_text = main.world.create_entity()
+            .with(TextWidget {
+                text: TextCached::new("PAUSED")?,
+                pos: Point2::new(0.0, 0.0),
+            })
+            .build();
+        Ok(UI {
             main,
+            pause_text,
             paused: false,
-        }
+        })
     }
 }
 
@@ -31,12 +60,8 @@ impl event::EventHandler for UI {
     }
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
-        graphics::clear(ctx);
-        graphics::set_background_color(ctx, graphics::Color::new(0.0, 0.0, 0.0, 1.0));
-
         draw::draw(&mut self.main.world, ctx);
 
-        graphics::present(ctx);
         timer::yield_now();
         Ok(())
     }
@@ -69,7 +94,15 @@ impl event::EventHandler for UI {
     ) {
         use event::Keycode::*;
         match keycode {
-            P => self.paused = !self.paused,
+            P => {
+                self.paused = !self.paused;
+                let mut active = self.main.world.write_storage::<ActiveWidget>();
+                if self.paused {
+                    active.insert(self.pause_text, ActiveWidget).unwrap();
+                } else {
+                    active.remove(self.pause_text);
+                }
+            },
             _ => (),
         }
     }

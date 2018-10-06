@@ -55,6 +55,9 @@ impl Main {
 
         world.register::<draw::Shape>();
 
+        world.register::<ui::TextWidget>();
+        world.register::<ui::ActiveWidget>();
+
         world.add_resource(Now(Instant::now()));
         world.add_resource(geom::Map::new());
         world.add_resource(graph::Graph::new());
@@ -112,7 +115,7 @@ fn main() -> GameResult<()> {
         w: WINDOW_WIDTH as f32,
         h: WINDOW_HEIGHT as f32,
     })?;
-    let mut ui = ui::UI::new(Main::new(&mut ctx)?);
+    let mut ui = ui::UI::new(Main::new(&mut ctx)?)?;
     event::run(&mut ctx, &mut ui)?;
 
     Ok(())

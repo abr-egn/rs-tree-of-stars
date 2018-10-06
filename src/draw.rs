@@ -16,6 +16,7 @@ use specs::{
 use geom;
 use graph;
 use resource;
+use ui;
 use util;
 
 pub const HEX_SIDE: f32 = 10.0;
@@ -78,12 +79,18 @@ pub fn build_sprites(world: &mut World, ctx: &mut Context) -> GameResult<()> {
 }
 
 pub fn draw(world: &mut World, ctx: &mut Context) {
+    graphics::clear(ctx);
+    graphics::set_background_color(ctx, graphics::Color::new(0.0, 0.0, 0.0, 1.0));
+
     DrawCells(ctx).run_now(&mut world.res);
     DrawPackets(ctx).run_now(&mut world.res);
     DrawSources(ctx).run_now(&mut world.res);
     DrawSinks(ctx).run_now(&mut world.res);
     DrawMouseover(ctx).run_now(&mut world.res);
+    DrawWidgets(ctx).run_now(&mut world.res);
     world.maintain();
+
+    graphics::present(ctx);
 }
 
 struct DrawCells<'a>(&'a mut Context);
@@ -211,6 +218,23 @@ impl <'a, 'b> System<'a> for DrawMouseover<'b> {
         for coord in coords {
             let (x, y) = coord.to_pixel(SPACING);
             graphics::draw(ctx, &outline.0, Point2::new(x, y), 0.0).unwrap();
+        }
+    }
+}
+
+struct DrawWidgets<'a>(&'a mut Context);
+
+impl<'a, 'b> System<'a> for DrawWidgets<'b> {
+    type SystemData = (
+        ReadStorage<'a, ui::TextWidget>,
+        ReadStorage<'a, ui::ActiveWidget>,
+    );
+
+    fn run(&mut self, (widgets, active): Self::SystemData) {
+        let ctx = &mut self.0;
+        graphics::set_color(ctx, Color::new(0.5, 1.0, 0.5, 1.0)).unwrap();
+        for (widget, _) in (&widgets, &active).join() {
+            graphics::draw(ctx, &widget.text, widget.pos, 0.0).unwrap();
         }
     }
 }
