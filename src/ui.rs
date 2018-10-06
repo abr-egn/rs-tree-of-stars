@@ -71,7 +71,8 @@ impl Mode for PauseMode {
     fn on_event(&mut self, _: &mut World, _: &mut Context, event: Event) -> EventAction {
         match event {
             Event::KeyDown { keycode: Some(Keycode::P), .. } => EventAction::Pop,
-            _ => EventAction::Continue,
+            Event::MouseMotion { .. } => EventAction::Continue,
+            _ => EventAction::Done,
         }
     }
 }
