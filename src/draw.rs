@@ -57,6 +57,8 @@ struct OutlineSprite(Mesh);
 
 struct PausedText(TextCached);
 
+const PACKET_RADIUS: f32 = 4.0;
+
 pub fn build_sprites(world: &mut World, ctx: &mut Context) -> GameResult<()> {
     let points: Vec<Point2> = (0..6).map(|ix| {
         let a = (PI / 3.0) * (ix as f32);
@@ -68,8 +70,8 @@ pub fn build_sprites(world: &mut World, ctx: &mut Context) -> GameResult<()> {
 
     let origin = Point2::new(0.0, 0.0);
     world.add_resource(PacketSprite {
-        outline: Mesh::new_circle(ctx, DrawMode::Line(0.5), origin, 4.0, 0.5)?,
-        fill: Mesh::new_circle(ctx, DrawMode::Fill, origin, 4.0, 0.5)?,
+        outline: Mesh::new_circle(ctx, DrawMode::Line(0.5), origin, PACKET_RADIUS, 0.5)?,
+        fill: Mesh::new_circle(ctx, DrawMode::Fill, origin, PACKET_RADIUS, 0.5)?,
     });
 
     Ok(())
@@ -126,33 +128,41 @@ fn now_f32(ctx: &Context) -> f32 { util::duration_f32(get_time_since_start(ctx))
 fn draw_orbit(
     ctx: &mut Context, sprite: &PacketSprite, color: Color,
     orbit_radius: f32, orbit_speed: f32,
-    coord: Coordinate, count: usize,
+    coord: Coordinate, pool: &resource::Pool,
 ) -> GameResult<()> {
-    if count == 0 { return Ok(()) }
+    let mut resources: Vec<(Resource, usize)> = vec![];
+    for res in Resource::all() {
+        let count = pool.get(res);
+        if count > 0 {
+            resources.push((res, count));
+        }
+    }
+    if resources.len() == 0 { return Ok(()) }
 
     let orbit = (now_f32(ctx) * orbit_speed) % (2.0 * PI);
     let (x, y) = coord.to_pixel(SPACING);
     let center_pt = Point2::new(x, y);
-    let inc = (2.0*PI) / (count as f32);
+    let inc = (2.0*PI) / (resources.len() as f32);
     graphics::set_color(ctx, color).unwrap();
-    for ix in 0..count {
-        let angle = (ix as f32) * inc + orbit;
-        let v = Vector2::new(angle.cos(), angle.sin()) * orbit_radius;
-        graphics::draw(ctx, sprite, center_pt + v, 0.0).unwrap();
+    for ix in 0..resources.len() {
+        let cluster_pt = {
+            let angle = (ix as f32) * inc + orbit;
+            let v = Vector2::new(angle.cos(), angle.sin()) * orbit_radius;
+            center_pt + v
+        };
+        let count = resources[ix].1;
+        let cluster_inc = (2.0*PI) / (count as f32);
+        for px in 0..count {
+            let angle = (px as f32) * cluster_inc;
+            let v = Vector2::new(angle.cos(), angle.sin()) * PACKET_RADIUS;
+            graphics::draw(ctx, sprite, cluster_pt + v, 0.0).unwrap();
+        }
     }
 
     Ok(())
 }
 
 struct DrawSources<'a>(&'a mut Context);
-
-fn sum_pool(pool: &resource::Pool) -> usize {
-    let mut sum: usize = 0;
-    for res in Resource::all() {
-        sum += pool.get(res);
-    }
-    sum
-}
 
 impl<'a, 'b> System<'a> for DrawSources<'b> {
     type SystemData = (
@@ -167,7 +177,7 @@ impl<'a, 'b> System<'a> for DrawSources<'b> {
             draw_orbit(
                 ctx, &*packet_sprite, Color::new(0.0, 1.0, 0.0, 1.0),
                 /* radius= */ 30.0, /* speed= */ 1.0,
-                node.at(), sum_pool(&source.has),
+                node.at(), &source.has,
             ).unwrap();
         }
     }
@@ -188,7 +198,7 @@ impl<'a, 'b> System<'a> for DrawSinks<'b> {
             draw_orbit(
                 ctx, &*packet_sprite, Color::new(0.0, 0.0, 0.0, 1.0),
                 /* radius= */ 15.0, /* speed= */ -0.5,
-                node.at(), sum_pool(&sink.has),
+                node.at(), &sink.has,
             ).unwrap();
         }
     }
