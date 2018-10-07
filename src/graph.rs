@@ -277,11 +277,17 @@ pub fn make_node(world: &mut World, center: Coordinate) -> GameResult<Entity> {
     Ok(ent)
 }
 
-pub fn make_link(world: &mut World, from: Entity, to: Entity) -> GameResult<Entity> {
-    let mut path = vec![];
-    let mut shape = vec![];
-    let mut shape_excl;
-    {
+struct LinkSpace {
+    path: Vec<Coordinate>,
+    shape: Vec<Coordinate>,
+}
+
+impl LinkSpace {
+    fn new(world: &World, from: Entity, to: Entity) -> GameResult<Self> {
+        let mut path = vec![];
+        let mut shape = vec![];
+        let mut shape_excl;
+
         let nodes = world.read_storage::<Node>();
         let source_pos = try_get(&nodes, from)?.at;
         let sink_pos = try_get(&nodes, to)?.at;
@@ -292,17 +298,32 @@ pub fn make_link(world: &mut World, from: Entity, to: Entity) -> GameResult<Enti
             if !shape_excl.contains(&c) { shape.push(c); }
             if c != source_pos && c != sink_pos { path.push(c); }
         });
+
+        Ok(LinkSpace { path, shape })
     }
+}
+
+pub fn space_for_link(world: &World, from: Entity, to: Entity) -> GameResult<bool> {
+    let map = world.read_resource::<geom::Map>();
+    let ls = LinkSpace::new(world, from, to)?;
+    for coord in ls.shape {
+        if map.get(coord).is_some() { return Ok(false) }
+    }
+    Ok(true)
+}
+
+pub fn make_link(world: &mut World, from: Entity, to: Entity) -> GameResult<Entity> {
+    let ls = LinkSpace::new(world, from, to)?;
     let ent = world.create_entity()
         .with(draw::Shape {
-            coords: shape.clone(),
+            coords: ls.shape.clone(),
             color: graphics::Color::new(0.0, 1.0, 0.0, 1.0),
         })
-        .with(Link { from, to, path })
+        .with(Link { from, to, path: ls.path })
         .build();
     world.write_resource::<geom::Map>().set(
         &mut world.write_storage(), ent,
-        geom::Space::new(shape),
+        geom::Space::new(ls.shape),
     )?;
     let mut graph = world.write_resource::<Graph>();
     graph.0.add_edge(from, to, ent);

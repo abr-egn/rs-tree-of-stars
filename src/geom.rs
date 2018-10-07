@@ -91,7 +91,7 @@ pub struct Map(HashMap<Coordinate, Entity>);
 
 impl Map {
     pub fn new() -> Self { Map(HashMap::new()) }
-    pub fn get(&self, coord: Coordinate) -> Option<&Entity> { self.0.get(&coord) }
+    pub fn get(&self, coord: Coordinate) -> Option<Entity> { self.0.get(&coord).cloned() }
     pub fn is_occupied(&self, space: &Space) -> bool {
         space.coords().iter().any(|c| self.0.get(c).is_some())
     }

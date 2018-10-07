@@ -222,7 +222,7 @@ impl <'a, 'b> System<'a> for DrawMouseWidget<'b> {
             ui::MWKind::Highlight => {
                 let coords = match map.get(coord) {
                     None => vec![coord],
-                    Some(&ent) => spaces.get(ent).unwrap().coords().iter().cloned().collect(),
+                    Some(ent) => spaces.get(ent).unwrap().coords().iter().cloned().collect(),
                 };
                 graphics::set_color(ctx, Color::new(0.5, 0.5, 0.5, 1.0)).unwrap();
                 for coord in coords {

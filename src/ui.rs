@@ -69,7 +69,7 @@ impl Mode for FindSelection {
             Event::MouseButtonDown { x, y, .. } => {
                 let coord = pixel_to_coord(ctx, x, y);
                 match world.read_resource::<geom::Map>().get(coord) {
-                    Some(&ent) if world.read_storage::<graph::Node>().get(ent).is_some() => {
+                    Some(ent) if world.read_storage::<graph::Node>().get(ent).is_some() => {
                         TopAction::Swap(NodeSelected::new(ent))
                     },
                     _ => TopAction::AsEvent,
@@ -85,6 +85,7 @@ impl FindSelection {
     fn new() -> Box<Mode> { Box::new(FindSelection) }
 }
 
+// TODO: get rid of this as a mode, and just make it behavior in PlayMode
 struct PauseMode {
     widget: Option<Entity>,
 }
@@ -133,7 +134,7 @@ impl Mode for PlaceMode {
         world.write_resource::<MouseWidget>().kind = MWKind::PlaceNode;
     }
     fn on_stop(&mut self, world: &mut World, _: &mut Context) {
-        world.write_resource::<MouseWidget>().kind = MWKind::Highlight;
+        world.write_resource::<MouseWidget>().kind = MWKind::None;
     }
     fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {
         match event {
@@ -167,12 +168,54 @@ impl Mode for NodeSelected {
     }
     fn on_top_event(&mut self, _: &mut World, _: &mut Context, event: Event) -> TopAction {
         match event {
-            Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
-                TopAction::Swap(FindSelection::new())
+            Event::KeyDown { keycode: Some(kc), .. } => {
+                match kc {
+                    Keycode::Escape => TopAction::Swap(FindSelection::new()),
+                    Keycode::L => TopAction::Do(EventAction::Push(PlaceLink::new(self.0))),
+                    _ => TopAction::AsEvent,
+                }
             },
             _ => TopAction::AsEvent,
         }
     }
+}
+
+struct PlaceLink(Entity);
+
+impl PlaceLink {
+    fn new(from: Entity) -> Box<Mode> { Box::new(PlaceLink(from)) }
+}
+
+impl Mode for PlaceLink {
+    fn on_start(&mut self, world: &mut World, _: &mut Context) {
+        world.write_resource::<MouseWidget>().kind = MWKind::Highlight;
+    }
+    fn on_stop(&mut self, world: &mut World, _: &mut Context) {
+        world.write_resource::<MouseWidget>().kind = MWKind::None;
+    }
+    fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {
+        match event {
+            Event::MouseButtonDown { x, y, .. } => {
+                let coord = pixel_to_coord(ctx, x, y);
+                let found = world.read_resource::<geom::Map>().get(coord);
+                match found {
+                    Some(ent) if ent != self.0 => {
+                        if world.read_storage::<graph::Node>().get(ent).is_some() &&
+                            graph::space_for_link(world, self.0, ent).unwrap() {
+                            graph::make_link(world, self.0, ent).unwrap();
+                            TopAction::Pop
+                        } else {
+                            TopAction::AsEvent
+                        }
+                    },
+                    _ => TopAction::AsEvent,
+                }
+            },
+            Event::KeyDown { keycode: Some(Keycode::Escape), .. } => TopAction::Pop,
+            _ => TopAction::AsEvent,
+        }
+    }
+
 }
 
 #[derive(Debug)]
