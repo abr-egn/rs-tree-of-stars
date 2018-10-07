@@ -92,16 +92,26 @@ struct DrawCells<'a>(&'a mut Context);
 impl<'a, 'b> System<'a> for DrawCells<'b> {
     type SystemData = (
         ReadExpect<'a, CellMesh>,
+        ReadExpect<'a, OutlineSprite>,
+        Entities<'a>,
         ReadStorage<'a, Shape>,
+        ReadStorage<'a, ui::Selected>,
     );
 
-    fn run(&mut self, (cell_mesh, shapes): Self::SystemData) {
+    fn run(&mut self, (cell_mesh, outline, entities, shapes, selected): Self::SystemData) {
         let ctx = &mut self.0;
-        for shape in shapes.join() {
+        for (entity, shape) in (&*entities, &shapes).join() {
             graphics::set_color(ctx, shape.color).unwrap();
             for coord in &shape.coords {
                 let (x, y) = coord.to_pixel(SPACING);
                 graphics::draw(ctx, &cell_mesh.0, Point2::new(x, y), 0.0).unwrap();
+            }
+            if selected.get(entity).is_some() {
+                graphics::set_color(ctx, Color::new(1.0, 1.0, 0.0, 1.0)).unwrap();
+                for coord in &shape.coords {
+                    let (x, y) = coord.to_pixel(SPACING);
+                    graphics::draw(ctx, &outline.0, Point2::new(x, y), 0.0).unwrap();
+                }
             }
         }
     }

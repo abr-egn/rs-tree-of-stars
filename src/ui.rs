@@ -45,11 +45,20 @@ impl Mode for PlayMode {
         }
         EventAction::Done
     }
-    fn on_top_event(&mut self, _: &mut World, _: &mut Context, event: Event) -> TopAction {
+    fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {
         match event {
             Event::KeyDown { keycode: Some(Keycode::N), .. } => {
                 TopAction::Do(EventAction::Push(PlaceMode::new()))
             },
+            Event::MouseButtonDown { x, y, .. } => {
+                let coord = pixel_to_coord(ctx, x, y);
+                match world.read_resource::<geom::Map>().get(coord) {
+                    Some(&ent) if world.read_storage::<graph::Node>().get(ent).is_some() => {
+                        TopAction::Do(EventAction::Push(NodeSelected::new(ent)))
+                    },
+                    _ => TopAction::AsEvent,
+                }
+            }
             _ => TopAction::AsEvent,
         }
     }
@@ -122,7 +131,6 @@ impl Mode for PlaceMode {
     }
 }
 
-/*
 struct NodeSelected(Entity);
 
 impl NodeSelected {
@@ -130,9 +138,19 @@ impl NodeSelected {
 }
 
 impl Mode for NodeSelected {
-
+    fn on_start(&mut self, world: &mut World, _: &mut Context) {
+        world.write_storage::<Selected>().insert(self.0, Selected).unwrap();
+    }
+    fn on_stop(&mut self, world: &mut World, _: &mut Context) {
+        world.write_storage::<Selected>().remove(self.0);
+    }
+    fn on_top_event(&mut self, _: &mut World, _: &mut Context, event: Event) -> TopAction {
+        match event {
+            Event::KeyDown { keycode: Some(Keycode::Escape), .. } => TopAction::Pop,
+            _ => TopAction::AsEvent,
+        }
+    }
 }
-*/
 
 #[derive(Debug)]
 pub struct TextWidget {
@@ -154,6 +172,13 @@ pub struct MouseWidget {
 pub enum MWKind {
     Highlight,
     PlaceNode,
+}
+
+#[derive(Debug, Default)]
+pub struct Selected;
+
+impl Component for Selected {
+    type Storage = NullStorage<Self>;
 }
 
 fn pixel_to_coord(ctx: &Context, mx: i32, my: i32) -> Coordinate {

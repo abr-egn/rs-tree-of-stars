@@ -51,6 +51,7 @@ fn make_world(ctx: &mut Context) -> GameResult<World> {
     world.register::<draw::Shape>();
 
     world.register::<ui::TextWidget>();
+    world.register::<ui::Selected>();
 
     world.add_resource(Now(Instant::now()));
     world.add_resource(Paused(false));
