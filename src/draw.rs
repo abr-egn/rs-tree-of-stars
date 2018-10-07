@@ -107,7 +107,8 @@ impl<'a, 'b> System<'a> for DrawCells<'b> {
                 graphics::draw(ctx, &cell_mesh.0, Point2::new(x, y), 0.0).unwrap();
             }
             if selected.get(entity).is_some() {
-                graphics::set_color(ctx, Color::new(1.0, 1.0, 0.0, 1.0)).unwrap();
+                let scale = (now_f32(ctx) * 3.0).sin() * 0.5 + 0.5;
+                graphics::set_color(ctx, Color::new(scale, 0.0, scale, 1.0)).unwrap();
                 for coord in &shape.coords {
                     let (x, y) = coord.to_pixel(SPACING);
                     graphics::draw(ctx, &outline.0, Point2::new(x, y), 0.0).unwrap();
