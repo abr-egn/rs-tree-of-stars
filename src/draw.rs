@@ -154,7 +154,7 @@ fn draw_orbit(
         let cluster_inc = (2.0*PI) / (count as f32);
         for px in 0..count {
             let angle = (px as f32) * cluster_inc;
-            let v = Vector2::new(angle.cos(), angle.sin()) * PACKET_RADIUS;
+            let v = Vector2::new(angle.cos(), angle.sin()) * PACKET_RADIUS * 1.5;
             graphics::draw(ctx, sprite, cluster_pt + v, 0.0).unwrap();
         }
     }
@@ -176,7 +176,7 @@ impl<'a, 'b> System<'a> for DrawSources<'b> {
         for (node, source) in (&nodes, &sources).join() {
             draw_orbit(
                 ctx, &*packet_sprite, Color::new(0.0, 1.0, 0.0, 1.0),
-                /* radius= */ 30.0, /* speed= */ 1.0,
+                /* radius= */ 3.0f32.sqrt() * HEX_SIDE * 2.0, /* speed= */ 1.0,
                 node.at(), &source.has,
             ).unwrap();
         }
@@ -197,7 +197,7 @@ impl<'a, 'b> System<'a> for DrawSinks<'b> {
         for (node, sink) in (&nodes, &sinks).join() {
             draw_orbit(
                 ctx, &*packet_sprite, Color::new(0.0, 0.0, 0.0, 1.0),
-                /* radius= */ 15.0, /* speed= */ -0.5,
+                /* radius= */ 3.0f32.sqrt() * HEX_SIDE, /* speed= */ -0.5,
                 node.at(), &sink.has,
             ).unwrap();
         }
