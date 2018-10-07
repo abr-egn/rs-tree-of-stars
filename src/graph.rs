@@ -266,7 +266,7 @@ pub fn make_node(world: &mut World, center: Coordinate) -> GameResult<Entity> {
     let ent = world.create_entity()
         .with(draw::Shape {
             coords: node_shape(center),
-            color: graphics::Color::new(1.0, 1.0, 1.0, 1.0),
+            color: graphics::Color::new(0.8, 0.8, 0.8, 1.0),
         })
         .with(Node { at: center })
         .build();
@@ -317,7 +317,7 @@ pub fn make_link(world: &mut World, from: Entity, to: Entity) -> GameResult<Enti
     let ent = world.create_entity()
         .with(draw::Shape {
             coords: ls.shape.clone(),
-            color: graphics::Color::new(0.0, 1.0, 0.0, 1.0),
+            color: graphics::Color::new(0.0, 0.8, 0.0, 1.0),
         })
         .with(Link { from, to, path: ls.path })
         .build();

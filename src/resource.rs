@@ -100,8 +100,8 @@ impl Sink {
 
 #[derive(Debug)]
 pub struct Packet {
-    sink: Entity,
-    resource: Resource,
+    pub sink: Entity,
+    pub resource: Resource,
 }
 
 impl Component for Packet {

@@ -125,8 +125,16 @@ impl<'a, 'b> System<'a> for DrawCells<'b> {
 
 fn now_f32(ctx: &Context) -> f32 { util::duration_f32(get_time_since_start(ctx)) }
 
+fn res_color(res: Resource) -> Color {
+    match res {
+        Resource::H2 => Color::new(1.0, 1.0, 0.0, 1.0),
+        Resource::O2 => Color::new(0.0, 1.0, 0.0, 1.0),
+        Resource::H2O => Color::new(0.0, 0.0, 1.0, 1.0),
+    }
+}
+
 fn draw_orbit(
-    ctx: &mut Context, sprite: &PacketSprite, color: Color,
+    ctx: &mut Context, sprite: &PacketSprite,
     orbit_radius: f32, orbit_speed: f32,
     coord: Coordinate, pool: &resource::Pool,
 ) -> GameResult<()> {
@@ -143,7 +151,6 @@ fn draw_orbit(
     let (x, y) = coord.to_pixel(SPACING);
     let center_pt = Point2::new(x, y);
     let inc = (2.0*PI) / (resources.len() as f32);
-    graphics::set_color(ctx, color).unwrap();
     for ix in 0..resources.len() {
         let cluster_pt = {
             let angle = (ix as f32) * inc + orbit;
@@ -152,6 +159,7 @@ fn draw_orbit(
         };
         let count = resources[ix].1;
         let cluster_inc = (2.0*PI) / (count as f32);
+        graphics::set_color(ctx, res_color(resources[ix].0)).unwrap();
         for px in 0..count {
             let angle = (px as f32) * cluster_inc;
             let v = Vector2::new(angle.cos(), angle.sin()) * PACKET_RADIUS * 1.5;
@@ -175,7 +183,7 @@ impl<'a, 'b> System<'a> for DrawSources<'b> {
         let ctx = &mut self.0;
         for (node, source) in (&nodes, &sources).join() {
             draw_orbit(
-                ctx, &*packet_sprite, Color::new(0.0, 1.0, 0.0, 1.0),
+                ctx, &*packet_sprite,
                 /* radius= */ 3.0f32.sqrt() * HEX_SIDE * 2.0, /* speed= */ 1.0,
                 node.at(), &source.has,
             ).unwrap();
@@ -196,7 +204,7 @@ impl<'a, 'b> System<'a> for DrawSinks<'b> {
         let ctx = &mut self.0;
         for (node, sink) in (&nodes, &sinks).join() {
             draw_orbit(
-                ctx, &*packet_sprite, Color::new(0.0, 0.0, 0.0, 1.0),
+                ctx, &*packet_sprite,
                 /* radius= */ 3.0f32.sqrt() * HEX_SIDE, /* speed= */ -0.5,
                 node.at(), &sink.has,
             ).unwrap();
@@ -215,9 +223,9 @@ impl<'a, 'b> System<'a> for DrawPackets<'b> {
 
     fn run(&mut self, (packet_sprite, motions, packets): Self::SystemData) {
         let ctx = &mut self.0;
-        for (motion, _) in (&motions, &packets).join() {
+        for (motion, packet) in (&motions, &packets).join() {
             let pos = motion.from + (motion.to - motion.from)*motion.at;
-            graphics::set_color(ctx, Color::new(0.0, 0.0, 1.0, 1.0)).unwrap();
+            graphics::set_color(ctx, res_color(packet.resource)).unwrap();
             graphics::draw(ctx, &*packet_sprite, pos, 0.0).unwrap();
         }
     }
