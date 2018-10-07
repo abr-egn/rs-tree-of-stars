@@ -13,10 +13,10 @@ use specs::{
     prelude::*,
 };
 
+use game;
 use geom;
 use graph;
 use resource;
-use ui;
 use util;
 
 pub const HEX_SIDE: f32 = 10.0;
@@ -98,7 +98,7 @@ impl<'a, 'b> System<'a> for DrawCells<'b> {
         ReadExpect<'a, OutlineSprite>,
         Entities<'a>,
         ReadStorage<'a, Shape>,
-        ReadStorage<'a, ui::Selected>,
+        ReadStorage<'a, game::Selected>,
     );
 
     fn run(&mut self, (cell_mesh, outline, entities, shapes, selected): Self::SystemData) {
@@ -211,7 +211,7 @@ impl <'a, 'b> System<'a> for DrawMouseWidget<'b> {
     type SystemData = (
         ReadExpect<'a, OutlineSprite>,
         ReadExpect<'a, CellMesh>,
-        ReadExpect<'a, ui::MouseWidget>,
+        ReadExpect<'a, game::MouseWidget>,
         ReadExpect<'a, geom::Map>,
         ReadStorage<'a, geom::Space>,
     );
@@ -221,8 +221,8 @@ impl <'a, 'b> System<'a> for DrawMouseWidget<'b> {
 
         let coord = if let Some(c) = mw.coord { c } else { return };
         match mw.kind {
-            ui::MWKind::None => (),
-            ui::MWKind::Highlight => {
+            game::MWKind::None => (),
+            game::MWKind::Highlight => {
                 let coords = match map.get(coord) {
                     None => vec![coord],
                     Some(ent) => spaces.get(ent).unwrap().coords().iter().cloned().collect(),
@@ -233,7 +233,7 @@ impl <'a, 'b> System<'a> for DrawMouseWidget<'b> {
                     graphics::draw(ctx, &outline.0, Point2::new(x, y), 0.0).unwrap();
                 }
             },
-            ui::MWKind::PlaceNode => {
+            game::MWKind::PlaceNode => {
                 let color = if graph::space_for_node(&*map, coord) {
                     Color::new(0.8, 0.8, 0.8, 0.5)
                 } else {

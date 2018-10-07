@@ -7,11 +7,11 @@ extern crate shred_derive;
 extern crate specs;
 
 mod draw;
+mod game;
 mod geom;
 mod graph;
 mod mode;
 mod resource;
-mod ui;
 mod util;
 
 use std::time::{Duration, Instant};
@@ -50,7 +50,7 @@ fn make_world(ctx: &mut Context) -> GameResult<World> {
 
     world.register::<draw::Shape>();
 
-    world.register::<ui::Selected>();
+    world.register::<game::Selected>();
 
     world.add_resource(Now(Instant::now()));
     world.add_resource(Paused(false));
@@ -58,7 +58,7 @@ fn make_world(ctx: &mut Context) -> GameResult<World> {
     world.add_resource(graph::Graph::new());
 
     draw::build_sprites(&mut world, ctx)?;
-    ui::prep_world(&mut world);
+    game::prep_world(&mut world);
 
     let center_ent = graph::make_node(&mut world, Coordinate { x: 0, y: 0 })?;
     let mut source = resource::Source::new();
@@ -112,7 +112,7 @@ fn main() -> GameResult<()> {
     let mut world = make_world(&mut ctx)?;
     let mut update = make_update();
     let mut stack = mode::Stack::new();
-    stack.push(&mut world, &mut ctx, ui::Play::new());
+    stack.push(&mut world, &mut ctx, game::Play::new());
 
     let mut running = true;
     while running {
