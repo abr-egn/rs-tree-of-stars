@@ -17,7 +17,7 @@ use mode::{Mode, EventAction, TopAction};
 pub fn prep_world(world: &mut World) {
     world.add_resource(MouseWidget {
         coord: None,
-        kind: MWKind::Highlight,
+        kind: MWKind::None,
     });
 }
 
@@ -34,34 +34,62 @@ impl Mode for PlayMode {
                 let coord = pixel_to_coord(ctx, x, y);
                 world.write_resource::<MouseWidget>().coord = Some(coord);
             },
-            Event::KeyDown { keycode: Some(kc), .. } => {
-                match kc {
-                    Keycode::P => return EventAction::Push(PauseMode::new()),
-                    Keycode::N => return EventAction::Push(PlaceMode::new()),
-                    _ => (),
-                }
+            Event::KeyDown { keycode: Some(Keycode::P), .. } => {
+                return EventAction::Push(PauseMode::new())
             },
             _ => (),
         }
         EventAction::Done
     }
-    fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {
+    fn on_top_event(&mut self, _: &mut World, _: &mut Context, event: Event) -> TopAction {
         match event {
-            Event::KeyDown { keycode: Some(Keycode::N), .. } => {
-                TopAction::Do(EventAction::Push(PlaceMode::new()))
-            },
-            Event::MouseButtonDown { x, y, .. } => {
-                let coord = pixel_to_coord(ctx, x, y);
-                match world.read_resource::<geom::Map>().get(coord) {
-                    Some(&ent) if world.read_storage::<graph::Node>().get(ent).is_some() => {
-                        TopAction::Do(EventAction::Push(NodeSelected::new(ent)))
-                    },
+            Event::KeyDown { keycode: Some(kc), .. } => {
+                match kc {
+                    Keycode::N => TopAction::Do(EventAction::Push(PlaceMode::new())),
+                    Keycode::S => TopAction::Do(EventAction::Push(FindSelection::new(|world, ent| {
+                        if world.read_storage::<graph::Node>().get(ent).is_some() {
+                            return Some(NodeSelected::new(ent))
+                        }
+                        None
+                    }))),
                     _ => TopAction::AsEvent,
                 }
-            }
+            },
             _ => TopAction::AsEvent,
         }
     }
+}
+
+struct FindSelection<T: Fn(&World, Entity) -> Option<Box<Mode>>> {
+    next: T,
+}
+
+impl<T: Fn(&World, Entity) -> Option<Box<Mode>>> Mode for FindSelection<T> {
+    fn on_start(&mut self, world: &mut World, _: &mut Context) {
+        world.write_resource::<MouseWidget>().kind = MWKind::Highlight;
+    }
+    fn on_stop(&mut self, world: &mut World, _: &mut Context) {
+        world.write_resource::<MouseWidget>().kind = MWKind::None;
+    }
+    fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {
+        match event {
+            Event::MouseButtonDown { x, y, .. } => {
+                let coord = pixel_to_coord(ctx, x, y);
+                match world.read_resource::<geom::Map>().get(coord) {
+                    Some(&ent) => match (self.next)(world, ent) {
+                        Some(m) => TopAction::Swap(m),
+                        _ => TopAction::AsEvent,
+                    },
+                    _ => TopAction::AsEvent,
+                }
+            },
+            _ => TopAction::AsEvent,
+        }
+    }
+}
+
+impl<T: Fn(&World, Entity) -> Option<Box<Mode>> + 'static> FindSelection<T> {
+    fn new(next: T) -> Box<Mode> { Box::new(FindSelection { next }) }
 }
 
 struct PauseMode {
@@ -170,6 +198,7 @@ pub struct MouseWidget {
 
 #[derive(Debug)]
 pub enum MWKind {
+    None,
     Highlight,
     PlaceNode,
 }

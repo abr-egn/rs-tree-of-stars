@@ -218,6 +218,7 @@ impl <'a, 'b> System<'a> for DrawMouseWidget<'b> {
 
         let coord = if let Some(c) = mw.coord { c } else { return };
         match mw.kind {
+            ui::MWKind::None => (),
             ui::MWKind::Highlight => {
                 let coords = match map.get(coord) {
                     None => vec![coord],

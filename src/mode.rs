@@ -8,6 +8,7 @@ pub enum TopAction {
     Do(EventAction),
     AsEvent,
     Pop,
+    Swap(Box<Mode>),
 }
 
 pub enum EventAction {
@@ -48,6 +49,11 @@ impl Stack {
             TopAction::Do(ea) => ea,
             TopAction::AsEvent => self.0[len-1].on_event(world, ctx, event.clone()),
             TopAction::Pop => { self.pop(world, ctx); return },
+            TopAction::Swap(act) => {
+                self.pop(world, ctx);
+                self.push(world, ctx, act);
+                return
+            },
         };
         match ea {
             EventAction::Continue => (),
