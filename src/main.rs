@@ -23,6 +23,7 @@ use ggez::{
 use hex2d::{Coordinate};
 use specs::prelude::*;
 
+use resource::Resource;
 use util::*;
 
 pub const UPDATES_PER_SECOND: u32 = 60;
@@ -62,12 +63,14 @@ fn make_world(ctx: &mut Context) -> GameResult<World> {
 
     let center_ent = graph::make_node(&mut world, Coordinate { x: 0, y: 0 })?;
     let mut source = resource::Source::new();
-    source.has = 10;
+    source.has.set(Resource::H2O, 10);
     world.write_storage::<resource::Source>().insert(center_ent, source)
         .map_err(dbg)?;
     let side_ent = graph::make_node(&mut world, Coordinate { x: 12, y: -2 })?;
     let top_ent = graph::make_node(&mut world, Coordinate { x: 8, y: 10 })?;
-    world.write_storage::<resource::Sink>().insert(top_ent, resource::Sink::new(5, 20))
+    let mut sink = resource::Sink::new(20);
+    sink.want.set(Resource::H2O, 5);
+    world.write_storage::<resource::Sink>().insert(top_ent, sink)
         .map_err(dbg)?;
     
     graph::make_link(&mut world, center_ent, side_ent)?;

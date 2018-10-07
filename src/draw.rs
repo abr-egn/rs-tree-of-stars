@@ -16,7 +16,7 @@ use specs::{
 use game;
 use geom;
 use graph;
-use resource;
+use resource::{self, Resource};
 use util;
 
 pub const HEX_SIDE: f32 = 10.0;
@@ -146,6 +146,14 @@ fn draw_orbit(
 
 struct DrawSources<'a>(&'a mut Context);
 
+fn sum_pool(pool: &resource::Pool) -> usize {
+    let mut sum: usize = 0;
+    for res in Resource::all() {
+        sum += pool.get(res);
+    }
+    sum
+}
+
 impl<'a, 'b> System<'a> for DrawSources<'b> {
     type SystemData = (
         ReadExpect<'a, PacketSprite>,
@@ -159,7 +167,7 @@ impl<'a, 'b> System<'a> for DrawSources<'b> {
             draw_orbit(
                 ctx, &*packet_sprite, Color::new(0.0, 1.0, 0.0, 1.0),
                 /* radius= */ 30.0, /* speed= */ 1.0,
-                node.at(), source.has,
+                node.at(), sum_pool(&source.has),
             ).unwrap();
         }
     }
@@ -180,7 +188,7 @@ impl<'a, 'b> System<'a> for DrawSinks<'b> {
             draw_orbit(
                 ctx, &*packet_sprite, Color::new(0.0, 0.0, 0.0, 1.0),
                 /* radius= */ 15.0, /* speed= */ -0.5,
-                node.at(), sink.has,
+                node.at(), sum_pool(&sink.has),
             ).unwrap();
         }
     }
