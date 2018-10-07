@@ -1,12 +1,11 @@
 use ggez::{
     event::{Event, Keycode},
-    graphics::{self, Point2, TextCached},
+    graphics,
     Context,
 };
 use hex2d::Coordinate;
 use specs::{
     prelude::*,
-    storage::BTreeStorage,
 };
 
 use draw;
@@ -35,7 +34,8 @@ impl Mode for Play {
                 world.write_resource::<MouseWidget>().coord = Some(coord);
             },
             Event::KeyDown { keycode: Some(Keycode::P), .. } => {
-                return EventAction::Push(PauseMode::new())
+                let p = &mut *world.write_resource::<super::Paused>();
+                p.0 = !p.0;
             },
             _ => (),
         }
@@ -83,44 +83,6 @@ impl Mode for Select {
 
 impl Select {
     fn new() -> Box<Mode> { Box::new(Select) }
-}
-
-// TODO: get rid of this as a mode, and just make it behavior in PlayMode
-struct PauseMode {
-    widget: Option<Entity>,
-}
-
-impl PauseMode {
-    fn new() -> Box<Mode> { Box::new(PauseMode { widget: None }) }
-}
-
-impl Mode for PauseMode {
-    fn on_start(&mut self, world: &mut World, _: &mut Context) {
-        world.write_resource::<super::Paused>().0 = true;
-        let ent = world.create_entity()
-            .with(TextWidget {
-                text: TextCached::new("PAUSED").unwrap(),
-                pos: Point2::new(0.0, 0.0),
-            })
-            .build();
-        self.widget = Some(ent);
-    }
-    fn on_stop(&mut self, world: &mut World, _: &mut Context) {
-        world.write_resource::<super::Paused>().0 = false;
-        world.delete_entity(self.widget.unwrap()).unwrap();
-    }
-    fn on_event(&mut self, _: &mut World, _: &mut Context, event: Event) -> EventAction {
-        match event {
-            Event::MouseMotion { .. } => EventAction::Continue,
-            _ => EventAction::Done,
-        }
-    }
-    fn on_top_event(&mut self, _: &mut World, _: &mut Context, event: Event) -> TopAction {
-        match event {
-            Event::KeyDown { keycode: Some(Keycode::P), .. } => TopAction::Pop,
-            _ => TopAction::AsEvent,
-        }
-    }
 }
 
 struct PlaceNode;
@@ -216,16 +178,6 @@ impl Mode for PlaceLink {
         }
     }
 
-}
-
-#[derive(Debug)]
-pub struct TextWidget {
-    pub text: TextCached,
-    pub pos: Point2,
-}
-
-impl Component for TextWidget {
-    type Storage = BTreeStorage<Self>;
 }
 
 #[derive(Debug)]

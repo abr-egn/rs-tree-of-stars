@@ -3,7 +3,7 @@ use std::f32::consts::PI;
 use ggez::{
     graphics::{
         self,
-        Color, BlendMode, DrawMode, DrawParam, Mesh, Point2, Vector2,
+        Color, BlendMode, DrawMode, DrawParam, Mesh, Point2, TextCached, Vector2,
     },
     timer::get_time_since_start,
     Context, GameResult,
@@ -39,8 +39,6 @@ struct PacketSprite {
     fill: Mesh,
 }
 
-struct OutlineSprite(Mesh);
-
 impl graphics::Drawable for PacketSprite {
     fn draw_ex(&self, ctx: &mut Context, mut param: DrawParam) -> GameResult<()> {
         self.fill.draw_ex(ctx, param)?;
@@ -55,6 +53,10 @@ impl graphics::Drawable for PacketSprite {
     fn get_blend_mode(&self) -> Option<BlendMode> { self.outline.get_blend_mode() }
 }
 
+struct OutlineSprite(Mesh);
+
+struct PausedText(TextCached);
+
 pub fn build_sprites(world: &mut World, ctx: &mut Context) -> GameResult<()> {
     let points: Vec<Point2> = (0..6).map(|ix| {
         let a = (PI / 3.0) * (ix as f32);
@@ -62,6 +64,7 @@ pub fn build_sprites(world: &mut World, ctx: &mut Context) -> GameResult<()> {
     }).collect();
     world.add_resource(CellMesh(Mesh::new_polygon(ctx, DrawMode::Fill, &points)?));
     world.add_resource(OutlineSprite(Mesh::new_polygon(ctx, DrawMode::Line(1.0), &points)?));
+    world.add_resource(PausedText(TextCached::new("PAUSED")?));
 
     let origin = Point2::new(0.0, 0.0);
     world.add_resource(PacketSprite {
@@ -81,7 +84,7 @@ pub fn draw(world: &mut World, ctx: &mut Context) {
     DrawSources(ctx).run_now(&mut world.res);
     DrawSinks(ctx).run_now(&mut world.res);
     DrawMouseWidget(ctx).run_now(&mut world.res);
-    DrawTextWidgets(ctx).run_now(&mut world.res);
+    DrawPaused(ctx).run_now(&mut world.res);
     world.maintain();
 
     graphics::present(ctx);
@@ -246,18 +249,19 @@ impl <'a, 'b> System<'a> for DrawMouseWidget<'b> {
     }
 }
 
-struct DrawTextWidgets<'a>(&'a mut Context);
+struct DrawPaused<'a>(&'a mut Context);
 
-impl<'a, 'b> System<'a> for DrawTextWidgets<'b> {
+impl<'a, 'b> System<'a> for DrawPaused<'b> {
     type SystemData = (
-        ReadStorage<'a, ui::TextWidget>,
+        ReadExpect<'a, PausedText>,
+        ReadExpect<'a, super::Paused>,
     );
 
-    fn run(&mut self, (widgets, ): Self::SystemData) {
+    fn run(&mut self, (text, paused): Self::SystemData) {
         let ctx = &mut self.0;
-        graphics::set_color(ctx, Color::new(0.5, 1.0, 0.5, 1.0)).unwrap();
-        for widget in widgets.join() {
-            graphics::draw(ctx, &widget.text, widget.pos, 0.0).unwrap();
+        if paused.0 {
+            graphics::set_color(ctx, Color::new(0.5, 1.0, 0.5, 1.0)).unwrap();
+            graphics::draw(ctx, &text.0, Point2::new(0.0, 0.0), 0.0).unwrap();
         }
     }
 }
