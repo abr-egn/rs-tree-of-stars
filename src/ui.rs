@@ -46,12 +46,7 @@ impl Mode for PlayMode {
             Event::KeyDown { keycode: Some(kc), .. } => {
                 match kc {
                     Keycode::N => TopAction::Do(EventAction::Push(PlaceMode::new())),
-                    Keycode::S => TopAction::Do(EventAction::Push(FindSelection::new(|world, ent| {
-                        if world.read_storage::<graph::Node>().get(ent).is_some() {
-                            return Some(NodeSelected::new(ent))
-                        }
-                        None
-                    }))),
+                    Keycode::S => TopAction::Do(EventAction::Push(FindSelection::new())),
                     _ => TopAction::AsEvent,
                 }
             },
@@ -60,11 +55,9 @@ impl Mode for PlayMode {
     }
 }
 
-struct FindSelection<T: Fn(&World, Entity) -> Option<Box<Mode>>> {
-    next: T,
-}
+struct FindSelection;
 
-impl<T: Fn(&World, Entity) -> Option<Box<Mode>>> Mode for FindSelection<T> {
+impl Mode for FindSelection {
     fn on_start(&mut self, world: &mut World, _: &mut Context) {
         world.write_resource::<MouseWidget>().kind = MWKind::Highlight;
     }
@@ -76,20 +69,20 @@ impl<T: Fn(&World, Entity) -> Option<Box<Mode>>> Mode for FindSelection<T> {
             Event::MouseButtonDown { x, y, .. } => {
                 let coord = pixel_to_coord(ctx, x, y);
                 match world.read_resource::<geom::Map>().get(coord) {
-                    Some(&ent) => match (self.next)(world, ent) {
-                        Some(m) => TopAction::Swap(m),
-                        _ => TopAction::AsEvent,
+                    Some(&ent) if world.read_storage::<graph::Node>().get(ent).is_some() => {
+                        TopAction::Swap(NodeSelected::new(ent))
                     },
                     _ => TopAction::AsEvent,
                 }
             },
+            Event::KeyDown { keycode: Some(Keycode::Escape), .. } => TopAction::Pop,
             _ => TopAction::AsEvent,
         }
     }
 }
 
-impl<T: Fn(&World, Entity) -> Option<Box<Mode>> + 'static> FindSelection<T> {
-    fn new(next: T) -> Box<Mode> { Box::new(FindSelection { next }) }
+impl FindSelection {
+    fn new() -> Box<Mode> { Box::new(FindSelection) }
 }
 
 struct PauseMode {
@@ -174,7 +167,9 @@ impl Mode for NodeSelected {
     }
     fn on_top_event(&mut self, _: &mut World, _: &mut Context, event: Event) -> TopAction {
         match event {
-            Event::KeyDown { keycode: Some(Keycode::Escape), .. } => TopAction::Pop,
+            Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+                TopAction::Swap(FindSelection::new())
+            },
             _ => TopAction::AsEvent,
         }
     }
