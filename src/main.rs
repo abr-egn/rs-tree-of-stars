@@ -113,7 +113,7 @@ fn main() -> GameResult<()> {
     let mut world = make_world(&mut ctx)?;
     let mut update = make_update();
     let mut stack = mode::Stack::new();
-    stack.push(&mut world, &mut ctx, ui::PlayMode::new());
+    stack.push(&mut world, &mut ctx, ui::Play::new());
 
     let mut running = true;
     while running {

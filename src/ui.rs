@@ -21,13 +21,13 @@ pub fn prep_world(world: &mut World) {
     });
 }
 
-pub struct PlayMode;
+pub struct Play;
 
-impl PlayMode {
-    pub fn new() -> Box<Mode> { Box::new(PlayMode) }
+impl Play {
+    pub fn new() -> Box<Mode> { Box::new(Play) }
 }
 
-impl Mode for PlayMode {
+impl Mode for Play {
     fn on_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> EventAction {
         match event {
             Event::MouseMotion { x, y, .. } => {
@@ -45,8 +45,8 @@ impl Mode for PlayMode {
         match event {
             Event::KeyDown { keycode: Some(kc), .. } => {
                 match kc {
-                    Keycode::N => TopAction::Do(EventAction::Push(PlaceMode::new())),
-                    Keycode::S => TopAction::Do(EventAction::Push(FindSelection::new())),
+                    Keycode::N => TopAction::Do(EventAction::Push(PlaceNode::new())),
+                    Keycode::S => TopAction::Do(EventAction::Push(Select::new())),
                     _ => TopAction::AsEvent,
                 }
             },
@@ -55,9 +55,9 @@ impl Mode for PlayMode {
     }
 }
 
-struct FindSelection;
+struct Select;
 
-impl Mode for FindSelection {
+impl Mode for Select {
     fn on_start(&mut self, world: &mut World, _: &mut Context) {
         world.write_resource::<MouseWidget>().kind = MWKind::Highlight;
     }
@@ -81,8 +81,8 @@ impl Mode for FindSelection {
     }
 }
 
-impl FindSelection {
-    fn new() -> Box<Mode> { Box::new(FindSelection) }
+impl Select {
+    fn new() -> Box<Mode> { Box::new(Select) }
 }
 
 // TODO: get rid of this as a mode, and just make it behavior in PlayMode
@@ -123,13 +123,13 @@ impl Mode for PauseMode {
     }
 }
 
-struct PlaceMode;
+struct PlaceNode;
 
-impl PlaceMode {
-    fn new() -> Box<Mode> { Box::new(PlaceMode) }
+impl PlaceNode {
+    fn new() -> Box<Mode> { Box::new(PlaceNode) }
 }
 
-impl Mode for PlaceMode {
+impl Mode for PlaceNode {
     fn on_start(&mut self, world: &mut World, _: &mut Context) {
         world.write_resource::<MouseWidget>().kind = MWKind::PlaceNode;
     }
@@ -170,7 +170,7 @@ impl Mode for NodeSelected {
         match event {
             Event::KeyDown { keycode: Some(kc), .. } => {
                 match kc {
-                    Keycode::Escape => TopAction::Swap(FindSelection::new()),
+                    Keycode::Escape => TopAction::Swap(Select::new()),
                     Keycode::L => TopAction::Do(EventAction::Push(PlaceLink::new(self.0))),
                     _ => TopAction::AsEvent,
                 }
