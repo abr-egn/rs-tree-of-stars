@@ -48,6 +48,7 @@ fn make_world(ctx: &mut Context) -> GameResult<World> {
     world.register::<resource::Source>();
     world.register::<resource::Sink>();
     world.register::<resource::Packet>();
+    world.register::<resource::Reactor>();
 
     world.register::<draw::Shape>();
 
@@ -63,16 +64,39 @@ fn make_world(ctx: &mut Context) -> GameResult<World> {
 
     let center_ent = graph::make_node(&mut world, Coordinate { x: 0, y: 0 })?;
     let mut source = resource::Source::new();
-    source.has.set(Resource::H2, 12);
-    source.has.set(Resource::O2, 12);
-    world.write_storage::<resource::Source>().insert(center_ent, source)
+    source.has.set(Resource::H2, 6);
+    source.has.set(Resource::O2, 6);
+    world.write_storage().insert(center_ent, source)
         .map_err(dbg)?;
+    world.write_storage().insert(center_ent, resource::Sink::new(20))
+        .map_err(dbg)?;
+    world.write_storage().insert(center_ent, resource::Reactor::new(
+        resource::Pool::from(vec![
+            (Resource::H2O, 2),
+        ]),
+        Duration::from_millis(5000),
+        resource::Pool::from(vec![
+            (Resource::H2, 2),
+            (Resource::O2, 1),
+        ]),
+    )).map_err(dbg)?;
+    
     let side_ent = graph::make_node(&mut world, Coordinate { x: 12, y: -2 })?;
     let top_ent = graph::make_node(&mut world, Coordinate { x: 8, y: 10 })?;
-    let mut sink = resource::Sink::new(20);
-    sink.want.set(Resource::H2, 6);
-    world.write_storage::<resource::Sink>().insert(top_ent, sink)
+    world.write_storage().insert(top_ent, resource::Source::new())
         .map_err(dbg)?;
+    world.write_storage().insert(top_ent, resource::Sink::new(20))
+        .map_err(dbg)?;
+    world.write_storage().insert(top_ent, resource::Reactor::new(
+        resource::Pool::from(vec![
+            (Resource::H2, 2),
+            (Resource::O2, 1),
+        ]),
+        Duration::from_millis(5000),
+        resource::Pool::from(vec![
+            (Resource::H2O, 2),
+        ]),
+    )).map_err(dbg)?;
     
     graph::make_link(&mut world, center_ent, side_ent)?;
     graph::make_link(&mut world, top_ent, side_ent)?;
@@ -85,12 +109,14 @@ fn make_update() -> Dispatcher<'static, 'static> {
     const TRAVERSE: &str = "traverse";
     const PULL: &str = "pull";
     const RECEIVE: &str = "receive";
+    const REACTION: &str = "reaction";
 
     DispatcherBuilder::new()
         .with(geom::Travel, TRAVEL, &[])
         .with(graph::Traverse, TRAVERSE, &[TRAVEL])
         .with(resource::Pull, PULL, &[])
         .with(resource::Receive, RECEIVE, &[PULL])
+        .with(resource::Reaction, REACTION, &[])
         .build()
 }
 
