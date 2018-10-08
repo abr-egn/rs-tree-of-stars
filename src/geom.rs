@@ -99,15 +99,8 @@ impl Map {
         &mut self, locs: &mut WriteStorage<Space>,
         ent: Entity, space: Space,
     ) -> GameResult<()> {
-        /*
         if self.is_occupied(&space) {
             return Err(GameError::UnknownError(format!("occupied space: {:?}", space)))
-        }
-        */
-        for c in space.coords() {
-            if self.0.get(c).is_some() {
-                return Err(GameError::UnknownError(format!("occupied space: {:?}", c)))
-            }
         }
         for &c in space.coords() { self.0.insert(c, ent); }
         locs.insert(ent, space).unwrap();

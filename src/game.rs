@@ -1,5 +1,3 @@
-use std::time::{Instant, Duration};
-
 use ggez::{
     event::{Event, Keycode},
     graphics,
@@ -140,14 +138,13 @@ impl Mode for NodeSelected {
                     Keycode::L => TopAction::Do(EventAction::Push(PlaceLink::new(self.0))),
                     Keycode::G => {
                         GrowTest::start(
-                            world.read_resource::<super::Now>().0,
                             &mut world.write_storage(),
                             &mut world.write_storage(),
                             &mut world.write_storage(),
                             self.0,
                         );
-                        world.write_storage::<resource::Source>().get_mut(self.0).unwrap()
-                            .has.dec(Resource::H2).unwrap();
+                        world.write_storage::<GrowTest>().get_mut(self.0).unwrap()
+                            .next_growth = 0;
                         TopAction::Do(EventAction::Done)
                     },
                     _ => TopAction::AsEvent,
@@ -220,30 +217,25 @@ impl Component for Selected {
 pub struct GrowTest {
     to_grow: Vec<hex2d::Direction>,
     next_growth: usize,
-    start_at: Instant,
 }
 
-const GROW_DELAY: Duration = Duration::from_millis(2000);
-
 impl GrowTest {
-    pub fn new(start_at: Instant) -> Self {
+    pub fn new() -> Self {
         GrowTest {
             to_grow: hex2d::Direction::all().iter().cloned().collect(),
-            next_growth: 0,
-            start_at,
+            next_growth: 1,
         }
     }
     pub fn start(
-        now: Instant,
         grow: &mut WriteStorage<GrowTest>,
         sources: &mut WriteStorage<resource::Source>,
         sinks: &mut WriteStorage<resource::Sink>,
         ent: Entity,
     ) {
         if grow.get(ent).is_some() { return }
-        grow.insert(ent, GrowTest::new(now + GROW_DELAY)).unwrap();
+        grow.insert(ent, GrowTest::new()).unwrap();
         let mut source = resource::Source::new();
-        source.has.inc(Resource::H2);
+        source.has.inc_by(Resource::H2, 6);
         sources.insert(ent, source).unwrap();
         let mut sink = resource::Sink::new(20);
         sink.want.inc_by(Resource::H2, 6);
@@ -261,7 +253,6 @@ pub struct RunGrowTest;
 #[derive(SystemData)]
 pub struct GrowTestData<'a> {
     entities: Entities<'a>,
-    now: ReadExpect<'a, super::Now>,
     graph: WriteExpect<'a, graph::Graph>,
     map: WriteExpect<'a, geom::Map>,
     spaces: WriteStorage<'a, geom::Space>,
@@ -281,7 +272,6 @@ impl<'a> System<'a> for RunGrowTest {
     fn run(&mut self, mut data: Self::SystemData) {
         let mut to_grow: Vec<(Entity, Coordinate)> = vec![];
         for (ent, node, sink, grow) in (&*data.entities, &mut data.nodes, &mut data.sinks, &mut data.grow).join() {
-            if grow.start_at > data.now.0 { continue }
             if sink.has.get(Resource::H2) < grow.next_growth { continue }
             let next_dir = if let Some(d) = grow.to_grow.pop() { d } else { continue };
             let mut next_coord: Coordinate = node.at();
@@ -301,7 +291,7 @@ impl<'a> System<'a> for RunGrowTest {
                 &mut data.nodes,
                 next_coord,
             ).unwrap();
-            GrowTest::start(data.now.0, &mut data.grow, &mut data.sources, &mut data.sinks, ent);
+            GrowTest::start(&mut data.grow, &mut data.sources, &mut data.sinks, ent);
             if !graph::space_for_link(&*data.map, &data.nodes, from, ent).unwrap() { continue }
             graph::make_link_parts(
                 &data.entities,
