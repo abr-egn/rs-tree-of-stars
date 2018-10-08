@@ -100,7 +100,7 @@ impl Map {
         ent: Entity, space: Space,
     ) -> GameResult<()> {
         if self.is_occupied(&space) {
-            return Err(GameError::UnknownError("occupied space".into()))
+            return Err(GameError::UnknownError(format!("occupied space: {:?}", space)))
         }
         for &c in space.coords() { self.0.insert(c, ent); }
         locs.insert(ent, space).unwrap();
