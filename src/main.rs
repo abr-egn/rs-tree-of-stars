@@ -53,6 +53,7 @@ fn make_world(ctx: &mut Context) -> GameResult<World> {
     world.register::<draw::Shape>();
 
     world.register::<game::Selected>();
+    world.register::<game::GrowTest>();
 
     world.add_resource(Now(Instant::now()));
     world.add_resource(Paused(false));
@@ -62,7 +63,8 @@ fn make_world(ctx: &mut Context) -> GameResult<World> {
     draw::build_sprites(&mut world, ctx)?;
     game::prep_world(&mut world);
 
-    let center_ent = graph::make_node(&mut world, Coordinate { x: 0, y: 0 })?;
+    let center_ent = graph::MakeNode::fetch(&mut world.res)
+        .place(Coordinate { x: 0, y: 0 })?;
     let mut source = resource::Source::new();
     source.has.set(Resource::H2, 6);
     source.has.set(Resource::O2, 6);
@@ -81,8 +83,10 @@ fn make_world(ctx: &mut Context) -> GameResult<World> {
         ]),
     )).map_err(dbg)?;
     
-    let side_ent = graph::make_node(&mut world, Coordinate { x: 12, y: -2 })?;
-    let top_ent = graph::make_node(&mut world, Coordinate { x: 8, y: 10 })?;
+    let side_ent = graph::MakeNode::fetch(&mut world.res)
+        .place(Coordinate { x: 12, y: -2 })?;
+    let top_ent = graph::MakeNode::fetch(&mut world.res)
+        .place(Coordinate { x: 8, y: 10 })?;
     world.write_storage().insert(top_ent, resource::Source::new())
         .map_err(dbg)?;
     world.write_storage().insert(top_ent, resource::Sink::new(20))

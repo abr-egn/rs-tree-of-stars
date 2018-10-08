@@ -107,7 +107,7 @@ impl Mode for PlaceNode {
                 if !graph::space_for_node(&*world.read_resource::<geom::Map>(), coord) {
                     return TopAction::Do(EventAction::Done)
                 }
-                graph::make_node(world, coord).unwrap();
+                graph::MakeNode::fetch(&mut world.res).place(coord).unwrap();
                 TopAction::Pop
             },
             _ => TopAction::AsEvent,
@@ -198,6 +198,36 @@ pub struct Selected;
 
 impl Component for Selected {
     type Storage = NullStorage<Self>;
+}
+
+#[derive(Debug, Default)]
+pub struct GrowTest;
+
+impl Component for GrowTest {
+    type Storage = NullStorage<Self>;
+}
+
+#[derive(Debug)]
+pub struct RunGrowTest;
+
+#[derive(SystemData)]
+pub struct SubData<'a> {
+    shapes: WriteStorage<'a, draw::Shape>,
+    nodes: WriteStorage<'a, graph::Node>,
+}
+
+#[derive(SystemData)]
+pub struct GrowTestData<'a> {
+    map: WriteExpect<'a, geom::Map>,
+    sub: SubData<'a>,
+}
+
+impl<'a> System<'a> for RunGrowTest {
+    type SystemData = GrowTestData<'a>;
+
+    fn run(&mut self, mut data: Self::SystemData) {
+
+    }
 }
 
 fn pixel_to_coord(ctx: &Context, mx: i32, my: i32) -> Coordinate {

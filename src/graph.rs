@@ -262,19 +262,29 @@ pub fn space_for_node(map: &geom::Map, center: Coordinate) -> bool {
     true
 }
 
-pub fn make_node(world: &mut World, center: Coordinate) -> GameResult<Entity> {
-    let ent = world.create_entity()
-        .with(draw::Shape {
+#[derive(SystemData)]
+pub struct MakeNode<'a> {
+    pub entities: Entities<'a>,
+    pub map: WriteExpect<'a, geom::Map>,
+    pub spaces: WriteStorage<'a, geom::Space>,
+    pub shapes: WriteStorage<'a, draw::Shape>,
+    pub nodes: WriteStorage<'a, Node>,
+}
+
+impl<'a> MakeNode<'a> {
+    pub fn place(&mut self, center: Coordinate) -> GameResult<Entity> {
+        let ent = self.entities.create();
+        self.map.set(
+            &mut self.spaces, ent,
+            geom::Space::new(node_space(center)),
+        )?;
+        self.shapes.insert(ent, draw::Shape {
             coords: node_shape(center),
             color: graphics::Color::new(0.8, 0.8, 0.8, 1.0),
-        })
-        .with(Node { at: center })
-        .build();
-    world.write_resource::<geom::Map>().set(
-        &mut world.write_storage(), ent,
-        geom::Space::new(node_space(center)),
-    )?;
-    Ok(ent)
+        }).unwrap();
+        self.nodes.insert(ent, Node { at: center }).unwrap();
+        Ok(ent)
+    }
 }
 
 struct LinkSpace {
