@@ -221,7 +221,7 @@ impl GrowTest {
     pub fn new() -> Self {
         GrowTest {
             to_grow: hex2d::Direction::all().iter().cloned().collect(),
-            next_growth: 1,
+            next_growth: 0,
         }
     }
     pub fn start(
@@ -262,7 +262,7 @@ pub struct GrowTestData<'a> {
     links: WriteStorage<'a, graph::Link>,
 }
 
-const GROW_LEN: usize = 5;
+const GROW_LEN: usize = 10;
 
 impl<'a> System<'a> for RunGrowTest {
     type SystemData = GrowTestData<'a>;
@@ -278,6 +278,7 @@ impl<'a> System<'a> for RunGrowTest {
             }
             if !graph::space_for_node(&*data.map, next_coord) { continue }
             to_grow.push((ent, next_coord));
+            grow.next_growth += 1;
         }
         for (from, next_coord) in to_grow {
             let ent = graph::make_node(
