@@ -63,6 +63,7 @@ fn make_world(ctx: &mut Context) -> GameResult<World> {
     draw::build_sprites(&mut world, ctx)?;
     game::prep_world(&mut world);
 
+    /*
     let center_ent = graph::make_node_world(
         &mut world, Coordinate { x: 0, y: 0 })?;
     let mut source = resource::Source::new();
@@ -104,6 +105,7 @@ fn make_world(ctx: &mut Context) -> GameResult<World> {
     
     graph::make_link(&mut world, center_ent, side_ent)?;
     graph::make_link(&mut world, top_ent, side_ent)?;
+    */
 
     Ok(world)
 }

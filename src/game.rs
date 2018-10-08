@@ -175,13 +175,15 @@ impl Mode for PlaceLink {
                 let found = world.read_resource::<geom::Map>().get(coord);
                 match found {
                     Some(ent) if ent != self.0 => {
-                        if world.read_storage::<graph::Node>().get(ent).is_some() &&
-                            graph::space_for_link(&*world.read_resource(), &world.read_storage(), self.0, ent).unwrap() {
-                            graph::make_link(world, self.0, ent).unwrap();
-                            TopAction::Pop
-                        } else {
-                            TopAction::AsEvent
+                        let dest_at = if let Some(dest_node) = world.read_storage::<graph::Node>().get(ent) {
+                            dest_node.at()
+                        } else { return TopAction::AsEvent };
+                        let self_at = world.read_storage::<graph::Node>().get(self.0).unwrap().at();
+                        if !graph::space_for_link(&*world.read_resource(), self_at, dest_at) {
+                            return TopAction::AsEvent
                         }
+                        graph::make_link(world, self.0, ent).unwrap();
+                        TopAction::Pop
                     },
                     _ => TopAction::AsEvent,
                 }
@@ -270,7 +272,7 @@ impl<'a> System<'a> for RunGrowTest {
     type SystemData = GrowTestData<'a>;
 
     fn run(&mut self, mut data: Self::SystemData) {
-        let mut to_grow: Vec<(Entity, Coordinate)> = vec![];
+        let mut to_grow: Vec<(Entity, Coordinate, Coordinate)> = vec![];
         for (ent, node, sink, grow) in (&*data.entities, &mut data.nodes, &mut data.sinks, &mut data.grow).join() {
             if sink.has.get(Resource::H2) < grow.next_growth { continue }
             let next_dir = if let Some(d) = grow.to_grow.pop() { d } else { continue };
@@ -278,11 +280,12 @@ impl<'a> System<'a> for RunGrowTest {
             for _ in 0..GROW_LEN {
                 next_coord = next_coord + next_dir;
             }
-            to_grow.push((ent, next_coord));
+            to_grow.push((ent, node.at(), next_coord));
             grow.next_growth += 1;
         }
-        for (from, next_coord) in to_grow {
+        for (from, at, next_coord) in to_grow {
             if !graph::space_for_node(&*data.map, next_coord) { continue }
+            if !graph::space_for_link(&*data.map, at, next_coord) { continue }
             let ent = graph::make_node(
                 &data.entities,
                 &mut *data.map,
@@ -292,7 +295,6 @@ impl<'a> System<'a> for RunGrowTest {
                 next_coord,
             ).unwrap();
             GrowTest::start(&mut data.grow, &mut data.sources, &mut data.sinks, ent);
-            if !graph::space_for_link(&*data.map, &data.nodes, from, ent).unwrap() { continue }
             graph::make_link_parts(
                 &data.entities,
                 &mut *data.graph,

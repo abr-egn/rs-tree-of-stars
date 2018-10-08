@@ -303,32 +303,32 @@ impl LinkSpace {
     fn new<T>(nodes: &T, from: Entity, to: Entity) -> GameResult<Self>
         where T: GenericReadStorage<Component=Node>
     {
-        let mut path = vec![];
-        let mut shape = vec![];
-        let mut shape_excl;
-
         let source_pos = try_get(nodes, from)?.at;
         let sink_pos = try_get(nodes, to)?.at;
-        shape_excl = HashSet::<Coordinate>::new();
-        source_pos.for_each_in_range(NODE_RADIUS, |c| { shape_excl.insert(c); });
-        sink_pos.for_each_in_range(NODE_RADIUS, |c| { shape_excl.insert(c); });
-        source_pos.for_each_in_line_to(sink_pos, |c| {
+        Ok(LinkSpace::new_pos(source_pos, sink_pos))
+    }
+
+    fn new_pos(from: Coordinate, to: Coordinate) -> Self {
+        let mut path = vec![];
+        let mut shape = vec![];
+        let mut shape_excl = HashSet::<Coordinate>::new();
+        from.for_each_in_range(NODE_RADIUS, |c| { shape_excl.insert(c); });
+        to.for_each_in_range(NODE_RADIUS, |c| { shape_excl.insert(c); });
+        from.for_each_in_line_to(to, |c| {
             if !shape_excl.contains(&c) { shape.push(c); }
-            if c != source_pos && c != sink_pos { path.push(c); }
+            if c != from && c != to { path.push(c); }
         });
 
-        Ok(LinkSpace { path, shape })
+        LinkSpace { path, shape }
     }
 }
 
-pub fn space_for_link<T>(map: &geom::Map, nodes: &T, from: Entity, to: Entity) -> GameResult<bool>
-    where T: GenericReadStorage<Component=Node>
-{
-    let ls = LinkSpace::new(nodes, from, to)?;
+pub fn space_for_link(map: &geom::Map, from: Coordinate, to: Coordinate) -> bool {
+    let ls = LinkSpace::new_pos(from, to);
     for coord in ls.shape {
-        if map.get(coord).is_some() { return Ok(false) }
+        if map.get(coord).is_some() { return false }
     }
-    Ok(true)
+    true
 }
 
 pub fn make_link(world: &mut World, from: Entity, to: Entity) -> GameResult<Entity> {
