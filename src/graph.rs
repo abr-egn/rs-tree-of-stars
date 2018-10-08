@@ -11,7 +11,7 @@ use petgraph::{
 };
 use specs::{
     prelude::*,
-    storage::BTreeStorage,
+    storage::{BTreeStorage, GenericReadStorage},
     Component,
 };
 
@@ -78,7 +78,7 @@ fn try_get_link<'a>(
     links: &'a ReadStorage<Link>,
 ) -> GameResult<Option<(&'a Link, PathDir)>> {
     let link = if let Some(&link_ent) = graph.0.edge_weight(from_ent, to_ent) {
-        try_get(&links, link_ent)?
+        try_get(links, link_ent)?
     } else {
         return Ok(None)
     };
@@ -300,14 +300,15 @@ struct LinkSpace {
 }
 
 impl LinkSpace {
-    fn new(world: &World, from: Entity, to: Entity) -> GameResult<Self> {
+    fn new<T>(nodes: &T, from: Entity, to: Entity) -> GameResult<Self>
+        where T: GenericReadStorage<Component=Node>
+    {
         let mut path = vec![];
         let mut shape = vec![];
         let mut shape_excl;
 
-        let nodes = world.read_storage::<Node>();
-        let source_pos = try_get(&nodes, from)?.at;
-        let sink_pos = try_get(&nodes, to)?.at;
+        let source_pos = try_get(nodes, from)?.at;
+        let sink_pos = try_get(nodes, to)?.at;
         shape_excl = HashSet::<Coordinate>::new();
         source_pos.for_each_in_range(NODE_RADIUS, |c| { shape_excl.insert(c); });
         sink_pos.for_each_in_range(NODE_RADIUS, |c| { shape_excl.insert(c); });
@@ -320,9 +321,10 @@ impl LinkSpace {
     }
 }
 
-pub fn space_for_link(world: &World, from: Entity, to: Entity) -> GameResult<bool> {
-    let map = world.read_resource::<geom::Map>();
-    let ls = LinkSpace::new(world, from, to)?;
+pub fn space_for_link<T>(map: &geom::Map, nodes: &T, from: Entity, to: Entity) -> GameResult<bool>
+    where T: GenericReadStorage<Component=Node>
+{
+    let ls = LinkSpace::new(nodes, from, to)?;
     for coord in ls.shape {
         if map.get(coord).is_some() { return Ok(false) }
     }
@@ -330,19 +332,40 @@ pub fn space_for_link(world: &World, from: Entity, to: Entity) -> GameResult<boo
 }
 
 pub fn make_link(world: &mut World, from: Entity, to: Entity) -> GameResult<Entity> {
-    let ls = LinkSpace::new(world, from, to)?;
-    let ent = world.create_entity()
-        .with(draw::Shape {
+    make_link_parts(
+        &world.read_resource(),
+        &mut *world.write_resource(),
+        &mut *world.write_resource(),
+        &mut world.write_storage(),
+        &mut world.write_storage(),
+        &mut world.write_storage(),
+        &mut world.read_storage(),
+        from, to,
+    )
+}
+
+pub fn make_link_parts<T>(
+    entities: &Entities,
+    graph: &mut Graph,
+    map: &mut geom::Map,
+    spaces: &mut WriteStorage<geom::Space>,
+    shapes: &mut WriteStorage<draw::Shape>,
+    links: &mut WriteStorage<Link>,
+    nodes: &T,
+    from: Entity, to: Entity,
+) -> GameResult<Entity>
+    where T: GenericReadStorage<Component=Node>
+{
+    let ls = LinkSpace::new(nodes, from, to)?;
+    let ent = entities.create();
+    shapes.insert(ent,
+        draw::Shape {
             coords: ls.shape.clone(),
             color: graphics::Color::new(0.0, 0.8, 0.0, 1.0),
-        })
-        .with(Link { from, to, path: ls.path })
-        .build();
-    world.write_resource::<geom::Map>().set(
-        &mut world.write_storage(), ent,
-        geom::Space::new(ls.shape),
-    )?;
-    let mut graph = world.write_resource::<Graph>();
+        }
+    ).unwrap();
+    links.insert(ent, Link { from, to, path: ls.path }).unwrap();
+    map.set(spaces, ent, geom::Space::new(ls.shape))?;
     graph.0.add_edge(from, to, ent);
     Ok(ent)
 }

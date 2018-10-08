@@ -6,9 +6,15 @@ use std::{
 use ggez::{
     GameResult, GameError,
 };
-use specs::prelude::*;
+use specs::{
+    prelude::*,
+    storage::GenericReadStorage,
+};
 
-pub fn try_get<'a, 'b, T: Component>(storage: &'b ReadStorage<'a, T>, ent: Entity) -> GameResult<&'b T> {
+pub fn try_get<S, T>(storage: &S, ent: Entity) -> GameResult<&T>
+    where S: GenericReadStorage<Component=T>,
+          T: Component,
+{
     match storage.get(ent) {
         Some(t) => Ok(t),
         None => Err(GameError::UnknownError("no such component".into())),
