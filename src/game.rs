@@ -223,7 +223,7 @@ pub struct GrowTest {
     start_at: Instant,
 }
 
-const GROW_DELAY: Duration = Duration::from_millis(5000);
+const GROW_DELAY: Duration = Duration::from_millis(2000);
 
 impl GrowTest {
     pub fn new(start_at: Instant) -> Self {
@@ -273,7 +273,7 @@ pub struct GrowTestData<'a> {
     links: WriteStorage<'a, graph::Link>,
 }
 
-const GROW_LEN: usize = 10;
+const GROW_LEN: usize = 5;
 
 impl<'a> System<'a> for RunGrowTest {
     type SystemData = GrowTestData<'a>;
@@ -288,11 +288,11 @@ impl<'a> System<'a> for RunGrowTest {
             for _ in 0..GROW_LEN {
                 next_coord = next_coord + next_dir;
             }
-            if !graph::space_for_node(&*data.map, next_coord) { continue }
             to_grow.push((ent, next_coord));
             grow.next_growth += 1;
         }
         for (from, next_coord) in to_grow {
+            if !graph::space_for_node(&*data.map, next_coord) { continue }
             let ent = graph::make_node(
                 &data.entities,
                 &mut *data.map,
