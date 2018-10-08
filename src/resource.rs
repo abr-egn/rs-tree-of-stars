@@ -179,6 +179,7 @@ impl<'a> System<'a> for Pull {
                 data.map.in_range(sink_node.at(), sink.range)
                     .into_iter()
                     .filter_map(|source_ent| {
+                        if source_ent == entity { return None }
                         match data_sources.get(source_ent) {
                             Some(source) => {
                                 if need.keys().any(|&res| source.has.get(res) > 0) {

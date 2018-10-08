@@ -285,7 +285,7 @@ pub fn make_node(
 
 pub fn make_node_world(world: &mut World, center: Coordinate) -> GameResult<Entity> {
     make_node(
-        &world.read_resource(),
+        &world.entities(),
         &mut world.write_resource(),
         &mut world.write_storage(),
         &mut world.write_storage(),
@@ -333,7 +333,7 @@ pub fn space_for_link<T>(map: &geom::Map, nodes: &T, from: Entity, to: Entity) -
 
 pub fn make_link(world: &mut World, from: Entity, to: Entity) -> GameResult<Entity> {
     make_link_parts(
-        &world.read_resource(),
+        &world.entities(),
         &mut *world.write_resource(),
         &mut *world.write_resource(),
         &mut world.write_storage(),
