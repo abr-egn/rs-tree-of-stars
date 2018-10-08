@@ -262,29 +262,36 @@ pub fn space_for_node(map: &geom::Map, center: Coordinate) -> bool {
     true
 }
 
-#[derive(SystemData)]
-pub struct MakeNode<'a> {
-    pub entities: Entities<'a>,
-    pub map: WriteExpect<'a, geom::Map>,
-    pub spaces: WriteStorage<'a, geom::Space>,
-    pub shapes: WriteStorage<'a, draw::Shape>,
-    pub nodes: WriteStorage<'a, Node>,
+pub fn make_node(
+    entities: &Entities,
+    map: &mut geom::Map,
+    spaces: &mut WriteStorage<geom::Space>,
+    shapes: &mut WriteStorage<draw::Shape>,
+    nodes: &mut WriteStorage<Node>,
+    center: Coordinate,
+) -> GameResult<Entity> {
+    let ent = entities.create();
+    map.set(
+        spaces, ent,
+        geom::Space::new(node_space(center)),
+    )?;
+    shapes.insert(ent, draw::Shape {
+        coords: node_shape(center),
+        color: graphics::Color::new(0.8, 0.8, 0.8, 1.0),
+    }).unwrap();
+    nodes.insert(ent, Node { at: center }).unwrap();
+    Ok(ent)
 }
 
-impl<'a> MakeNode<'a> {
-    pub fn place(&mut self, center: Coordinate) -> GameResult<Entity> {
-        let ent = self.entities.create();
-        self.map.set(
-            &mut self.spaces, ent,
-            geom::Space::new(node_space(center)),
-        )?;
-        self.shapes.insert(ent, draw::Shape {
-            coords: node_shape(center),
-            color: graphics::Color::new(0.8, 0.8, 0.8, 1.0),
-        }).unwrap();
-        self.nodes.insert(ent, Node { at: center }).unwrap();
-        Ok(ent)
-    }
+pub fn make_node_world(world: &mut World, center: Coordinate) -> GameResult<Entity> {
+    make_node(
+        &world.read_resource(),
+        &mut world.write_resource(),
+        &mut world.write_storage(),
+        &mut world.write_storage(),
+        &mut world.write_storage(),
+        center,
+    )
 }
 
 struct LinkSpace {

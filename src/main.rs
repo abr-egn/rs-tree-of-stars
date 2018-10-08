@@ -63,8 +63,8 @@ fn make_world(ctx: &mut Context) -> GameResult<World> {
     draw::build_sprites(&mut world, ctx)?;
     game::prep_world(&mut world);
 
-    let center_ent = graph::MakeNode::fetch(&mut world.res)
-        .place(Coordinate { x: 0, y: 0 })?;
+    let center_ent = graph::make_node_world(
+        &mut world, Coordinate { x: 0, y: 0 })?;
     let mut source = resource::Source::new();
     source.has.set(Resource::H2, 6);
     source.has.set(Resource::O2, 6);
@@ -83,10 +83,10 @@ fn make_world(ctx: &mut Context) -> GameResult<World> {
         ]),
     )).map_err(dbg)?;
     
-    let side_ent = graph::MakeNode::fetch(&mut world.res)
-        .place(Coordinate { x: 12, y: -2 })?;
-    let top_ent = graph::MakeNode::fetch(&mut world.res)
-        .place(Coordinate { x: 8, y: 10 })?;
+    let side_ent = graph::make_node_world(
+        &mut world, Coordinate { x: 12, y: -2 })?;
+    let top_ent = graph::make_node_world(
+        &mut world, Coordinate { x: 8, y: 10 })?;
     world.write_storage().insert(top_ent, resource::Source::new())
         .map_err(dbg)?;
     world.write_storage().insert(top_ent, resource::Sink::new(20))
@@ -114,6 +114,7 @@ fn make_update() -> Dispatcher<'static, 'static> {
     const PULL: &str = "pull";
     const RECEIVE: &str = "receive";
     const REACTION: &str = "reaction";
+    const GROW_TEST: &str = "grow_test";
 
     DispatcherBuilder::new()
         .with(geom::Travel, TRAVEL, &[])
@@ -121,6 +122,7 @@ fn make_update() -> Dispatcher<'static, 'static> {
         .with(resource::Pull, PULL, &[])
         .with(resource::Receive, RECEIVE, &[PULL])
         .with(resource::Reaction, REACTION, &[])
+        .with(game::RunGrowTest, GROW_TEST, &[])
         .build()
 }
 

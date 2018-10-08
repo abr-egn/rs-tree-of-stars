@@ -3,15 +3,17 @@ use ggez::{
     graphics,
     Context,
 };
-use hex2d::Coordinate;
+use hex2d::{self, Coordinate};
 use specs::{
     prelude::*,
+    storage::BTreeStorage,
 };
 
 use draw;
 use geom;
 use graph;
 use mode::{Mode, EventAction, TopAction};
+use resource;
 
 pub fn prep_world(world: &mut World) {
     world.add_resource(MouseWidget {
@@ -107,7 +109,7 @@ impl Mode for PlaceNode {
                 if !graph::space_for_node(&*world.read_resource::<geom::Map>(), coord) {
                     return TopAction::Do(EventAction::Done)
                 }
-                graph::MakeNode::fetch(&mut world.res).place(coord).unwrap();
+                graph::make_node_world(world, coord).unwrap();
                 TopAction::Pop
             },
             _ => TopAction::AsEvent,
@@ -200,26 +202,29 @@ impl Component for Selected {
     type Storage = NullStorage<Self>;
 }
 
-#[derive(Debug, Default)]
-pub struct GrowTest;
+#[derive(Debug)]
+pub struct GrowTest {
+    to_grow: Vec<hex2d::Direction>,
+    next_growth: usize,
+}
 
 impl Component for GrowTest {
-    type Storage = NullStorage<Self>;
+    type Storage = BTreeStorage<Self>;
 }
 
 #[derive(Debug)]
 pub struct RunGrowTest;
 
 #[derive(SystemData)]
-pub struct SubData<'a> {
+pub struct GrowTestData<'a> {
+    entities: Entities<'a>,
+    map: WriteExpect<'a, geom::Map>,
+    spaces: WriteStorage<'a, geom::Space>,
     shapes: WriteStorage<'a, draw::Shape>,
     nodes: WriteStorage<'a, graph::Node>,
-}
-
-#[derive(SystemData)]
-pub struct GrowTestData<'a> {
-    map: WriteExpect<'a, geom::Map>,
-    sub: SubData<'a>,
+    grow: WriteStorage<'a, GrowTest>,
+    sources: WriteStorage<'a, resource::Source>,
+    sinks: WriteStorage<'a, resource::Sink>,
 }
 
 impl<'a> System<'a> for RunGrowTest {
