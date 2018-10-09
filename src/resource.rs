@@ -1,6 +1,5 @@
 use std::{
-    cmp::Ordering,
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     mem::swap,
     time::{Duration, Instant},
 };
@@ -45,6 +44,7 @@ pub struct Pool(HashMap<Resource, usize>);
 
 impl Pool {
     pub fn new() -> Self { Pool(HashMap::new()) }
+    #[allow(unused)]
     pub fn from<T>(t: T) -> Self
         where T: IntoIterator<Item=(Resource, usize)>
     { Pool(t.into_iter().collect()) }
@@ -277,6 +277,7 @@ pub struct Reactor {
 }
 
 impl Reactor {
+    #[allow(unused)]
     pub fn new(input: Pool, delay: Duration, output: Pool) -> Self {
         Reactor { input, delay, output, in_progress: None }
     }

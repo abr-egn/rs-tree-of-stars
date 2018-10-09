@@ -11,6 +11,13 @@ pub enum TopAction {
     Swap(Box<Mode>),
 }
 
+impl TopAction {
+    #[allow(unused)]
+    pub fn continue_() -> Self { TopAction::Do(EventAction::Continue) }
+    pub fn done() -> Self { TopAction::Do(EventAction::Done) }
+    pub fn push(m: Box<Mode>) -> Self { TopAction::Do(EventAction::Push(m)) }
+}
+
 pub enum EventAction {
     Continue,
     Done,

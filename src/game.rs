@@ -135,7 +135,7 @@ impl Mode for NodeSelected {
             Event::KeyDown { keycode: Some(kc), .. } => {
                 match kc {
                     Keycode::Escape => TopAction::Swap(Select::new()),
-                    Keycode::L => TopAction::Do(EventAction::Push(PlaceLink::new(self.0))),
+                    Keycode::L => TopAction::push(PlaceLink::new(self.0)),
                     Keycode::G => {
                         GrowTest::start(
                             &mut world.write_storage(),
@@ -145,7 +145,23 @@ impl Mode for NodeSelected {
                         );
                         world.write_storage::<GrowTest>().get_mut(self.0).unwrap()
                             .next_growth = 0;
-                        TopAction::Do(EventAction::Done)
+                        TopAction::done()
+                    },
+                    Keycode::S => {
+                        let mut sources = world.write_storage::<resource::Source>();
+                        if sources.get(self.0).is_some() { return TopAction::done() }
+                        let mut source = resource::Source::new(20);
+                        source.has.inc_by(Resource::H2, 6);
+                        sources.insert(self.0, source).unwrap();
+                        TopAction::done()
+                    },
+                    Keycode::D => {
+                        let mut sinks = world.write_storage::<resource::Sink>();
+                        if sinks.get(self.0).is_some() { return TopAction::done() }
+                        let mut sink = resource::Sink::new();
+                        sink.want.inc_by(Resource::H2, 6);
+                        sinks.insert(self.0, sink).unwrap();
+                        TopAction::done()
                     },
                     _ => TopAction::AsEvent,
                 }

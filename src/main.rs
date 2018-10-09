@@ -20,11 +20,7 @@ use ggez::{
     conf, event, graphics, timer,
     Context, GameResult,
 };
-use hex2d::{Coordinate};
 use specs::prelude::*;
-
-use resource::Resource;
-use util::*;
 
 pub const UPDATES_PER_SECOND: u32 = 60;
 pub const UPDATE_DELTA: f32 = 1.0 / (UPDATES_PER_SECOND as f32);
