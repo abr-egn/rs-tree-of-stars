@@ -78,6 +78,8 @@ impl Pool {
 #[derive(Debug)]
 pub struct Source {
     pub has: Pool,
+    pub range: i32,
+    last_send: HashMap<Entity /* Sink */, Instant>,
 }
 
 impl Component for Source {
@@ -85,7 +87,13 @@ impl Component for Source {
 }
 
 impl Source {
-    pub fn new() -> Self { Source { has: Pool::new() } }
+    pub fn new(range: i32) -> Self {
+        Source {
+            has: Pool::new(),
+            range,
+            last_send: HashMap::new(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -93,8 +101,6 @@ pub struct Sink {
     pub want: Pool,
     pub has: Pool,
     pub in_transit: Pool,
-    pub range: i32,
-    last_pull: HashMap<Entity /* Source */, Instant>,
 }
 
 impl Component for Sink {
@@ -102,10 +108,9 @@ impl Component for Sink {
 }
 
 impl Sink {
-    pub fn new(range: i32) -> Self {
+    pub fn new() -> Self {
         Sink {
             want: Pool::new(), has: Pool::new(), in_transit: Pool::new(),
-            range, last_pull: HashMap::new(),
         }
     }
 }
@@ -121,7 +126,7 @@ impl Component for Packet {
 }
 
 const PACKET_SPEED: f32 = 2.0;
-const PULL_COOLDOWN: Duration = Duration::from_millis(500);
+const SEND_COOLDOWN: Duration = Duration::from_millis(500);
 
 #[derive(Debug)]
 pub struct Pull;
@@ -161,91 +166,70 @@ impl<'a> System<'a> for Pull {
     type SystemData = PullData<'a>;
 
     fn run(&mut self, mut data: Self::SystemData) {
-        for (entity, sink_node, sink) in (&*data.entities, &data.nodes, &mut data.sinks).join() {
-            let mut need = HashMap::new();
-            for (res, want) in sink.want.iter() {
-                let pending = sink.has.get(res) + sink.in_transit.get(res);
-                if pending < want { need.insert(res, want - pending); }
-            }
-            if need.is_empty() { continue }
-
-            // Find the closest source with anything the sink needs.
-            let mut candidates: Vec<Candidate> = vec![];
-            let now = data.now.0;
-            let sources: HashSet<Entity> = {
-                // struct field sub-borrow so the filter_map closure doesn't try to borrow the
-                // whole `data` struct
-                let data_sources = &data.sources;
-                data.map.in_range(sink_node.at(), sink.range)
-                    .into_iter()
-                    .filter_map(|source_ent| {
-                        if source_ent == entity { return None }
-                        match data_sources.get(source_ent) {
-                            Some(source) => {
-                                if need.keys().any(|&res| source.has.get(res) > 0) {
-                                    Some(source_ent)
-                                } else {
-                                    None
+        let mut sink_candidates: HashMap<Entity /* Sink */, Vec<Candidate>> = HashMap::new();
+        for (source_ent, node, source) in (&*data.entities, &data.nodes, &data.sources).join() {
+            for sink_ent in data.map.in_range(node.at(), source.range) {
+                if sink_ent == source_ent { continue }
+                let sink = if let Some(s) = data.sinks.get(sink_ent) { s } else { continue };
+                for (res, have) in source.has.iter() {
+                    if have == 0 { continue }
+                    if sink.want.get(res) > (sink.has.get(res) + sink.in_transit.get(res)) {
+                        if let Some((len,route)) = data.graph.route(&data.links, &data.nodes, source_ent, sink_ent) {
+                            let mut route_time = f32_duration(PACKET_SPEED * (len as f32));
+                            let on_cooldown = match source.last_send.get(&sink_ent) {
+                                None => false,
+                                Some(&t) => {
+                                    let since_send = data.now.0 - t;
+                                    if since_send < SEND_COOLDOWN {
+                                        route_time += SEND_COOLDOWN - since_send;
+                                        true
+                                    } else { false }
                                 }
-                            },
-                            _ => None,
+                            };
+                            sink_candidates.entry(sink_ent)
+                                .or_insert_with(|| vec![])
+                                .push(Candidate {
+                                    source: source_ent, route, route_time, on_cooldown,
+                                });
                         }
-                    })
-                    .collect()
-            };
-            for source_ent in sources {
-                let (len, route) = if let Some(p) = data.graph.route(
-                    &data.links, &data.nodes, source_ent, entity,
-                ) { p } else { continue };
-                let mut route_time = f32_duration(PACKET_SPEED * (len as f32));
-                let mut on_cooldown = false;
-                match sink.last_pull.get(&source_ent) {
-                    None => (),
-                    Some(&last_pull) => {
-                        let since_pull = now - last_pull;
-                        if since_pull < PULL_COOLDOWN {
-                            let cd = PULL_COOLDOWN - since_pull;
-                            route_time += cd;
-                            on_cooldown = true;
-                        }
+                        break
                     }
-                };
-                candidates.push(Candidate { source: source_ent, route, route_time, on_cooldown });
+                }
             }
-
-            if candidates.is_empty() {
-                // TODO: flag for "blocked" display
-                continue
-            }
+        }
+        for (sink_ent, mut candidates) in sink_candidates {
+            if candidates.is_empty() { continue }
             candidates.sort_unstable();
             let candidate = &candidates[0];
             if candidate.on_cooldown { continue }
+            let source = if let Some(s) = data.sources.get_mut(candidate.source) { s } else { continue };
+            let sink = if let Some(s) = data.sinks.get_mut(sink_ent) { s } else { continue };
 
-            let source = try_get_mut(&mut data.sources, candidate.source).unwrap();
-            let coord = try_get(&data.nodes, candidate.source).unwrap().at();
-
-            // Take the thing the sink needs the most of            
+            // Take the thing the sink needs the most of
             let mut can_pull: Vec<(Resource, usize)> = vec![];
-            for (res, need_amount) in need {
-                if source.has.get(res) > 0 {
-                    can_pull.push((res, need_amount))
+            for (res, want) in sink.want.iter() {
+                let pending = sink.has.get(res) + sink.in_transit.get(res);
+                if pending < want && source.has.get(res) > 0 {
+                    can_pull.push((res, want - pending));
                 }
             }
-            assert!(!can_pull.is_empty());
+            if can_pull.is_empty() { continue }
             can_pull.sort_unstable_by(|a, b| b.1.cmp(&a.1));
             let pull_res = can_pull[0].0;
-            sink.last_pull.insert(candidate.source, now);
+
+            source.last_send.insert(sink_ent, data.now.0);
             source.has.dec(pull_res).unwrap();
             sink.in_transit.inc(pull_res);
 
             let packet = data.entities.create();
             data.packets.insert(packet, Packet {
-                sink: entity,
+                sink: sink_ent,
                 resource: pull_res,
             }).unwrap();
+            let source_coord = data.nodes.get(candidate.source).unwrap().at();
             graph::Traverse::start(
                 packet,
-                coord,
+                source_coord,
                 &candidate.route,
                 PACKET_SPEED,
                 &data.graph,

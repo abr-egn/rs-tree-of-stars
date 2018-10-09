@@ -236,10 +236,10 @@ impl GrowTest {
     ) {
         if grow.get(ent).is_some() { return }
         grow.insert(ent, GrowTest::new()).unwrap();
-        let mut source = resource::Source::new();
+        let mut source = resource::Source::new(20);
         source.has.inc_by(Resource::H2, 6);
         sources.insert(ent, source).unwrap();
-        let mut sink = resource::Sink::new(20);
+        let mut sink = resource::Sink::new();
         sink.want.inc_by(Resource::H2, 6);
         sinks.insert(ent, sink).unwrap();
     }
