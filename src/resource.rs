@@ -1,6 +1,7 @@
 use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet},
+    mem::swap,
     time::{Duration, Instant},
 };
 
@@ -154,52 +155,57 @@ struct Candidate {
     on_cooldown: bool,
 }
 
-impl Ord for Candidate {
-    fn cmp(&self, other: &Candidate) -> Ordering { self.route_time.cmp(&other.route_time) }
-}
-
-impl PartialOrd for Candidate {
-    fn partial_cmp(&self, other: &Candidate) -> Option<Ordering> { Some(self.cmp(other)) }
-}
-
 impl<'a> System<'a> for Pull {
     type SystemData = PullData<'a>;
 
     fn run(&mut self, mut data: Self::SystemData) {
         let mut sink_candidates: HashMap<Entity /* Sink */, Vec<Candidate>> = HashMap::new();
         for (source_ent, node, source) in (&*data.entities, &data.nodes, &data.sources).join() {
+            let mut candidates: Vec<(Entity, Candidate)> = vec![];
             for sink_ent in data.map.in_range(node.at(), source.range) {
                 if sink_ent == source_ent { continue }
                 let sink = if let Some(s) = data.sinks.get(sink_ent) { s } else { continue };
+                let mut want = false;
                 for (res, have) in source.has.iter() {
                     if have == 0 { continue }
                     if sink.want.get(res) > (sink.has.get(res) + sink.in_transit.get(res)) {
-                        if let Some((len,route)) = data.graph.route(&data.links, &data.nodes, source_ent, sink_ent) {
-                            let mut route_time = f32_duration(PACKET_SPEED * (len as f32));
-                            let on_cooldown = match source.last_send.get(&sink_ent) {
-                                None => false,
-                                Some(&t) => {
-                                    let since_send = data.now.0 - t;
-                                    if since_send < SEND_COOLDOWN {
-                                        route_time += SEND_COOLDOWN - since_send;
-                                        true
-                                    } else { false }
-                                }
-                            };
-                            sink_candidates.entry(sink_ent)
-                                .or_insert_with(|| vec![])
-                                .push(Candidate {
-                                    source: source_ent, route, route_time, on_cooldown,
-                                });
-                        }
+                        want = true;
                         break
                     }
                 }
+                if !want { continue }
+                let (len, route) = if let Some(p) = data.graph.route(&data.links, &data.nodes, source_ent, sink_ent) { p } else { continue };
+                let mut route_time = f32_duration(PACKET_SPEED * (len as f32));
+                let on_cooldown = match source.last_send.get(&sink_ent) {
+                    None => false,
+                    Some(&t) => {
+                        let since_send = data.now.0 - t;
+                        if since_send < SEND_COOLDOWN {
+                            route_time += SEND_COOLDOWN - since_send;
+                            true
+                        } else { false }
+                    }
+                };
+                candidates.push((sink_ent, Candidate {
+                    source: source_ent, route, route_time, on_cooldown,
+                }));
             }
+            if candidates.is_empty() { continue }
+            candidates.sort_unstable_by_key(|(_, c)| c.route_time);
+            let mut tmp = (source_ent, Candidate {
+                source: source_ent,
+                route: vec![],
+                route_time: Duration::from_millis(0),
+                on_cooldown: false,
+            });
+            swap(&mut tmp, &mut candidates[0]);
+            sink_candidates.entry(tmp.0)
+                .or_insert_with(|| vec![])
+                .push(tmp.1);
         }
         for (sink_ent, mut candidates) in sink_candidates {
             if candidates.is_empty() { continue }
-            candidates.sort_unstable();
+            candidates.sort_unstable_by_key(|c| c.route_time);
             let candidate = &candidates[0];
             if candidate.on_cooldown { continue }
             let source = if let Some(s) = data.sources.get_mut(candidate.source) { s } else { continue };
