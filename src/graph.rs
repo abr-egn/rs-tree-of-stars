@@ -26,16 +26,16 @@ impl Graph {
     pub fn route(
         &self, links: &ReadStorage<Link>, nodes: &ReadStorage<Node>,
         from: Entity, to: Entity) -> Option<(usize, Vec<Entity>)> {
-        let from_coord = try_get(nodes, from).unwrap().at;
+        let from_coord = nodes.get(from).unwrap().at;
         petgraph::algo::astar(
             /* graph= */ &self.0,
             /* start= */ from,
             /* is_goal= */ |ent| { ent == to },
             /* edge_cost= */ |(_, _, &link_ent)| {
-                try_get(links, link_ent).unwrap().path.len()
+                links.get(link_ent).unwrap().path.len()
             },
             /* estimate_cost= */ |ent| {
-                let ent_coord = try_get(nodes, ent).unwrap().at;
+                let ent_coord = nodes.get(ent).unwrap().at;
                 max(0, from_coord.distance(ent_coord) - 2) as usize
             },
         )

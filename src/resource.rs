@@ -260,6 +260,10 @@ impl<'a> System<'a> for Receive {
 
     fn run(&mut self, (entities, route_done, packets, mut sinks): Self::SystemData) {
         for (entity, _, packet) in (&*entities, &route_done, &packets).join() {
+            /*
+        (&*entities, &route_done, &packets).par_join().for_each_with(sinks,
+        |sinks, (entity, _, packet)| {
+            */
             let sink = try_get_mut(&mut sinks, packet.sink).unwrap();
             sink.in_transit.dec(packet.resource).unwrap();
             sink.has.inc(packet.resource);
