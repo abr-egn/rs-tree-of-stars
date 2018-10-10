@@ -6,6 +6,12 @@ use ggez::{
     GameResult, GameError,
 };
 use hex2d::Coordinate;
+use spade::{
+    self,
+    rtree::RTree,
+    BoundingRect,
+};
+
 use specs::{
     prelude::*,
     storage::BTreeStorage,
@@ -126,5 +132,80 @@ impl Map {
             }
         });
         out
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+struct SC(Coordinate);
+
+impl spade::PointN for SC {
+    type Scalar = i32;
+    fn dimensions() -> usize { 2 }
+    fn from_value(value: Self::Scalar) -> Self { SC(Coordinate::new(value, value))}
+    fn nth(&self, index: usize) -> &Self::Scalar {
+        match index {
+            0 => &self.0.x,
+            1 => &self.0.y,
+            _ => panic!("invalid index"),
+        }
+    }
+    fn nth_mut(&mut self, index: usize) -> &mut Self::Scalar {
+        match index {
+            0 => &mut self.0.x,
+            1 => &mut self.0.y,
+            _ => panic!("invalid index"),
+        }
+    }
+}
+
+impl spade::TwoDimensional for SC { }
+
+#[derive(Debug, PartialEq)]
+struct Area {
+    center: Coordinate,
+    radius: i32,
+    bounds: BoundingRect<SC>,
+    entity: Entity,
+}
+
+impl Area {
+    fn new(center: Coordinate, radius: i32, entity: Entity) -> Self {
+        let lower = Coordinate { x: center.x - radius, y: center.y - radius };
+        let upper = Coordinate { x: center.x + radius, y: center.y + radius };
+        let bounds = BoundingRect::from_corners(&SC(lower), &SC(upper));
+        Area { center, radius, bounds, entity }
+    }
+}
+
+impl spade::SpatialObject for Area {
+    type Point = SC;
+    fn mbr(&self) -> BoundingRect<Self::Point> { self.bounds.mbr() }
+    fn distance2(&self, point: &Self::Point) -> <Self::Point as spade::PointN>::Scalar {
+        self.bounds.distance2(point)
+    }
+    fn contains(&self, point: &Self::Point) -> bool {
+        self.bounds.contains(point)
+    }
+}
+
+pub struct AreaMap(RTree<Area>);
+
+impl AreaMap {
+    pub fn new() -> Self { AreaMap(RTree::new()) }
+    pub fn insert(&mut self, center: Coordinate, radius: i32, entity: Entity) {
+        self.0.insert(Area::new(center, radius, entity))
+    }
+    pub fn remove(&mut self, center: Coordinate, radius: i32, entity: Entity) -> bool {
+        self.0.remove(&Area::new(center, radius, entity))
+    }
+    pub fn find<'a>(&'a self, at: Coordinate) -> impl Iterator<Item=Entity> + 'a {
+        self.0.lookup_in_rectangle(&BoundingRect::from_point(SC(at)))
+            .into_iter()
+            .filter_map(move |area| {
+                if area.center.distance(at) > area.radius {
+                    return None
+                }
+                Some(area.entity)
+            })
     }
 }
