@@ -13,7 +13,7 @@ use specs::{
 };
 
 use geom;
-use graph;
+use graph::{self, Graph};
 use util::*;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -136,21 +136,19 @@ pub struct Pull;
 pub struct PullData<'a> {
     entities: Entities<'a>,
     now: ReadExpect<'a, super::Now>,
-    graph: ReadExpect<'a, graph::Graph>,
     map: ReadExpect<'a, geom::Map>,
     nodes: ReadStorage<'a, graph::Node>,
     links: ReadStorage<'a, graph::Link>,
     motions: WriteStorage<'a, geom::Motion>,
-    routes: WriteStorage<'a, graph::Route>,
+    routes: WriteStorage<'a, graph::FollowRoute>,
     sources: WriteStorage<'a, Source>,
     sinks: WriteStorage<'a, Sink>,
     packets: WriteStorage<'a, Packet>,
 }
 
-#[derive(PartialEq, Eq)]
 struct Candidate {
     source: Entity,
-    route: Vec<Entity>,
+    route: graph::Route,
     route_time: Duration,
     on_cooldown: bool,
 }
@@ -161,8 +159,15 @@ impl<'a> System<'a> for Pull {
     fn run(&mut self, mut data: Self::SystemData) {
         let mut sink_candidates: HashMap<Entity /* Sink */, Vec<Candidate>> = HashMap::new();
         for (source_ent, node, source) in (&*data.entities, &data.nodes, &data.sources).join() {
+            let found = data.map.in_range(node.at(), source.range);
+            let mut graph: Graph = Graph::new();
+            for &found_ent in &found {
+                if let Some(link) = data.links.get(found_ent) {
+                    graph.add_link(link, found_ent);
+                }
+            }
             let mut candidates: Vec<(Entity, Candidate)> = vec![];
-            for sink_ent in data.map.in_range(node.at(), source.range) {
+            for sink_ent in found {
                 if sink_ent == source_ent { continue }
                 let sink = if let Some(s) = data.sinks.get(sink_ent) { s } else { continue };
                 let mut want = false;
@@ -174,7 +179,7 @@ impl<'a> System<'a> for Pull {
                     }
                 }
                 if !want { continue }
-                let (len, route) = if let Some(p) = data.graph.route(&data.links, &data.nodes, source_ent, sink_ent) { p } else { continue };
+                let (len, route) = if let Some(p) = graph.route(&data.links, &data.nodes, source_ent, sink_ent) { p } else { continue };
                 let mut route_time = f32_duration(PACKET_SPEED * (len as f32));
                 let on_cooldown = match source.last_send.get(&sink_ent) {
                     None => false,
@@ -236,9 +241,8 @@ impl<'a> System<'a> for Pull {
             graph::Traverse::start(
                 packet,
                 source_coord,
-                &candidate.route,
+                candidate.route.clone(),
                 PACKET_SPEED,
-                &data.graph,
                 &data.links,
                 &mut data.motions,
                 &mut data.routes,

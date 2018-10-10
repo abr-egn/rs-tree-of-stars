@@ -118,11 +118,11 @@ impl Map {
         locs.remove(ent);
         Ok(())
     }
-    pub fn in_range(&self, center: Coordinate, radius: i32) -> Vec<Entity> {
-        let mut out = vec![];
+    pub fn in_range(&self, center: Coordinate, radius: i32) -> HashSet<Entity> {
+        let mut out = HashSet::new();
         center.for_each_in_range(radius, |c| {
             if let Some(&e) = self.0.get(&c) {
-                out.push(e);
+                out.insert(e);
             }
         });
         out

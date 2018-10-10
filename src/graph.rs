@@ -21,13 +21,18 @@ use util::*;
 
 pub struct Graph(GraphMap<Entity, Entity, petgraph::Undirected>);
 
+pub type Route = Vec<(Entity, PathDir)>;
+
 impl Graph {
     pub fn new() -> Self { Graph(GraphMap::new()) }
+    pub fn add_link(&mut self, link: &Link, entity: Entity) {
+        self.0.add_edge(link.from, link.to, entity);
+    }
     pub fn route(
         &self, links: &ReadStorage<Link>, nodes: &ReadStorage<Node>,
-        from: Entity, to: Entity) -> Option<(usize, Vec<Entity>)> {
+        from: Entity, to: Entity) -> Option<(usize, Route)> {
         let from_coord = nodes.get(from).unwrap().at;
-        petgraph::algo::astar(
+        let (len, nodes) = if let Some(p) = petgraph::algo::astar(
             /* graph= */ &self.0,
             /* start= */ from,
             /* is_goal= */ |ent| { ent == to },
@@ -38,8 +43,27 @@ impl Graph {
                 let ent_coord = nodes.get(ent).unwrap().at;
                 max(0, from_coord.distance(ent_coord) - 2) as usize
             },
-        )
+        ) { p } else { return None };
+        let mut route: Vec<(Entity, PathDir)> = vec![];
+        for ix in 0..nodes.len()-1 {
+            let link_ent = *self.0.edge_weight(nodes[ix], nodes[ix+1]).unwrap();
+            let link = links.get(link_ent).unwrap();
+            route.push((link_ent, if link.from == nodes[ix] {
+                PathDir::Fwd
+            } else if link.to == nodes[ix] {
+                PathDir::Rev
+            } else {
+                panic!("invalid link data")
+            }))
+        }
+        Some((len, route))
     }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum PathDir {
+    Fwd,
+    Rev,
 }
 
 #[derive(Debug)]
@@ -66,32 +90,6 @@ impl Component for Link {
     type Storage = BTreeStorage<Self>;
 }
 
-#[derive(Debug)]
-enum PathDir {
-    Fwd,
-    Rev,
-}
-
-fn try_get_link<'a>(
-    from_ent: Entity, to_ent: Entity,
-    graph: &Graph,
-    links: &'a ReadStorage<Link>,
-) -> GameResult<Option<(&'a Link, PathDir)>> {
-    let link = if let Some(&link_ent) = graph.0.edge_weight(from_ent, to_ent) {
-        try_get(links, link_ent)?
-    } else {
-        return Ok(None)
-    };
-    let dir = if link.from == from_ent {
-        PathDir::Fwd
-    } else if link.to == from_ent {
-        PathDir::Rev
-    } else {
-        panic!("Invalid link data")
-    };
-    Ok(Some((link, dir)))
-}
-
 #[derive(Debug, Copy, Clone)]
 enum PathCoord {
     More,
@@ -99,14 +97,13 @@ enum PathCoord {
 }
 
 fn path_ix(
-    from_ent: Entity, to_ent: Entity, ix: usize,
-    graph: &Graph,
-    links: &ReadStorage<Link>
+    (link_ent, path_dir): (Entity, PathDir), ix: usize,
+    links: &ReadStorage<Link>,
 ) -> GameResult<(Coordinate, PathCoord)> {
-    let (link, coord_ix) = match try_get_link(from_ent, to_ent, graph, links)? {
-        None => return Err(GameError::UnknownError("invalid path".into())),
-        Some((link, PathDir::Fwd)) => (link, ix),
-        Some((link, PathDir::Rev)) => (link, link.path.len() - 1 - ix),
+    let link = try_get(links, link_ent)?;
+    let coord_ix = match path_dir {
+        PathDir::Fwd => ix,
+        PathDir::Rev => link.path.len() - 1 - ix,
     };
     if ix >= link.path.len() {
         return Err(GameError::UnknownError("path ix past the end".into()))
@@ -118,10 +115,10 @@ fn path_ix(
 }
 
 #[derive(Debug)]
-pub struct Route {
-    nodes: Vec<Entity /* Node */>,
+pub struct FollowRoute {
+    route: Route,
     speed: f32,
-    node_ix: usize,
+    link_ix: usize,
     coord_ix: usize,
     phase: RoutePhase,
 }
@@ -132,14 +129,13 @@ enum RoutePhase {
     ToNode(Coordinate),
 }
 
-impl Route {
-    fn new(nodes: &[Entity], speed: f32, phase: RoutePhase) -> Self {
-        let nodes = nodes.into();
-        Route { nodes, speed, node_ix: 0, coord_ix: 0, phase }
+impl FollowRoute {
+    fn new(route: Route, speed: f32, phase: RoutePhase) -> Self {
+        FollowRoute { route, speed, link_ix: 0, coord_ix: 0, phase }
     }
 }
 
-impl Component for Route {
+impl Component for FollowRoute {
     type Storage = BTreeStorage<Self>;
 }
 
@@ -157,17 +153,16 @@ impl Traverse {
     pub fn start(
         entity: Entity,
         start: Coordinate,
-        route_nodes: &[Entity],
+        route: Route,
         speed: f32,
-        graph: &Graph,
         links: &ReadStorage<Link>,
         motions: &mut WriteStorage<geom::Motion>,
-        routes: &mut WriteStorage<Route>,
+        routes: &mut WriteStorage<FollowRoute>,
     ) -> GameResult<()> {
-        let (first_coord, p) = path_ix(route_nodes[0], route_nodes[1], 0, graph, links)?;
-        let route = Route::new(route_nodes, speed, RoutePhase::ToLink(first_coord, p));
-        motions.insert(entity, geom::Motion::new(start, first_coord, route.speed)).map_err(dbg)?;
-        routes.insert(entity, route).map_err(dbg)?;
+        let (first_coord, p) = path_ix(route[0], 0, links)?;
+        let follow = FollowRoute::new(route, speed, RoutePhase::ToLink(first_coord, p));
+        motions.insert(entity, geom::Motion::new(start, first_coord, follow.speed)).map_err(dbg)?;
+        routes.insert(entity, follow).map_err(dbg)?;
         Ok(())
     }
 }
@@ -175,12 +170,11 @@ impl Traverse {
 #[derive(SystemData)]
 pub struct TraverseData<'a> {
     entities: Entities<'a>,
-    graph: ReadExpect<'a, Graph>,
     links: ReadStorage<'a, Link>,
     nodes: ReadStorage<'a, Node>,
     motions: WriteStorage<'a, geom::Motion>,
     motion_done: WriteStorage<'a, geom::MotionDone>,
-    routes: WriteStorage<'a, Route>,
+    routes: WriteStorage<'a, FollowRoute>,
     route_done: WriteStorage<'a, RouteDone>,
 }
 
@@ -208,8 +202,8 @@ impl<'a> System<'a> for Traverse {
                 },
                 RoutePhase::ToNode(c) => {
                     route.coord_ix = 0;
-                    route.node_ix += 1;
-                    if route.node_ix >= route.nodes.len()-1 {
+                    route.link_ix += 1;
+                    if route.link_ix >= route.route.len() {
                         no_more_route.push(entity);
                         continue
                     }
@@ -219,15 +213,15 @@ impl<'a> System<'a> for Traverse {
             /* And given the new phase, where is it going? */
             let to_coord = if link_next {
                 let (coord, more) = path_ix(
-                    route.nodes[route.node_ix], route.nodes[route.node_ix+1],
+                    route.route[route.link_ix],
                     route.coord_ix,
-                    &data.graph, &data.links
+                    &data.links
                 ).unwrap();
                 route.phase = RoutePhase::ToLink(coord, more);
                 coord
             } else {
-                let coord = try_get(&data.nodes, route.nodes[route.node_ix+1])
-                    .unwrap().at;
+                let link = data.links.get(route.route[route.link_ix].0).unwrap();
+                let coord = data.nodes.get(link.to).unwrap().at;
                 route.phase = RoutePhase::ToNode(coord);
                 coord
             };
