@@ -252,7 +252,7 @@ impl GrowTest {
     ) {
         if grow.get(ent).is_some() { return }
         grow.insert(ent, GrowTest::new()).unwrap();
-        let mut source = resource::Source::new(20);
+        let mut source = resource::Source::new(6);
         source.has.inc_by(Resource::H2, 6);
         sources.insert(ent, source).unwrap();
         let mut sink = resource::Sink::new();
@@ -297,6 +297,7 @@ impl<'a> System<'a> for RunGrowTest {
             }
             to_grow.push((ent, node.at(), next_coord));
             grow.next_growth += 1;
+            //sink.want.set(Resource::H2, grow.next_growth);
         }
         for (from, at, next_coord) in to_grow {
             if !graph::space_for_node(&*data.map, next_coord) { continue }
