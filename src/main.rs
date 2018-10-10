@@ -4,6 +4,7 @@ extern crate petgraph;
 extern crate shred;
 #[macro_use]
 extern crate shred_derive;
+extern crate spade;
 extern crate specs;
 
 mod draw;
