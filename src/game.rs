@@ -271,7 +271,6 @@ pub struct RunGrowTest;
 #[derive(SystemData)]
 pub struct GrowTestData<'a> {
     entities: Entities<'a>,
-    graph: WriteExpect<'a, graph::Graph>,
     map: WriteExpect<'a, geom::Map>,
     spaces: WriteStorage<'a, geom::Space>,
     shapes: WriteStorage<'a, draw::Shape>,
@@ -313,7 +312,6 @@ impl<'a> System<'a> for RunGrowTest {
             GrowTest::start(&mut data.grow, &mut data.sources, &mut data.sinks, ent);
             graph::make_link_parts(
                 &data.entities,
-                &mut *data.graph,
                 &mut *data.map,
                 &mut data.spaces,
                 &mut data.shapes,

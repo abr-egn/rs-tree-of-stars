@@ -329,7 +329,6 @@ pub fn make_link(world: &mut World, from: Entity, to: Entity) -> GameResult<Enti
     make_link_parts(
         &world.entities(),
         &mut *world.write_resource(),
-        &mut *world.write_resource(),
         &mut world.write_storage(),
         &mut world.write_storage(),
         &mut world.write_storage(),
@@ -340,7 +339,6 @@ pub fn make_link(world: &mut World, from: Entity, to: Entity) -> GameResult<Enti
 
 pub fn make_link_parts<T>(
     entities: &Entities,
-    graph: &mut Graph,
     map: &mut geom::Map,
     spaces: &mut WriteStorage<geom::Space>,
     shapes: &mut WriteStorage<draw::Shape>,
@@ -360,6 +358,5 @@ pub fn make_link_parts<T>(
     ).unwrap();
     links.insert(ent, Link { from, to, path: ls.path }).unwrap();
     map.set(spaces, ent, geom::Space::new(ls.shape))?;
-    graph.0.add_edge(from, to, ent);
     Ok(ent)
 }
