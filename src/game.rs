@@ -158,7 +158,7 @@ impl Mode for NodeSelected {
                             &mut sources,
                             self.0,
                             resource::Pool::from(vec![(Resource::H2, 6)]),
-                            20,
+                            10,
                         );
                         TopAction::done()
                     },
@@ -325,6 +325,7 @@ impl<'a> System<'a> for RunGrowTest {
             graph::make_link_parts(
                 &data.entities,
                 &mut *data.map,
+                &mut *data.areas,
                 &mut data.spaces,
                 &mut data.shapes,
                 &mut data.links,

@@ -289,6 +289,8 @@ pub fn make_node_world(world: &mut World, center: Coordinate) -> GameResult<Enti
 }
 
 struct LinkSpace {
+    from: Coordinate,
+    to: Coordinate,
     path: Vec<Coordinate>,
     shape: Vec<Coordinate>,
 }
@@ -313,7 +315,7 @@ impl LinkSpace {
             if c != from && c != to { path.push(c); }
         });
 
-        LinkSpace { path, shape }
+        LinkSpace { from, to, path, shape }
     }
 }
 
@@ -329,6 +331,7 @@ pub fn make_link(world: &mut World, from: Entity, to: Entity) -> GameResult<Enti
     make_link_parts(
         &world.entities(),
         &mut *world.write_resource(),
+        &mut *world.write_resource(),
         &mut world.write_storage(),
         &mut world.write_storage(),
         &mut world.write_storage(),
@@ -340,6 +343,7 @@ pub fn make_link(world: &mut World, from: Entity, to: Entity) -> GameResult<Enti
 pub fn make_link_parts<T>(
     entities: &Entities,
     map: &mut geom::Map,
+    areas: &geom::AreaMap,
     spaces: &mut WriteStorage<geom::Space>,
     shapes: &mut WriteStorage<draw::Shape>,
     links: &mut WriteStorage<Link>,
@@ -349,6 +353,12 @@ pub fn make_link_parts<T>(
     where T: GenericReadStorage<Component=Node>
 {
     let ls = LinkSpace::new(nodes, from, to)?;
+    for e in areas.find(ls.from) {
+        println!("From found => {:?}", e);
+    }
+    for e in areas.find(ls.to) {
+        println!("To found   => {:?}", e);
+    }
     let ent = entities.create();
     shapes.insert(ent,
         draw::Shape {
