@@ -1,6 +1,6 @@
 use std::{
     cmp::max,
-    collections::HashSet,
+    collections::{HashSet, HashMap},
 };
 
 use ggez::{graphics, GameResult, GameError};
@@ -20,49 +20,71 @@ use geom;
 use resource;
 use util::*;
 
+type GraphData = GraphMap<Entity, Entity, petgraph::Undirected>;
+
 #[derive(Debug)]
-pub struct Graph(GraphMap<Entity, Entity, petgraph::Undirected>);
+pub struct Graph {
+    data: GraphData,
+    route_cache: HashMap<(Entity, Entity), Option<(usize, Route)>>,
+}
 
 pub type Route = Vec<(Entity, PathDir)>;
 
 impl Graph {
-    pub fn new() -> Self { Graph(GraphMap::new()) }
+    pub fn new() -> Self {
+        Graph {
+            data: GraphMap::new(),
+            route_cache: HashMap::new(),
+        }
+    }
     pub fn add_link(&mut self, link: &Link, entity: Entity) {
-        self.0.add_edge(link.from, link.to, entity);
+        self.data.add_edge(link.from, link.to, entity);
+        self.route_cache.clear();
     }
     pub fn route(
-        &self, links: &ReadStorage<Link>, nodes: &ReadStorage<Node>,
-        from: Entity, to: Entity) -> Option<(usize, Route)> {
-        let from_coord = nodes.get(from).unwrap().at;
-        let (len, nodes) = if let Some(p) = petgraph::algo::astar(
-            /* graph= */ &self.0,
-            /* start= */ from,
-            /* is_goal= */ |ent| { ent == to },
-            /* edge_cost= */ |(_, _, &link_ent)| {
-                links.get(link_ent).unwrap().path.len()
-            },
-            /* estimate_cost= */ |ent| {
-                let ent_coord = nodes.get(ent).unwrap().at;
-                max(0, from_coord.distance(ent_coord) - 2) as usize
-            },
-        ) { p } else { return None };
-        let mut route: Vec<(Entity, PathDir)> = vec![];
-        for ix in 0..nodes.len()-1 {
-            let link_ent = *self.0.edge_weight(nodes[ix], nodes[ix+1]).unwrap();
-            let link = links.get(link_ent).unwrap();
-            route.push((link_ent, if link.from == nodes[ix] {
-                PathDir::Fwd
-            } else if link.to == nodes[ix] {
-                PathDir::Rev
-            } else {
-                panic!("invalid link data")
-            }))
-        }
-        Some((len, route))
+        &mut self, links: &ReadStorage<Link>, nodes: &ReadStorage<Node>,
+        from: Entity, to: Entity,
+    ) -> Option<(usize, Route)> {
+        let data = &self.data;
+        self.route_cache.entry((from, to))
+            .or_insert_with(|| calc_route(data, links, nodes, from, to))
+            .clone()
     }
     pub fn nodes<'a>(&'a self) -> impl Iterator<Item=Entity> + 'a {
-        self.0.nodes()
+        self.data.nodes()
     }
+}
+
+fn calc_route(
+    data: &GraphData, links: &ReadStorage<Link>, nodes: &ReadStorage<Node>,
+    from: Entity, to: Entity,
+) -> Option<(usize, Route)> {
+    let from_coord = nodes.get(from).unwrap().at;
+    let (len, nodes) = if let Some(p) = petgraph::algo::astar(
+        /* graph= */ data,
+        /* start= */ from,
+        /* is_goal= */ |ent| { ent == to },
+        /* edge_cost= */ |(_, _, &link_ent)| {
+            links.get(link_ent).unwrap().path.len()
+        },
+        /* estimate_cost= */ |ent| {
+            let ent_coord = nodes.get(ent).unwrap().at;
+            max(0, from_coord.distance(ent_coord) - 2) as usize
+        },
+    ) { p } else { return None };
+    let mut route: Vec<(Entity, PathDir)> = vec![];
+    for ix in 0..nodes.len()-1 {
+        let link_ent = *data.edge_weight(nodes[ix], nodes[ix+1]).unwrap();
+        let link = links.get(link_ent).unwrap();
+        route.push((link_ent, if link.from == nodes[ix] {
+            PathDir::Fwd
+        } else if link.to == nodes[ix] {
+            PathDir::Rev
+        } else {
+            panic!("invalid link data")
+        }))
+    }
+    Some((len, route))
 }
 
 #[derive(Debug, Copy, Clone)]

@@ -176,9 +176,10 @@ impl<'a> System<'a> for Pull {
 
     fn run(&mut self, mut data: Self::SystemData) {
         let mut sink_candidates: HashMap<Entity /* Sink */, Vec<Candidate>> = HashMap::new();
-        for (source_ent, source) in (&*data.entities, &data.sources).join() {
+        for (source_ent, source) in (&*data.entities, &mut data.sources).join() {
             let mut candidates: Vec<(Entity, Candidate)> = vec![];
-            for sink_ent in source.graph.nodes() {
+            let graph_nodes: Vec<_> = source.graph.nodes().collect();
+            for sink_ent in graph_nodes {
                 if sink_ent == source_ent { continue }
                 let sink = if let Some(s) = data.sinks.get(sink_ent) { s } else { continue };
                 let mut want = false;
