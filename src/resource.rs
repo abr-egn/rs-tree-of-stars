@@ -155,7 +155,6 @@ pub struct Pull;
 pub struct PullData<'a> {
     entities: Entities<'a>,
     now: ReadExpect<'a, super::Now>,
-    map: ReadExpect<'a, geom::Map>,
     nodes: ReadStorage<'a, graph::Node>,
     links: ReadStorage<'a, graph::Link>,
     motions: WriteStorage<'a, geom::Motion>,
@@ -177,11 +176,9 @@ impl<'a> System<'a> for Pull {
 
     fn run(&mut self, mut data: Self::SystemData) {
         let mut sink_candidates: HashMap<Entity /* Sink */, Vec<Candidate>> = HashMap::new();
-        for (source_ent, node, source) in (&*data.entities, &data.nodes, &data.sources).join() {
-            // TODO: push nodes into local graph as well
-            let found = data.map.in_range(node.at(), source.range);
+        for (source_ent, source) in (&*data.entities, &data.sources).join() {
             let mut candidates: Vec<(Entity, Candidate)> = vec![];
-            for sink_ent in found {
+            for sink_ent in source.graph.nodes() {
                 if sink_ent == source_ent { continue }
                 let sink = if let Some(s) = data.sinks.get(sink_ent) { s } else { continue };
                 let mut want = false;

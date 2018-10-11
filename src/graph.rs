@@ -60,6 +60,9 @@ impl Graph {
         }
         Some((len, route))
     }
+    pub fn nodes<'a>(&'a self) -> impl Iterator<Item=Entity> + 'a {
+        self.0.nodes()
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
