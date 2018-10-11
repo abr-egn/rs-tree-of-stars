@@ -11,3 +11,6 @@ shred = "0.7"
 shred-derive = "0.5"
 petgraph = "0.4"
 spade = "1.5"
+
+[profile.release]
+debug = true
