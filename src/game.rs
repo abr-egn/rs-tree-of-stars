@@ -6,7 +6,7 @@ use ggez::{
 use hex2d::{self, Coordinate};
 use specs::{
     prelude::*,
-    storage::BTreeStorage,
+    storage::{BTreeStorage,GenericReadStorage},
 };
 
 use draw;
@@ -138,6 +138,8 @@ impl Mode for NodeSelected {
                     Keycode::L => TopAction::push(PlaceLink::new(self.0)),
                     Keycode::G => {
                         GrowTest::start(
+                            &mut *world.write_resource(),
+                            &world.read_storage(),
                             &mut world.write_storage(),
                             &mut world.write_storage(),
                             &mut world.write_storage(),
@@ -150,9 +152,14 @@ impl Mode for NodeSelected {
                     Keycode::S => {
                         let mut sources = world.write_storage::<resource::Source>();
                         if sources.get(self.0).is_some() { return TopAction::done() }
-                        let mut source = resource::Source::new(20);
-                        source.has.inc_by(Resource::H2, 6);
-                        sources.insert(self.0, source).unwrap();
+                        resource::add_source(
+                            &mut *world.write_resource(),
+                            &world.read_storage(),
+                            &mut sources,
+                            self.0,
+                            resource::Pool::from(vec![(Resource::H2, 6)]),
+                            20,
+                        );
                         TopAction::done()
                     },
                     Keycode::D => {
@@ -244,17 +251,20 @@ impl GrowTest {
             next_growth: 1,
         }
     }
-    pub fn start(
+    pub fn start<T>(
+        areas: &mut geom::AreaMap,
+        nodes: &T,
         grow: &mut WriteStorage<GrowTest>,
         sources: &mut WriteStorage<resource::Source>,
         sinks: &mut WriteStorage<resource::Sink>,
         ent: Entity,
-    ) {
+    ) 
+        where T: GenericReadStorage<Component=graph::Node>
+    {
         if grow.get(ent).is_some() { return }
         grow.insert(ent, GrowTest::new()).unwrap();
-        let mut source = resource::Source::new(6);
-        source.has.inc_by(Resource::H2, 6);
-        sources.insert(ent, source).unwrap();
+        resource::add_source(areas, nodes, sources, ent,
+            resource::Pool::from(vec![(Resource::H2, 6)]), 6);
         let mut sink = resource::Sink::new();
         sink.want.inc_by(Resource::H2, 6);
         sinks.insert(ent, sink).unwrap();
@@ -272,6 +282,7 @@ pub struct RunGrowTest;
 pub struct GrowTestData<'a> {
     entities: Entities<'a>,
     map: WriteExpect<'a, geom::Map>,
+    areas: WriteExpect<'a, geom::AreaMap>,
     spaces: WriteStorage<'a, geom::Space>,
     shapes: WriteStorage<'a, draw::Shape>,
     nodes: WriteStorage<'a, graph::Node>,
@@ -310,7 +321,7 @@ impl<'a> System<'a> for RunGrowTest {
                 &mut data.nodes,
                 next_coord,
             ).unwrap();
-            GrowTest::start(&mut data.grow, &mut data.sources, &mut data.sinks, ent);
+            GrowTest::start(&mut *data.areas, &data.nodes, &mut data.grow, &mut data.sources, &mut data.sinks, ent);
             graph::make_link_parts(
                 &data.entities,
                 &mut *data.map,

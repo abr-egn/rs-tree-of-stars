@@ -55,6 +55,7 @@ fn make_world(ctx: &mut Context) -> GameResult<World> {
     world.add_resource(Now(Instant::now()));
     world.add_resource(Paused(false));
     world.add_resource(geom::Map::new());
+    world.add_resource(geom::AreaMap::new());
 
     draw::build_sprites(&mut world, ctx)?;
     game::prep_world(&mut world);

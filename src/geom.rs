@@ -195,9 +195,11 @@ impl AreaMap {
     pub fn insert(&mut self, center: Coordinate, radius: i32, entity: Entity) {
         self.0.insert(Area::new(center, radius, entity))
     }
+    #[allow(unused)]
     pub fn remove(&mut self, center: Coordinate, radius: i32, entity: Entity) -> bool {
         self.0.remove(&Area::new(center, radius, entity))
     }
+    #[allow(unused)]
     pub fn find<'a>(&'a self, at: Coordinate) -> impl Iterator<Item=Entity> + 'a {
         self.0.lookup_in_rectangle(&BoundingRect::from_point(SC(at)))
             .into_iter()

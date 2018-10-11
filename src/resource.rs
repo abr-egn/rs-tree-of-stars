@@ -9,7 +9,7 @@ use ggez::{
 };
 use specs::{
     prelude::*,
-    storage::BTreeStorage,
+    storage::{BTreeStorage,GenericReadStorage},
 };
 
 use geom;
@@ -44,7 +44,6 @@ pub struct Pool(HashMap<Resource, usize>);
 
 impl Pool {
     pub fn new() -> Self { Pool(HashMap::new()) }
-    #[allow(unused)]
     pub fn from<T>(t: T) -> Self
         where T: IntoIterator<Item=(Resource, usize)>
     { Pool(t.into_iter().collect()) }
@@ -79,7 +78,7 @@ impl Pool {
 #[derive(Debug)]
 pub struct Source {
     pub has: Pool,
-    pub range: i32,
+    range: i32,
     last_send: HashMap<Entity /* Sink */, Instant>,
 }
 
@@ -87,14 +86,19 @@ impl Component for Source {
     type Storage = BTreeStorage<Self>;
 }
 
-impl Source {
-    pub fn new(range: i32) -> Self {
-        Source {
-            has: Pool::new(),
-            range,
-            last_send: HashMap::new(),
-        }
-    }
+pub fn add_source<T>(
+    areas: &mut geom::AreaMap,
+    nodes: &T,
+    sources: &mut WriteStorage<Source>,
+    entity: Entity,
+    has: Pool, range: i32,
+)
+    where T: GenericReadStorage<Component=graph::Node>
+{
+    let source = Source { has, range, last_send: HashMap::new() };
+    sources.insert(entity, source).unwrap();
+    areas.insert(nodes.get(entity).unwrap().at(), range, entity);
+    // TODO: build source graph
 }
 
 #[derive(Debug)]
