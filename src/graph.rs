@@ -17,8 +17,10 @@ use specs::{
 
 use draw;
 use geom;
+use resource;
 use util::*;
 
+#[derive(Debug)]
 pub struct Graph(GraphMap<Entity, Entity, petgraph::Undirected>);
 
 pub type Route = Vec<(Entity, PathDir)>;
@@ -79,7 +81,7 @@ impl Component for Node {
     type Storage = BTreeStorage<Self>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Link {
     pub from: Entity,
     pub to: Entity,
@@ -335,6 +337,7 @@ pub fn make_link(world: &mut World, from: Entity, to: Entity) -> GameResult<Enti
         &mut world.write_storage(),
         &mut world.write_storage(),
         &mut world.write_storage(),
+        &mut world.write_storage(),
         &mut world.read_storage(),
         from, to,
     )
@@ -346,6 +349,7 @@ pub fn make_link_parts<T>(
     areas: &geom::AreaMap,
     spaces: &mut WriteStorage<geom::Space>,
     shapes: &mut WriteStorage<draw::Shape>,
+    sources: &mut WriteStorage<resource::Source>,
     links: &mut WriteStorage<Link>,
     nodes: &T,
     from: Entity, to: Entity,
@@ -353,12 +357,6 @@ pub fn make_link_parts<T>(
     where T: GenericReadStorage<Component=Node>
 {
     let ls = LinkSpace::new(nodes, from, to)?;
-    for e in areas.find(ls.from) {
-        println!("From found => {:?}", e);
-    }
-    for e in areas.find(ls.to) {
-        println!("To found   => {:?}", e);
-    }
     let ent = entities.create();
     shapes.insert(ent,
         draw::Shape {
@@ -366,7 +364,15 @@ pub fn make_link_parts<T>(
             color: graphics::Color::new(0.0, 0.8, 0.0, 1.0),
         }
     ).unwrap();
-    links.insert(ent, Link { from, to, path: ls.path }).unwrap();
+    let link = Link { from, to, path: ls.path };
+    links.insert(ent, link.clone()).unwrap();
     map.set(spaces, ent, geom::Space::new(ls.shape))?;
+    let sources_from: HashSet<Entity> = areas.find(ls.from).collect();
+    let sources_to: HashSet<Entity> = areas.find(ls.to).collect();
+    for &e in sources_from.intersection(&sources_to) {
+        if let Some(source) = sources.get_mut(e) {
+            source.add_link(&link, ent);
+        }
+    }
     Ok(ent)
 }

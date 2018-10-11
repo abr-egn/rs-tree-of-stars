@@ -80,25 +80,40 @@ pub struct Source {
     pub has: Pool,
     range: i32,
     last_send: HashMap<Entity /* Sink */, Instant>,
+    graph: Graph,  // TODO: move this to an AreaGraph component
+}
+
+impl Source {
+    pub fn add_link(&mut self, link: &graph::Link, entity: Entity) {
+        self.graph.add_link(link, entity)
+    }
 }
 
 impl Component for Source {
     type Storage = BTreeStorage<Self>;
 }
 
-pub fn add_source<T>(
+pub fn add_source<ReadNodes, ReadLinks>(
+    map: &geom::Map,
     areas: &mut geom::AreaMap,
-    nodes: &T,
+    nodes: &ReadNodes,
+    links: &ReadLinks,
     sources: &mut WriteStorage<Source>,
     entity: Entity,
     has: Pool, range: i32,
 )
-    where T: GenericReadStorage<Component=graph::Node>
+    where ReadNodes: GenericReadStorage<Component=graph::Node>,
+          ReadLinks: GenericReadStorage<Component=graph::Link>,
 {
-    let source = Source { has, range, last_send: HashMap::new() };
+    let mut source = Source { has, range, last_send: HashMap::new(), graph: Graph::new() };
+    let at = nodes.get(entity).unwrap().at();
+    for found in map.in_range(at, range) {
+        if let Some(link) = links.get(found) {
+            source.add_link(link, found);
+        }
+    }
     sources.insert(entity, source).unwrap();
-    areas.insert(nodes.get(entity).unwrap().at(), range, entity);
-    // TODO: build source graph
+    areas.insert(at, range, entity);
 }
 
 #[derive(Debug)]
@@ -163,13 +178,8 @@ impl<'a> System<'a> for Pull {
     fn run(&mut self, mut data: Self::SystemData) {
         let mut sink_candidates: HashMap<Entity /* Sink */, Vec<Candidate>> = HashMap::new();
         for (source_ent, node, source) in (&*data.entities, &data.nodes, &data.sources).join() {
+            // TODO: push nodes into local graph as well
             let found = data.map.in_range(node.at(), source.range);
-            let mut graph: Graph = Graph::new();
-            for &found_ent in &found {
-                if let Some(link) = data.links.get(found_ent) {
-                    graph.add_link(link, found_ent);
-                }
-            }
             let mut candidates: Vec<(Entity, Candidate)> = vec![];
             for sink_ent in found {
                 if sink_ent == source_ent { continue }
@@ -183,7 +193,7 @@ impl<'a> System<'a> for Pull {
                     }
                 }
                 if !want { continue }
-                let (len, route) = if let Some(p) = graph.route(&data.links, &data.nodes, source_ent, sink_ent) { p } else { continue };
+                let (len, route) = if let Some(p) = source.graph.route(&data.links, &data.nodes, source_ent, sink_ent) { p } else { continue };
                 let mut route_time = f32_duration(PACKET_SPEED * (len as f32));
                 let on_cooldown = match source.last_send.get(&sink_ent) {
                     None => false,

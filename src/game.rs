@@ -138,7 +138,9 @@ impl Mode for NodeSelected {
                     Keycode::L => TopAction::push(PlaceLink::new(self.0)),
                     Keycode::G => {
                         GrowTest::start(
+                            &*world.read_resource(),
                             &mut *world.write_resource(),
+                            &world.read_storage(),
                             &world.read_storage(),
                             &mut world.write_storage(),
                             &mut world.write_storage(),
@@ -153,7 +155,9 @@ impl Mode for NodeSelected {
                         let mut sources = world.write_storage::<resource::Source>();
                         if sources.get(self.0).is_some() { return TopAction::done() }
                         resource::add_source(
+                            &*world.read_resource(),
                             &mut *world.write_resource(),
+                            &world.read_storage(),
                             &world.read_storage(),
                             &mut sources,
                             self.0,
@@ -251,19 +255,22 @@ impl GrowTest {
             next_growth: 1,
         }
     }
-    pub fn start<T>(
+    pub fn start<ReadNodes, ReadLinks>(
+        map: &geom::Map,
         areas: &mut geom::AreaMap,
-        nodes: &T,
+        nodes: &ReadNodes,
+        links: &ReadLinks,
         grow: &mut WriteStorage<GrowTest>,
         sources: &mut WriteStorage<resource::Source>,
         sinks: &mut WriteStorage<resource::Sink>,
         ent: Entity,
-    ) 
-        where T: GenericReadStorage<Component=graph::Node>
+    )
+        where ReadNodes: GenericReadStorage<Component=graph::Node>,
+              ReadLinks: GenericReadStorage<Component=graph::Link>,
     {
         if grow.get(ent).is_some() { return }
         grow.insert(ent, GrowTest::new()).unwrap();
-        resource::add_source(areas, nodes, sources, ent,
+        resource::add_source(map, areas, nodes, links, sources, ent,
             resource::Pool::from(vec![(Resource::H2, 6)]), 6);
         let mut sink = resource::Sink::new();
         sink.want.inc_by(Resource::H2, 6);
@@ -321,13 +328,23 @@ impl<'a> System<'a> for RunGrowTest {
                 &mut data.nodes,
                 next_coord,
             ).unwrap();
-            GrowTest::start(&mut *data.areas, &data.nodes, &mut data.grow, &mut data.sources, &mut data.sinks, ent);
+            GrowTest::start(
+                &*data.map,
+                &mut *data.areas,
+                &data.nodes,
+                &data.links,
+                &mut data.grow,
+                &mut data.sources,
+                &mut data.sinks,
+                ent,
+            );
             graph::make_link_parts(
                 &data.entities,
                 &mut *data.map,
                 &mut *data.areas,
                 &mut data.spaces,
                 &mut data.shapes,
+                &mut data.sources,
                 &mut data.links,
                 &data.nodes,
                 from, ent,
