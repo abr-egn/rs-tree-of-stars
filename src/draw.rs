@@ -92,6 +92,17 @@ pub fn draw(world: &mut World, ctx: &mut Context) {
     graphics::present(ctx);
 }
 
+trait ToPixelPoint {
+    fn to_pixel_point(&self) -> Point2;
+}
+
+impl ToPixelPoint for Coordinate {
+    fn to_pixel_point(&self) -> Point2 {
+        let (x, y) = self.to_pixel(SPACING);
+        Point2::new(x, y)
+    }
+}
+
 struct DrawCells<'a>(&'a mut Context);
 
 impl<'a, 'b> System<'a> for DrawCells<'b> {
@@ -105,18 +116,21 @@ impl<'a, 'b> System<'a> for DrawCells<'b> {
 
     fn run(&mut self, (cell_mesh, outline, entities, shapes, selected): Self::SystemData) {
         let ctx = &mut self.0;
+        let screen = graphics::get_screen_coordinates(ctx);
         for (entity, shape) in (&*entities, &shapes).join() {
             graphics::set_color(ctx, shape.color).unwrap();
             for coord in &shape.coords {
-                let (x, y) = coord.to_pixel(SPACING);
-                graphics::draw(ctx, &cell_mesh.0, Point2::new(x, y), 0.0).unwrap();
+                let p = coord.to_pixel_point();
+                if !screen.contains(p) { continue }
+                graphics::draw(ctx, &cell_mesh.0, p, 0.0).unwrap();
             }
             if selected.get(entity).is_some() {
                 let scale = (now_f32(ctx) * 3.0).sin() * 0.5 + 0.5;
                 graphics::set_color(ctx, Color::new(scale, 0.0, scale, 1.0)).unwrap();
                 for coord in &shape.coords {
-                    let (x, y) = coord.to_pixel(SPACING);
-                    graphics::draw(ctx, &outline.0, Point2::new(x, y), 0.0).unwrap();
+                    let p = coord.to_pixel_point();
+                    if !screen.contains(p) { continue }
+                    graphics::draw(ctx, &outline.0, p, 0.0).unwrap();
                 }
             }
         }
@@ -134,7 +148,7 @@ fn res_color(res: Resource) -> Color {
 }
 
 fn draw_orbit(
-    ctx: &mut Context, sprite: &PacketSprite,
+    ctx: &mut Context, screen: graphics::Rect, sprite: &PacketSprite,
     orbit_radius: f32, orbit_speed: f32,
     coord: Coordinate, pool: &resource::Pool,
 ) -> GameResult<()> {
@@ -148,8 +162,7 @@ fn draw_orbit(
     if resources.len() == 0 { return Ok(()) }
 
     let orbit = (now_f32(ctx) * orbit_speed) % (2.0 * PI);
-    let (x, y) = coord.to_pixel(SPACING);
-    let center_pt = Point2::new(x, y);
+    let center_pt = coord.to_pixel_point();
     let inc = (2.0*PI) / (resources.len() as f32);
     for ix in 0..resources.len() {
         let cluster_pt = {
@@ -163,7 +176,9 @@ fn draw_orbit(
         for px in 0..count {
             let angle = (px as f32) * cluster_inc;
             let v = Vector2::new(angle.cos(), angle.sin()) * PACKET_RADIUS * 1.5;
-            graphics::draw(ctx, sprite, cluster_pt + v, 0.0).unwrap();
+            let final_point = cluster_pt + v;
+            if !screen.contains(final_point) { continue }
+            graphics::draw(ctx, sprite, final_point, 0.0).unwrap();
         }
     }
 
@@ -181,9 +196,10 @@ impl<'a, 'b> System<'a> for DrawSources<'b> {
 
     fn run(&mut self, (packet_sprite, nodes, sources): Self::SystemData) {
         let ctx = &mut self.0;
+        let screen = graphics::get_screen_coordinates(ctx);
         for (node, source) in (&nodes, &sources).join() {
             draw_orbit(
-                ctx, &*packet_sprite,
+                ctx, screen, &*packet_sprite,
                 /* radius= */ 3.0f32.sqrt() * HEX_SIDE * 2.0, /* speed= */ 1.0,
                 node.at(), &source.has,
             ).unwrap();
@@ -202,9 +218,10 @@ impl<'a, 'b> System<'a> for DrawSinks<'b> {
 
     fn run(&mut self, (packet_sprite, nodes, sinks): Self::SystemData) {
         let ctx = &mut self.0;
+        let screen = graphics::get_screen_coordinates(ctx);
         for (node, sink) in (&nodes, &sinks).join() {
             draw_orbit(
-                ctx, &*packet_sprite,
+                ctx, screen, &*packet_sprite,
                 /* radius= */ 3.0f32.sqrt() * HEX_SIDE, /* speed= */ -0.5,
                 node.at(), &sink.has,
             ).unwrap();
@@ -223,8 +240,10 @@ impl<'a, 'b> System<'a> for DrawPackets<'b> {
 
     fn run(&mut self, (packet_sprite, motions, packets): Self::SystemData) {
         let ctx = &mut self.0;
+        let screen = graphics::get_screen_coordinates(ctx);
         for (motion, packet) in (&motions, &packets).join() {
             let pos = motion.from + (motion.to - motion.from)*motion.at;
+            if !screen.contains(pos) { continue }
             graphics::set_color(ctx, res_color(packet.resource)).unwrap();
             graphics::draw(ctx, &*packet_sprite, pos, 0.0).unwrap();
         }
