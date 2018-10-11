@@ -222,8 +222,13 @@ impl<'a> System<'a> for Traverse {
                 route.phase = RoutePhase::ToLink(coord, more);
                 coord
             } else {
-                let link = data.links.get(route.route[route.link_ix].0).unwrap();
-                let coord = data.nodes.get(link.to).unwrap().at;
+                let (link_ent, path_dir) = route.route[route.link_ix];
+                let link = data.links.get(link_ent).unwrap();
+                let node_ent = match path_dir {
+                    PathDir::Fwd => link.to,
+                    PathDir::Rev => link.from,
+                };
+                let coord = data.nodes.get(node_ent).unwrap().at;
                 route.phase = RoutePhase::ToNode(coord);
                 coord
             };
