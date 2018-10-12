@@ -18,8 +18,9 @@ use graph::{self, Graph};
 use util::*;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[repr(usize)]
 pub enum Resource {
-    H2,
+    H2 = 0usize,
     O2,
     H2O,
 }
@@ -41,38 +42,39 @@ impl Resource {
 // the Source/Sink numbers.
 
 #[derive(Debug, Clone)]
-pub struct Pool(HashMap<Resource, usize>);
+pub struct Pool([usize; 3]);
 
 impl Pool {
-    pub fn new() -> Self { Pool(HashMap::new()) }
+    pub fn new() -> Self { Pool([0, 0, 0]) }
     pub fn from<T>(t: T) -> Self
         where T: IntoIterator<Item=(Resource, usize)>
-    { Pool(t.into_iter().collect()) }
-    pub fn get(&self, res: Resource) -> usize { *self.0.get(&res).unwrap_or(&0) }
-    pub fn set(&mut self, res: Resource, count: usize) -> usize {
-        self.0.insert(res, count).unwrap_or(0)
+    {
+        let mut p = Pool::new();
+        for (res, count) in t.into_iter() {
+            p.0[res as usize] = count;
+        }
+        p
+    }
+    pub fn get(&self, res: Resource) -> usize { self.0[res as usize] }
+    pub fn set(&mut self, res: Resource, count: usize) {
+        self.0[res as usize] = count
     }
     pub fn inc(&mut self, res: Resource) { self.inc_by(res, 1) }
     pub fn inc_by(&mut self, res: Resource, count: usize) {
-        *self.0.entry(res).or_insert(0) += count
+        self.0[res as usize] += count
     }
     pub fn dec(&mut self, res: Resource) -> GameResult<()> {
         self.dec_by(res, 1)
     }
     pub fn dec_by(&mut self, res: Resource, count: usize) -> GameResult<()> {
-        match self.0.get_mut(&res) {
-            Some(c) => {
-                if *c >= count  {
-                    *c -= count;
-                    return Ok(())
-                }
-            },
-            _ => (),
+        if self.0[res as usize] >= count {
+            self.0[res as usize] -= count;
+            return Ok(())
         }
         Err(GameError::UnknownError("invalid pool decrement".into()))
     }
     pub fn iter<'a>(&'a self) -> impl Iterator<Item=(Resource, usize)> + 'a {
-        self.0.iter().map(|(&r, &c)| (r, c))
+        self.0.iter().enumerate().map(|(u, &c)| (unsafe { ::std::mem::transmute::<usize, Resource>(u) }, c))
     }
 }
 
@@ -221,8 +223,6 @@ impl<'a> System<'a> for Pull {
     type SystemData = PullData<'a>;
 
     fn run(&mut self, mut data: Self::SystemData) {
-        //let mut sink_candidates: HashMap<Entity /* Sink */, Vec<Candidate>> = HashMap::new();
-        //for (source_ent, source) in (&*data.entities, &mut data.sources).join() {
         let sink_candidates = {
             let sinks = &data.sinks;
             let links = &data.links;
