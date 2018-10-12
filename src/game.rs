@@ -109,7 +109,7 @@ impl Mode for PlaceNode {
                 if !graph::space_for_node(&*world.read_resource::<geom::Map>(), coord) {
                     return TopAction::Do(EventAction::Done)
                 }
-                graph::make_node_world(world, coord).unwrap();
+                graph::make_node(world, coord).unwrap();
                 TopAction::Pop
             },
             _ => TopAction::AsEvent,
@@ -297,7 +297,7 @@ impl<'a> System<'a> for RunGrowTest {
                     if !graph::space_for_node(map, next_coord) { continue }
                     if !graph::space_for_link(map, at, next_coord) { continue }
                 }
-                let ent = graph::make_node_world(world, next_coord).unwrap();
+                let ent = graph::make_node(world, next_coord).unwrap();
                 GrowTest::start(world, ent);
                 graph::make_link(world, from, ent).unwrap();
             }

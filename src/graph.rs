@@ -288,36 +288,19 @@ pub fn space_for_node(map: &geom::Map, center: Coordinate) -> bool {
     true
 }
 
-pub fn make_node(
-    entities: &Entities,
-    map: &mut geom::Map,
-    spaces: &mut WriteStorage<geom::Space>,
-    shapes: &mut WriteStorage<draw::Shape>,
-    nodes: &mut WriteStorage<Node>,
-    center: Coordinate,
-) -> GameResult<Entity> {
-    let ent = entities.create();
-    map.set(
-        spaces, ent,
+pub fn make_node(world: &mut World, center: Coordinate) -> GameResult<Entity> {
+    let ent = world.create_entity()
+        .with(draw::Shape {
+            coords: node_shape(center),
+            color: graphics::Color::new(0.8, 0.8, 0.8, 1.0),
+        })
+        .with(Node { at: center })
+        .build();
+    world.write_resource::<geom::Map>().set(
+        &mut world.write_storage::<geom::Space>(), ent,
         geom::Space::new(node_space(center)),
     )?;
-    shapes.insert(ent, draw::Shape {
-        coords: node_shape(center),
-        color: graphics::Color::new(0.8, 0.8, 0.8, 1.0),
-    }).unwrap();
-    nodes.insert(ent, Node { at: center }).unwrap();
     Ok(ent)
-}
-
-pub fn make_node_world(world: &mut World, center: Coordinate) -> GameResult<Entity> {
-    make_node(
-        &world.entities(),
-        &mut world.write_resource(),
-        &mut world.write_storage(),
-        &mut world.write_storage(),
-        &mut world.write_storage(),
-        center,
-    )
 }
 
 struct LinkSpace {
@@ -360,45 +343,21 @@ pub fn space_for_link(map: &geom::Map, from: Coordinate, to: Coordinate) -> bool
 }
 
 pub fn make_link(world: &mut World, from: Entity, to: Entity) -> GameResult<Entity> {
-    make_link_parts(
-        &world.entities(),
-        &mut *world.write_resource(),
-        &mut *world.write_resource(),
-        &mut world.write_storage(),
-        &mut world.write_storage(),
-        &mut world.write_storage(),
-        &mut world.write_storage(),
-        &mut world.read_storage(),
-        from, to,
-    )
-}
-
-pub fn make_link_parts<T>(
-    entities: &Entities,
-    map: &mut geom::Map,
-    areas: &geom::AreaMap,
-    spaces: &mut WriteStorage<geom::Space>,
-    shapes: &mut WriteStorage<draw::Shape>,
-    sources: &mut WriteStorage<resource::Source>,
-    links: &mut WriteStorage<Link>,
-    nodes: &T,
-    from: Entity, to: Entity,
-) -> GameResult<Entity>
-    where T: GenericReadStorage<Component=Node>
-{
-    let ls = LinkSpace::new(nodes, from, to)?;
-    let ent = entities.create();
-    shapes.insert(ent,
-        draw::Shape {
+    let ls = LinkSpace::new(&world.read_storage::<Node>(), from, to)?;
+    let link = Link { from, to, path: ls.path };
+    let ent = world.create_entity()
+        .with(draw::Shape {
             coords: ls.shape.clone(),
             color: graphics::Color::new(0.0, 0.8, 0.0, 1.0),
-        }
-    ).unwrap();
-    let link = Link { from, to, path: ls.path };
-    links.insert(ent, link.clone()).unwrap();
-    map.set(spaces, ent, geom::Space::new(ls.shape))?;
+        })
+        .with(link.clone())
+        .build();
+    world.write_resource::<geom::Map>().set(
+        &mut world.write_storage::<geom::Space>(), ent, geom::Space::new(ls.shape))?;
+    let areas = world.read_resource::<geom::AreaMap>();
     let sources_from: HashSet<Entity> = areas.find(ls.from).collect();
     let sources_to: HashSet<Entity> = areas.find(ls.to).collect();
+    let mut sources = world.write_storage::<resource::Source>();
     for &e in sources_from.intersection(&sources_to) {
         if let Some(source) = sources.get_mut(e) {
             source.add_link(&link, ent);
