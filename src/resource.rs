@@ -93,7 +93,7 @@ impl Source {
 }
 
 impl Component for Source {
-    type Storage = BTreeStorage<Self>;
+    type Storage = DenseVecStorage<Self>;
 }
 
 pub fn add_source(world: &mut World, entity: Entity, has: Pool, range: i32) {
@@ -119,7 +119,7 @@ pub struct Sink {
 }
 
 impl Component for Sink {
-    type Storage = BTreeStorage<Self>;
+    type Storage = DenseVecStorage<Self>;
 }
 
 impl Sink {
