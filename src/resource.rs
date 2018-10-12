@@ -149,11 +149,9 @@ pub struct PullData<'a> {
     now: ReadExpect<'a, super::Now>,
     nodes: ReadStorage<'a, graph::Node>,
     links: ReadStorage<'a, graph::Link>,
-    motions: WriteStorage<'a, geom::Motion>,
-    routes: WriteStorage<'a, graph::FollowRoute>,
     sources: WriteStorage<'a, Source>,
     sinks: WriteStorage<'a, Sink>,
-    packets: WriteStorage<'a, Packet>,
+    lazy: Read<'a, LazyUpdate>,
 }
 
 struct Candidate {
@@ -236,21 +234,23 @@ impl<'a> System<'a> for Pull {
             source.has.dec(pull_res).unwrap();
             sink.in_transit.inc(pull_res);
 
-            let packet = data.entities.create();
-            data.packets.insert(packet, Packet {
-                sink: sink_ent,
-                resource: pull_res,
-            }).unwrap();
             let source_coord = data.nodes.get(candidate.source).unwrap().at();
-            graph::Traverse::start(
-                packet,
-                source_coord,
-                candidate.route.clone(),
-                PACKET_SPEED,
-                &data.links,
-                &mut data.motions,
-                &mut data.routes,
-            ).unwrap();
+            let route = candidate.route.clone();
+            data.lazy.exec_mut(move |world| {
+                let packet = world.create_entity()
+                    .with(Packet {
+                        sink: sink_ent,
+                        resource: pull_res,
+                    })
+                    .build();
+                graph::Traverse::start(
+                    world,
+                    packet,
+                    source_coord,
+                    route,
+                    PACKET_SPEED,
+                ).unwrap();
+            });
         }
     }
 }

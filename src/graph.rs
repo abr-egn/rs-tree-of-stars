@@ -178,18 +178,18 @@ pub struct Traverse;
 
 impl Traverse {
     pub fn start(
+        world: &mut World,
         entity: Entity,
         start: Coordinate,
         route: Route,
         speed: f32,
-        links: &ReadStorage<Link>,
-        motions: &mut WriteStorage<geom::Motion>,
-        routes: &mut WriteStorage<FollowRoute>,
     ) -> GameResult<()> {
-        let (first_coord, p) = path_ix(route[0], 0, links)?;
+        let (first_coord, p) = path_ix(route[0], 0, &world.read_storage::<Link>())?;
         let follow = FollowRoute::new(route, speed, RoutePhase::ToLink(first_coord, p));
-        motions.insert(entity, geom::Motion::new(start, first_coord, follow.speed)).map_err(dbg)?;
-        routes.insert(entity, follow).map_err(dbg)?;
+        world.write_storage::<geom::Motion>().insert(entity,
+            geom::Motion::new(start, first_coord, follow.speed))
+            .map_err(dbg)?;
+        world.write_storage::<FollowRoute>().insert(entity, follow).map_err(dbg)?;
         Ok(())
     }
 }
