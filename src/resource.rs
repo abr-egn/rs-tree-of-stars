@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     mem::swap,
-    sync::mpsc::channel,
+    sync::mpsc::{channel, Sender},
     time::{Duration, Instant},
 };
 
@@ -162,6 +162,61 @@ struct Candidate {
     on_cooldown: bool,
 }
 
+// Give what would be a closure a name so it shows up on profiles
+fn pull_worker(
+    sinks: &WriteStorage<Sink>,
+    links: &ReadStorage<graph::Link>,
+    nodes: &ReadStorage<graph::Node>,
+    now: &ReadExpect<super::Now>,
+    sender: &mut Sender<(Entity, Candidate)>,
+    source_ent: Entity,
+    source: &mut Source,
+) {
+    let mut candidates: Vec<(Entity, Candidate)> = vec![];
+    let graph_nodes: Vec<_> = source.graph.nodes().collect();
+    for sink_ent in graph_nodes {
+        if sink_ent == source_ent { continue }
+        let sink = if let Some(s) = sinks.get(sink_ent) { s } else { continue };
+        let mut want = false;
+        for (res, have) in source.has.iter() {
+            if have == 0 { continue }
+            if sink.want.get(res) > (sink.has.get(res) + sink.in_transit.get(res)) {
+                want = true;
+                break
+            }
+        }
+        if !want { continue }
+        let (len, route) = match source.graph.route(links, nodes, source_ent, sink_ent) {
+            None => continue,
+            Some(p) => p,
+        };
+        let mut route_time = f32_duration(PACKET_SPEED * (len as f32));
+        let on_cooldown = match source.last_send.get(&sink_ent) {
+            None => false,
+            Some(&t) => {
+                let since_send = now.0 - t;
+                if since_send < SEND_COOLDOWN {
+                    route_time += SEND_COOLDOWN - since_send;
+                    true
+                } else { false }
+            }
+        };
+        candidates.push((sink_ent, Candidate {
+            source: source_ent, route, route_time, on_cooldown,
+        }));
+    }
+    if candidates.is_empty() { return }
+    candidates.sort_unstable_by_key(|(_, c)| c.route_time);
+    let mut tmp = (source_ent, Candidate {
+        source: source_ent,
+        route: vec![],
+        route_time: Duration::from_millis(0),
+        on_cooldown: false,
+    });
+    swap(&mut tmp, &mut candidates[0]);
+    sender.send(tmp).unwrap();
+}
+
 impl<'a> System<'a> for Pull {
     type SystemData = PullData<'a>;
 
@@ -176,49 +231,7 @@ impl<'a> System<'a> for Pull {
             let (sender, receiver) = channel::<(Entity, Candidate)>();
             (&*data.entities, &mut data.sources).par_join().for_each_with(sender,
                 |sender, (source_ent, source)| {
-                let mut candidates: Vec<(Entity, Candidate)> = vec![];
-                let graph_nodes: Vec<_> = source.graph.nodes().collect();
-                for sink_ent in graph_nodes {
-                    if sink_ent == source_ent { continue }
-                    let sink = if let Some(s) = sinks.get(sink_ent) { s } else { continue };
-                    let mut want = false;
-                    for (res, have) in source.has.iter() {
-                        if have == 0 { continue }
-                        if sink.want.get(res) > (sink.has.get(res) + sink.in_transit.get(res)) {
-                            want = true;
-                            break
-                        }
-                    }
-                    if !want { continue }
-                    let (len, route) = match source.graph.route(links, nodes, source_ent, sink_ent) {
-                        None => continue,
-                        Some(p) => p,
-                    };
-                    let mut route_time = f32_duration(PACKET_SPEED * (len as f32));
-                    let on_cooldown = match source.last_send.get(&sink_ent) {
-                        None => false,
-                        Some(&t) => {
-                            let since_send = now.0 - t;
-                            if since_send < SEND_COOLDOWN {
-                                route_time += SEND_COOLDOWN - since_send;
-                                true
-                            } else { false }
-                        }
-                    };
-                    candidates.push((sink_ent, Candidate {
-                        source: source_ent, route, route_time, on_cooldown,
-                    }));
-                }
-                if candidates.is_empty() { return }
-                candidates.sort_unstable_by_key(|(_, c)| c.route_time);
-                let mut tmp = (source_ent, Candidate {
-                    source: source_ent,
-                    route: vec![],
-                    route_time: Duration::from_millis(0),
-                    on_cooldown: false,
-                });
-                swap(&mut tmp, &mut candidates[0]);
-                sender.send(tmp).unwrap();
+                pull_worker(sinks, links, nodes, now, sender, source_ent, source)
             });
             let mut sink_candidates = HashMap::<Entity, Vec<Candidate>>::new();
             for (sink_ent, candidate) in receiver {
