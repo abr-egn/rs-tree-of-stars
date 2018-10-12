@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     mem::swap,
+    sync::mpsc::channel,
     time::{Duration, Instant},
 };
 
@@ -165,51 +166,68 @@ impl<'a> System<'a> for Pull {
     type SystemData = PullData<'a>;
 
     fn run(&mut self, mut data: Self::SystemData) {
-        let mut sink_candidates: HashMap<Entity /* Sink */, Vec<Candidate>> = HashMap::new();
-        for (source_ent, source) in (&*data.entities, &mut data.sources).join() {
-            let mut candidates: Vec<(Entity, Candidate)> = vec![];
-            let graph_nodes: Vec<_> = source.graph.nodes().collect();
-            for sink_ent in graph_nodes {
-                if sink_ent == source_ent { continue }
-                let sink = if let Some(s) = data.sinks.get(sink_ent) { s } else { continue };
-                let mut want = false;
-                for (res, have) in source.has.iter() {
-                    if have == 0 { continue }
-                    if sink.want.get(res) > (sink.has.get(res) + sink.in_transit.get(res)) {
-                        want = true;
-                        break
+        //let mut sink_candidates: HashMap<Entity /* Sink */, Vec<Candidate>> = HashMap::new();
+        //for (source_ent, source) in (&*data.entities, &mut data.sources).join() {
+        let sink_candidates = {
+            let sinks = &data.sinks;
+            let links = &data.links;
+            let nodes = &data.nodes;
+            let now = &data.now;
+            let (sender, receiver) = channel::<(Entity, Candidate)>();
+            (&*data.entities, &mut data.sources).par_join().for_each_with(sender,
+                |sender, (source_ent, source)| {
+                let mut candidates: Vec<(Entity, Candidate)> = vec![];
+                let graph_nodes: Vec<_> = source.graph.nodes().collect();
+                for sink_ent in graph_nodes {
+                    if sink_ent == source_ent { continue }
+                    let sink = if let Some(s) = sinks.get(sink_ent) { s } else { continue };
+                    let mut want = false;
+                    for (res, have) in source.has.iter() {
+                        if have == 0 { continue }
+                        if sink.want.get(res) > (sink.has.get(res) + sink.in_transit.get(res)) {
+                            want = true;
+                            break
+                        }
                     }
+                    if !want { continue }
+                    let (len, route) = match source.graph.route(links, nodes, source_ent, sink_ent) {
+                        None => continue,
+                        Some(p) => p,
+                    };
+                    let mut route_time = f32_duration(PACKET_SPEED * (len as f32));
+                    let on_cooldown = match source.last_send.get(&sink_ent) {
+                        None => false,
+                        Some(&t) => {
+                            let since_send = now.0 - t;
+                            if since_send < SEND_COOLDOWN {
+                                route_time += SEND_COOLDOWN - since_send;
+                                true
+                            } else { false }
+                        }
+                    };
+                    candidates.push((sink_ent, Candidate {
+                        source: source_ent, route, route_time, on_cooldown,
+                    }));
                 }
-                if !want { continue }
-                let (len, route) = if let Some(p) = source.graph.route(&data.links, &data.nodes, source_ent, sink_ent) { p } else { continue };
-                let mut route_time = f32_duration(PACKET_SPEED * (len as f32));
-                let on_cooldown = match source.last_send.get(&sink_ent) {
-                    None => false,
-                    Some(&t) => {
-                        let since_send = data.now.0 - t;
-                        if since_send < SEND_COOLDOWN {
-                            route_time += SEND_COOLDOWN - since_send;
-                            true
-                        } else { false }
-                    }
-                };
-                candidates.push((sink_ent, Candidate {
-                    source: source_ent, route, route_time, on_cooldown,
-                }));
-            }
-            if candidates.is_empty() { continue }
-            candidates.sort_unstable_by_key(|(_, c)| c.route_time);
-            let mut tmp = (source_ent, Candidate {
-                source: source_ent,
-                route: vec![],
-                route_time: Duration::from_millis(0),
-                on_cooldown: false,
+                if candidates.is_empty() { return }
+                candidates.sort_unstable_by_key(|(_, c)| c.route_time);
+                let mut tmp = (source_ent, Candidate {
+                    source: source_ent,
+                    route: vec![],
+                    route_time: Duration::from_millis(0),
+                    on_cooldown: false,
+                });
+                swap(&mut tmp, &mut candidates[0]);
+                sender.send(tmp).unwrap();
             });
-            swap(&mut tmp, &mut candidates[0]);
-            sink_candidates.entry(tmp.0)
-                .or_insert_with(|| vec![])
-                .push(tmp.1);
-        }
+            let mut sink_candidates = HashMap::<Entity, Vec<Candidate>>::new();
+            for (sink_ent, candidate) in receiver {
+                sink_candidates.entry(sink_ent)
+                    .or_insert_with(|| vec![])
+                    .push(candidate);
+            }
+            sink_candidates
+        };
         for (sink_ent, mut candidates) in sink_candidates {
             if candidates.is_empty() { continue }
             candidates.sort_unstable_by_key(|c| c.route_time);
