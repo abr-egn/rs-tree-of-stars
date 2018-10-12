@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
     mem::swap,
-    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -10,7 +9,7 @@ use ggez::{
 };
 use specs::{
     prelude::*,
-    storage::{BTreeStorage,GenericReadStorage},
+    storage::BTreeStorage,
 };
 
 use geom;
@@ -94,27 +93,19 @@ impl Component for Source {
     type Storage = BTreeStorage<Self>;
 }
 
-pub fn add_source<ReadNodes, ReadLinks>(
-    map: &geom::Map,
-    areas: &mut geom::AreaMap,
-    nodes: &ReadNodes,
-    links: &ReadLinks,
-    sources: &mut WriteStorage<Source>,
-    entity: Entity,
-    has: Pool, range: i32,
-)
-    where ReadNodes: GenericReadStorage<Component=graph::Node>,
-          ReadLinks: GenericReadStorage<Component=graph::Link>,
-{
+pub fn add_source(world: &mut World, entity: Entity, has: Pool, range: i32) {
     let mut source = Source { has, range, last_send: HashMap::new(), graph: Graph::new() };
-    let at = nodes.get(entity).unwrap().at();
-    for found in map.in_range(at, range) {
+    let at = if let Some(n) = world.read_storage::<graph::Node>().get(entity) {
+        n.at()
+    } else { return };
+    let links = world.read_storage::<graph::Link>();
+    for found in world.read_resource::<geom::Map>().in_range(at, range) {
         if let Some(link) = links.get(found) {
             source.add_link(link, found);
         }
     }
-    sources.insert(entity, source).unwrap();
-    areas.insert(at, range, entity);
+    world.write_storage::<Source>().insert(entity, source).unwrap();
+    world.write_resource::<geom::AreaMap>().insert(at, range, entity);
 }
 
 #[derive(Debug)]

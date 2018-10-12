@@ -6,7 +6,7 @@ use ggez::{
 use hex2d::{self, Coordinate};
 use specs::{
     prelude::*,
-    storage::{BTreeStorage,GenericReadStorage},
+    storage::BTreeStorage,
 };
 
 use draw;
@@ -137,29 +137,17 @@ impl Mode for NodeSelected {
                     Keycode::Escape => TopAction::Swap(Select::new()),
                     Keycode::L => TopAction::push(PlaceLink::new(self.0)),
                     Keycode::G => {
-                        GrowTest::start(
-                            &*world.read_resource(),
-                            &mut *world.write_resource(),
-                            &world.read_storage(),
-                            &world.read_storage(),
-                            &mut world.write_storage(),
-                            &mut world.write_storage(),
-                            &mut world.write_storage(),
-                            self.0,
-                        );
+                        GrowTest::start(world, self.0);
                         world.write_storage::<GrowTest>().get_mut(self.0).unwrap()
                             .next_growth = 0;
                         TopAction::done()
                     },
                     Keycode::S => {
-                        let mut sources = world.write_storage::<resource::Source>();
-                        if sources.get(self.0).is_some() { return TopAction::done() }
+                        if world.read_storage::<resource::Source>().get(self.0).is_some() {
+                            return TopAction::done()
+                        }
                         resource::add_source(
-                            &*world.read_resource(),
-                            &mut *world.write_resource(),
-                            &world.read_storage(),
-                            &world.read_storage(),
-                            &mut sources,
+                            world,
                             self.0,
                             resource::Pool::from(vec![(Resource::H2, 6)]),
                             10,
@@ -255,26 +243,17 @@ impl GrowTest {
             next_growth: 1,
         }
     }
-    pub fn start<ReadNodes, ReadLinks>(
-        map: &geom::Map,
-        areas: &mut geom::AreaMap,
-        nodes: &ReadNodes,
-        links: &ReadLinks,
-        grow: &mut WriteStorage<GrowTest>,
-        sources: &mut WriteStorage<resource::Source>,
-        sinks: &mut WriteStorage<resource::Sink>,
-        ent: Entity,
-    )
-        where ReadNodes: GenericReadStorage<Component=graph::Node>,
-              ReadLinks: GenericReadStorage<Component=graph::Link>,
-    {
-        if grow.get(ent).is_some() { return }
-        grow.insert(ent, GrowTest::new()).unwrap();
-        resource::add_source(map, areas, nodes, links, sources, ent,
+    pub fn start(world: &mut World, ent: Entity) {
+        {
+            let mut grow = world.write_storage::<GrowTest>();
+            if grow.get(ent).is_some() { return }
+            grow.insert(ent, GrowTest::new()).unwrap();
+        }
+        resource::add_source(world, ent,
             resource::Pool::from(vec![(Resource::H2, 6)]), 6);
         let mut sink = resource::Sink::new();
         sink.want.inc_by(Resource::H2, 6);
-        sinks.insert(ent, sink).unwrap();
+        world.write_storage::<resource::Sink>().insert(ent, sink).unwrap();
     }
 }
 
@@ -288,15 +267,10 @@ pub struct RunGrowTest;
 #[derive(SystemData)]
 pub struct GrowTestData<'a> {
     entities: Entities<'a>,
-    map: WriteExpect<'a, geom::Map>,
-    areas: WriteExpect<'a, geom::AreaMap>,
-    spaces: WriteStorage<'a, geom::Space>,
-    shapes: WriteStorage<'a, draw::Shape>,
     nodes: WriteStorage<'a, graph::Node>,
     grow: WriteStorage<'a, GrowTest>,
-    sources: WriteStorage<'a, resource::Source>,
     sinks: WriteStorage<'a, resource::Sink>,
-    links: WriteStorage<'a, graph::Link>,
+    lazy: Read<'a, LazyUpdate>,
 }
 
 const GROW_LEN: usize = 5;
@@ -315,41 +289,19 @@ impl<'a> System<'a> for RunGrowTest {
             }
             to_grow.push((ent, node.at(), next_coord));
             grow.next_growth += 1;
-            //sink.want.set(Resource::H2, grow.next_growth);
         }
-        for (from, at, next_coord) in to_grow {
-            if !graph::space_for_node(&*data.map, next_coord) { continue }
-            if !graph::space_for_link(&*data.map, at, next_coord) { continue }
-            let ent = graph::make_node(
-                &data.entities,
-                &mut *data.map,
-                &mut data.spaces,
-                &mut data.shapes,
-                &mut data.nodes,
-                next_coord,
-            ).unwrap();
-            GrowTest::start(
-                &*data.map,
-                &mut *data.areas,
-                &data.nodes,
-                &data.links,
-                &mut data.grow,
-                &mut data.sources,
-                &mut data.sinks,
-                ent,
-            );
-            graph::make_link_parts(
-                &data.entities,
-                &mut *data.map,
-                &mut *data.areas,
-                &mut data.spaces,
-                &mut data.shapes,
-                &mut data.sources,
-                &mut data.links,
-                &data.nodes,
-                from, ent,
-            ).unwrap();
-        }
+        data.lazy.exec_mut(move |world| {
+            for (from, at, next_coord) in to_grow {
+                {
+                    let map = &*world.read_resource::<geom::Map>();
+                    if !graph::space_for_node(map, next_coord) { continue }
+                    if !graph::space_for_link(map, at, next_coord) { continue }
+                }
+                let ent = graph::make_node_world(world, next_coord).unwrap();
+                GrowTest::start(world, ent);
+                graph::make_link(world, from, ent).unwrap();
+            }
+        })
     }
 }
 
