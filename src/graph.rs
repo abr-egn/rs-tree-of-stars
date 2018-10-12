@@ -103,7 +103,7 @@ impl Node {
 }
 
 impl Component for Node {
-    type Storage = BTreeStorage<Self>;
+    type Storage = DenseVecStorage<Self>;
 }
 
 #[derive(Debug, Clone)]
