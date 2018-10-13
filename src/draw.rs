@@ -57,6 +57,8 @@ struct OutlineSprite(Mesh);
 
 struct PausedText(TextCached);
 
+struct SourceOrbit(Mesh);
+
 const PACKET_RADIUS: f32 = 4.0;
 
 pub fn build_sprites(world: &mut World, ctx: &mut Context) -> GameResult<()> {
@@ -67,6 +69,12 @@ pub fn build_sprites(world: &mut World, ctx: &mut Context) -> GameResult<()> {
     world.add_resource(CellMesh(Mesh::new_polygon(ctx, DrawMode::Fill, &points)?));
     world.add_resource(OutlineSprite(Mesh::new_polygon(ctx, DrawMode::Line(1.0), &points)?));
     world.add_resource(PausedText(TextCached::new("PAUSED")?));
+    world.add_resource(SourceOrbit(Mesh::new_circle(ctx,
+        DrawMode::Line(1.0),
+        Point2::new(0.0, 0.0),
+        source_radius(),
+        /* tolerance= */ 0.5,
+    )?));
 
     let origin = Point2::new(0.0, 0.0);
     world.add_resource(PacketSprite {
@@ -185,22 +193,31 @@ fn draw_orbit(
     Ok(())
 }
 
+/* Should be const */
+fn source_radius() -> f32 { 3.0f32.sqrt() * HEX_SIDE * 2.0 }
+
 struct DrawSources<'a>(&'a mut Context);
 
 impl<'a, 'b> System<'a> for DrawSources<'b> {
     type SystemData = (
         ReadExpect<'a, PacketSprite>,
+        ReadExpect<'a, SourceOrbit>,
         ReadStorage<'a, graph::Node>,
         ReadStorage<'a, resource::Source>,
     );
 
-    fn run(&mut self, (packet_sprite, nodes, sources): Self::SystemData) {
+    fn run(&mut self, (packet_sprite, source_orbit, nodes, sources): Self::SystemData) {
         let ctx = &mut self.0;
         let screen = graphics::get_screen_coordinates(ctx);
         for (node, source) in (&nodes, &sources).join() {
+            let pt = node.at().to_pixel_point();
+            if screen.contains(pt) {
+                graphics::set_color(ctx, Color::new(1.0, 1.0, 1.0, 1.0)).unwrap();
+                graphics::draw(ctx, &source_orbit.0, pt, 0.0).unwrap();
+            }
             draw_orbit(
                 ctx, screen, &*packet_sprite,
-                /* radius= */ 3.0f32.sqrt() * HEX_SIDE * 2.0, /* speed= */ 1.0,
+                /* radius= */ source_radius(), /* speed= */ 1.0,
                 node.at(), &source.has,
             ).unwrap();
         }
