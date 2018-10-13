@@ -5,14 +5,12 @@ use std::{
     time::{Duration, Instant},
 };
 
-use ggez::{
-    GameResult, GameError,
-};
 use specs::{
     prelude::*,
     storage::BTreeStorage,
 };
 
+use error::Result;
 use graph;
 use util::*;
 
@@ -43,6 +41,10 @@ impl Resource {
 #[derive(Debug, Clone)]
 pub struct Pool([usize; 3]);
 
+#[derive(Fail, Debug)]
+#[fail(display = "Pool underflow.")]
+pub struct PoolUnderflow;
+
 impl Pool {
     pub fn new() -> Self { Pool([0, 0, 0]) }
     pub fn from<T>(t: T) -> Self
@@ -62,15 +64,15 @@ impl Pool {
     pub fn inc_by(&mut self, res: Resource, count: usize) {
         self.0[res as usize] += count
     }
-    pub fn dec(&mut self, res: Resource) -> GameResult<()> {
+    pub fn dec(&mut self, res: Resource) -> Result<()> {
         self.dec_by(res, 1)
     }
-    pub fn dec_by(&mut self, res: Resource, count: usize) -> GameResult<()> {
+    pub fn dec_by(&mut self, res: Resource, count: usize) -> Result<()> {
         if self.0[res as usize] >= count {
             self.0[res as usize] -= count;
             return Ok(())
         }
-        Err(GameError::UnknownError("invalid pool decrement".into()))
+        Err(PoolUnderflow.into())
     }
     pub fn iter<'a>(&'a self) -> impl Iterator<Item=(Resource, usize)> + 'a {
         self.0.iter().enumerate().map(|(u, &c)| (unsafe { ::std::mem::transmute::<usize, Resource>(u) }, c))
@@ -84,7 +86,7 @@ pub struct Source {
 }
 
 impl Source {
-    pub fn add(world: &mut World, entity: Entity, has: Pool, range: i32) -> GameResult<()> {
+    pub fn add(world: &mut World, entity: Entity, has: Pool, range: i32) -> Result<()> {
         graph::AreaGraph::add(world, entity, range)?;
         world.write_storage().insert(entity, Source { has, last_send: HashMap::new() }).unwrap();
         Ok(())

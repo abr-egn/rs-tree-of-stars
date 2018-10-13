@@ -3,7 +3,7 @@ use std::{
     collections::{HashSet, HashMap},
 };
 
-use ggez::{graphics, GameResult, GameError};
+use ggez::graphics;
 use hex2d::{Coordinate, Direction, Spin};
 use petgraph::{
     self,
@@ -16,6 +16,7 @@ use specs::{
 };
 
 use draw;
+use error::Result;
 use geom;
 use util::*;
 
@@ -101,7 +102,7 @@ pub struct AreaGraph {
 }
 
 impl AreaGraph {
-    pub fn add(world: &mut World, entity: Entity, range: i32) -> GameResult<()> {
+    pub fn add(world: &mut World, entity: Entity, range: i32) -> Result<()> {
         let at = try_get(&world.read_storage::<Node>(), entity)?.at();
         let mut ag = AreaGraph { graph: Graph::new(), range };
         let links = world.read_storage::<Link>();
@@ -164,17 +165,21 @@ enum PathCoord {
     End,
 }
 
+#[derive(Fail, Debug)]
+#[fail(display = "Path ix past the end.")]
+pub struct PathIxOverflow;
+
 fn path_ix(
     (link_ent, path_dir): (Entity, PathDir), ix: usize,
     links: &ReadStorage<Link>,
-) -> GameResult<(Coordinate, PathCoord)> {
+) -> Result<(Coordinate, PathCoord)> {
     let link = try_get(links, link_ent)?;
     let coord_ix = match path_dir {
         PathDir::Fwd => ix,
         PathDir::Rev => link.path.len() - 1 - ix,
     };
     if ix >= link.path.len() {
-        return Err(GameError::UnknownError("path ix past the end".into()))
+        return Err(PathIxOverflow)?
     }
     Ok((
         link.path[coord_ix], 
@@ -224,13 +229,12 @@ impl Traverse {
         start: Coordinate,
         route: Route,
         speed: f32,
-    ) -> GameResult<()> {
+    ) -> Result<()> {
         let (first_coord, p) = path_ix(route[0], 0, &world.read_storage::<Link>())?;
         let follow = FollowRoute::new(route, speed, RoutePhase::ToLink(first_coord, p));
         world.write_storage::<geom::Motion>().insert(entity,
-            geom::Motion::new(start, first_coord, follow.speed))
-            .map_err(dbg)?;
-        world.write_storage::<FollowRoute>().insert(entity, follow).map_err(dbg)?;
+            geom::Motion::new(start, first_coord, follow.speed))?;
+        world.write_storage::<FollowRoute>().insert(entity, follow)?;
         Ok(())
     }
 }
@@ -329,7 +333,7 @@ pub fn space_for_node(map: &geom::Map, center: Coordinate) -> bool {
     true
 }
 
-pub fn make_node(world: &mut World, center: Coordinate) -> GameResult<Entity> {
+pub fn make_node(world: &mut World, center: Coordinate) -> Result<Entity> {
     let ent = world.create_entity()
         .with(draw::Shape {
             coords: node_shape(center),
@@ -352,7 +356,7 @@ struct LinkSpace {
 }
 
 impl LinkSpace {
-    fn new<T>(nodes: &T, from: Entity, to: Entity) -> GameResult<Self>
+    fn new<T>(nodes: &T, from: Entity, to: Entity) -> Result<Self>
         where T: GenericReadStorage<Component=Node>
     {
         let source_pos = try_get(nodes, from)?.at;
@@ -383,7 +387,7 @@ pub fn space_for_link(map: &geom::Map, from: Coordinate, to: Coordinate) -> bool
     true
 }
 
-pub fn make_link(world: &mut World, from: Entity, to: Entity) -> GameResult<Entity> {
+pub fn make_link(world: &mut World, from: Entity, to: Entity) -> Result<Entity> {
     let ls = LinkSpace::new(&world.read_storage::<Node>(), from, to)?;
     let link = Link { from, to, path: ls.path };
     let ent = world.create_entity()

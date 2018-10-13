@@ -1,3 +1,6 @@
+extern crate failure;
+#[macro_use]
+extern crate failure_derive;
 extern crate ggez;
 extern crate hex2d;
 extern crate petgraph;
@@ -8,6 +11,7 @@ extern crate spade;
 extern crate specs;
 
 mod draw;
+mod error;
 mod game;
 mod geom;
 mod graph;

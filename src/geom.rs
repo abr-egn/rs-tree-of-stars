@@ -18,6 +18,7 @@ use specs::{
 };
 
 use draw;
+use error::Result;
 use util::*;
 
 #[derive(Debug)]
@@ -116,7 +117,7 @@ impl Map {
     pub fn clear(
         &mut self, locs: &mut WriteStorage<Space>,
         ent: Entity,
-    ) -> GameResult<()> {
+    ) -> Result<()> {
         {
             let space = try_get_mut(locs, ent)?;
             for c in space.coords() { self.0.remove(c); }
