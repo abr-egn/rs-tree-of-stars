@@ -224,6 +224,13 @@ impl<'a, 'b> System<'a> for DrawSources<'b> {
     }
 }
 
+#[derive(PartialEq, Eq)]
+enum SinkState {
+    Green,
+    Yellow,
+    Red,
+}
+
 struct DrawSinks<'a>(&'a mut Context);
 
 impl<'a, 'b> System<'a> for DrawSinks<'b> {
@@ -237,6 +244,28 @@ impl<'a, 'b> System<'a> for DrawSinks<'b> {
         let ctx = &mut self.0;
         let screen = graphics::get_screen_coordinates(ctx);
         for (node, sink) in (&nodes, &sinks).join() {
+            let pt = node.at().to_pixel_point();
+            if screen.contains(pt) {
+                let mut state = SinkState::Green;
+                for (res, want) in sink.want.iter() {
+                    let has = sink.has.get(res);
+                    if has >= want { continue }
+                    if has + sink.in_transit.get(res) >= want {
+                        if state == SinkState::Green {
+                            state = SinkState::Yellow;
+                        }
+                    } else {
+                        state = SinkState::Red;
+                    }
+                }
+                let color = match state {
+                    SinkState::Green => Color::new(0.0, 1.0, 0.0, 1.0),
+                    SinkState::Yellow => Color::new(1.0, 1.0, 0.0, 1.0),
+                    SinkState::Red => Color::new(1.0, 0.0, 0.0, 1.0),
+                };
+                graphics::set_color(ctx, color).unwrap();
+                graphics::draw(ctx, &*packet_sprite, pt, 0.0).unwrap();
+            }
             draw_orbit(
                 ctx, screen, &*packet_sprite,
                 /* radius= */ 3.0f32.sqrt() * HEX_SIDE, /* speed= */ -0.5,
