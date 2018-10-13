@@ -17,7 +17,7 @@ use specs::{
 };
 
 use draw;
-use error::Result;
+use error::{Result, SystemErr};
 use util::*;
 
 #[derive(Debug)]
@@ -56,14 +56,14 @@ impl Component for MotionDone {
 #[derive(Debug)]
 pub struct Travel;
 
-impl<'a> System<'a> for Travel {
+impl<'a> SystemErr<'a> for Travel {
     type SystemData = (
         Entities<'a>,
         WriteStorage<'a, Motion>,
         WriteStorage<'a, MotionDone>,
     );
 
-    fn run(&mut self, (entities, mut motions, mut arrived): Self::SystemData) {
+    fn run(&mut self, (entities, mut motions, mut arrived): Self::SystemData) -> Result<()> {
         let mut v = Vec::new();
         for (entity, motion, ()) in (&*entities, &mut motions, !&arrived).join() {
             if motion.at >= 1.0 { continue };
@@ -73,8 +73,9 @@ impl<'a> System<'a> for Travel {
             }
         }
         for entity in v {
-            arrived.insert(entity, MotionDone).unwrap();
+            arrived.insert(entity, MotionDone)?;
         }
+        Ok(())
     }
 }
 
@@ -113,7 +114,7 @@ impl Map {
             return Err(Occupied.into())
         }
         for &c in space.coords() { self.0.insert(c, ent); }
-        locs.insert(ent, space).unwrap();
+        locs.insert(ent, space)?;
         Ok(())
     }
     #[allow(unused)]

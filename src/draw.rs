@@ -14,12 +14,12 @@ use specs::{
     prelude::*,
 };
 
-use error::Result;
+use error::{self, Result, SystemErr};
 use game;
 use geom;
 use graph;
 use resource::{self, Resource};
-use util;
+use util::{self, try_get};
 
 pub const HEX_SIDE: f32 = 10.0;
 pub const SPACING: Spacing = Spacing::FlatTop(HEX_SIDE);
@@ -91,12 +91,12 @@ pub fn draw(world: &mut World, ctx: &mut Context) {
     graphics::clear(ctx);
     graphics::set_background_color(ctx, graphics::Color::new(0.0, 0.0, 0.0, 1.0));
 
-    DrawCells(ctx).run_now(&mut world.res);
-    DrawPackets(ctx).run_now(&mut world.res);
-    DrawSources(ctx).run_now(&mut world.res);
-    DrawSinks(ctx).run_now(&mut world.res);
-    DrawMouseWidget(ctx).run_now(&mut world.res);
-    DrawPaused(ctx).run_now(&mut world.res);
+    error::SE(DrawCells(ctx)).run_now(&mut world.res);
+    error::SE(DrawPackets(ctx)).run_now(&mut world.res);
+    error::SE(DrawSources(ctx)).run_now(&mut world.res);
+    error::SE(DrawSinks(ctx)).run_now(&mut world.res);
+    error::SE(DrawMouseWidget(ctx)).run_now(&mut world.res);
+    error::SE(DrawPaused(ctx)).run_now(&mut world.res);
     world.maintain();
 
     graphics::present(ctx);
@@ -115,7 +115,7 @@ impl ToPixelPoint for Coordinate {
 
 struct DrawCells<'a>(&'a mut Context);
 
-impl<'a, 'b> System<'a> for DrawCells<'b> {
+impl<'a, 'b> SystemErr<'a> for DrawCells<'b> {
     type SystemData = (
         ReadExpect<'a, CellMesh>,
         ReadExpect<'a, OutlineSprite>,
@@ -124,26 +124,27 @@ impl<'a, 'b> System<'a> for DrawCells<'b> {
         ReadStorage<'a, game::Selected>,
     );
 
-    fn run(&mut self, (cell_mesh, outline, entities, shapes, selected): Self::SystemData) {
+    fn run(&mut self, (cell_mesh, outline, entities, shapes, selected): Self::SystemData) -> Result<()> {
         let ctx = &mut self.0;
         let screen = graphics::get_screen_coordinates(ctx);
         for (entity, shape) in (&*entities, &shapes).join() {
-            graphics::set_color(ctx, shape.color).unwrap();
+            graphics::set_color(ctx, shape.color)?;
             for coord in &shape.coords {
                 let p = coord.to_pixel_point();
                 if !screen.contains(p) { continue }
-                graphics::draw(ctx, &cell_mesh.0, p, 0.0).unwrap();
+                graphics::draw(ctx, &cell_mesh.0, p, 0.0)?;
             }
             if selected.get(entity).is_some() {
                 let scale = (now_f32(ctx) * 3.0).sin() * 0.5 + 0.5;
-                graphics::set_color(ctx, Color::new(scale, 0.0, scale, 1.0)).unwrap();
+                graphics::set_color(ctx, Color::new(scale, 0.0, scale, 1.0))?;
                 for coord in &shape.coords {
                     let p = coord.to_pixel_point();
                     if !screen.contains(p) { continue }
-                    graphics::draw(ctx, &outline.0, p, 0.0).unwrap();
+                    graphics::draw(ctx, &outline.0, p, 0.0)?;
                 }
             }
         }
+        Ok(())
     }
 }
 
@@ -182,13 +183,13 @@ fn draw_orbit(
         };
         let count = resources[ix].1;
         let cluster_inc = (2.0*PI) / (count as f32);
-        graphics::set_color(ctx, res_color(resources[ix].0)).unwrap();
+        graphics::set_color(ctx, res_color(resources[ix].0))?;
         for px in 0..count {
             let angle = (px as f32) * cluster_inc;
             let v = Vector2::new(angle.cos(), angle.sin()) * PACKET_RADIUS * 1.5;
             let final_point = cluster_pt + v;
             if !screen.contains(final_point) { continue }
-            graphics::draw(ctx, sprite, final_point, 0.0).unwrap();
+            graphics::draw(ctx, sprite, final_point, 0.0)?;
         }
     }
 
@@ -200,7 +201,7 @@ fn source_radius() -> f32 { 3.0f32.sqrt() * HEX_SIDE * 2.0 }
 
 struct DrawSources<'a>(&'a mut Context);
 
-impl<'a, 'b> System<'a> for DrawSources<'b> {
+impl<'a, 'b> SystemErr<'a> for DrawSources<'b> {
     type SystemData = (
         ReadExpect<'a, PacketSprite>,
         ReadExpect<'a, SourceOrbit>,
@@ -208,21 +209,22 @@ impl<'a, 'b> System<'a> for DrawSources<'b> {
         ReadStorage<'a, resource::Source>,
     );
 
-    fn run(&mut self, (packet_sprite, source_orbit, nodes, sources): Self::SystemData) {
+    fn run(&mut self, (packet_sprite, source_orbit, nodes, sources): Self::SystemData) -> Result<()> {
         let ctx = &mut self.0;
         let screen = graphics::get_screen_coordinates(ctx);
         for (node, source) in (&nodes, &sources).join() {
             let pt = node.at().to_pixel_point();
             if screen.contains(pt) {
-                graphics::set_color(ctx, Color::new(1.0, 1.0, 1.0, 1.0)).unwrap();
-                graphics::draw(ctx, &source_orbit.0, pt, 0.0).unwrap();
+                graphics::set_color(ctx, Color::new(1.0, 1.0, 1.0, 1.0))?;
+                graphics::draw(ctx, &source_orbit.0, pt, 0.0)?;
             }
             draw_orbit(
                 ctx, screen, &*packet_sprite,
                 /* radius= */ source_radius(), /* speed= */ 1.0,
                 node.at(), &source.has,
-            ).unwrap();
+            )?;
         }
+        Ok(())
     }
 }
 
@@ -235,14 +237,14 @@ enum SinkState {
 
 struct DrawSinks<'a>(&'a mut Context);
 
-impl<'a, 'b> System<'a> for DrawSinks<'b> {
+impl<'a, 'b> SystemErr<'a> for DrawSinks<'b> {
     type SystemData = (
         ReadExpect<'a, PacketSprite>,
         ReadStorage<'a, graph::Node>,
         ReadStorage<'a, resource::Sink>,
     );
 
-    fn run(&mut self, (packet_sprite, nodes, sinks): Self::SystemData) {
+    fn run(&mut self, (packet_sprite, nodes, sinks): Self::SystemData) -> Result<()> {
         let ctx = &mut self.0;
         let screen = graphics::get_screen_coordinates(ctx);
         for (node, sink) in (&nodes, &sinks).join() {
@@ -265,42 +267,44 @@ impl<'a, 'b> System<'a> for DrawSinks<'b> {
                     SinkState::Yellow => Color::new(1.0, 1.0, 0.0, 1.0),
                     SinkState::Red => Color::new(1.0, 0.0, 0.0, 1.0),
                 };
-                graphics::set_color(ctx, color).unwrap();
-                graphics::draw(ctx, &*packet_sprite, pt, 0.0).unwrap();
+                graphics::set_color(ctx, color)?;
+                graphics::draw(ctx, &*packet_sprite, pt, 0.0)?;
             }
             draw_orbit(
                 ctx, screen, &*packet_sprite,
                 /* radius= */ 3.0f32.sqrt() * HEX_SIDE, /* speed= */ -0.5,
                 node.at(), &sink.has,
-            ).unwrap();
+            )?;
         }
+        Ok(())
     }
 }
 
 struct DrawPackets<'a>(&'a mut Context);
 
-impl<'a, 'b> System<'a> for DrawPackets<'b> {
+impl<'a, 'b> SystemErr<'a> for DrawPackets<'b> {
     type SystemData = (
         ReadExpect<'a, PacketSprite>,
         ReadStorage<'a, geom::Motion>,
         ReadStorage<'a, resource::Packet>,
     );
 
-    fn run(&mut self, (packet_sprite, motions, packets): Self::SystemData) {
+    fn run(&mut self, (packet_sprite, motions, packets): Self::SystemData) -> Result<()> {
         let ctx = &mut self.0;
         let screen = graphics::get_screen_coordinates(ctx);
         for (motion, packet) in (&motions, &packets).join() {
             let pos = motion.from + (motion.to - motion.from)*motion.at;
             if !screen.contains(pos) { continue }
-            graphics::set_color(ctx, res_color(packet.resource)).unwrap();
-            graphics::draw(ctx, &*packet_sprite, pos, 0.0).unwrap();
+            graphics::set_color(ctx, res_color(packet.resource))?;
+            graphics::draw(ctx, &*packet_sprite, pos, 0.0)?;
         }
+        Ok(())
     }
 }
 
 struct DrawMouseWidget<'a>(&'a mut Context);
 
-impl <'a, 'b> System<'a> for DrawMouseWidget<'b> {
+impl <'a, 'b> SystemErr<'a> for DrawMouseWidget<'b> {
     type SystemData = (
         ReadExpect<'a, OutlineSprite>,
         ReadExpect<'a, CellMesh>,
@@ -309,21 +313,21 @@ impl <'a, 'b> System<'a> for DrawMouseWidget<'b> {
         ReadStorage<'a, geom::Space>,
     );
 
-    fn run(&mut self, (outline, cell, mw, map, spaces): Self::SystemData) {
+    fn run(&mut self, (outline, cell, mw, map, spaces): Self::SystemData) -> Result<()> {
         let ctx = &mut self.0;
 
-        let coord = if let Some(c) = mw.coord { c } else { return };
+        let coord = if let Some(c) = mw.coord { c } else { return Ok(()) };
         match mw.kind {
             game::MWKind::None => (),
             game::MWKind::Highlight => {
                 let coords = match map.get(coord) {
                     None => vec![coord],
-                    Some(ent) => spaces.get(ent).unwrap().coords().iter().cloned().collect(),
+                    Some(ent) => try_get(&spaces, ent)?.coords().iter().cloned().collect(),
                 };
-                graphics::set_color(ctx, Color::new(0.5, 0.5, 0.5, 1.0)).unwrap();
+                graphics::set_color(ctx, Color::new(0.5, 0.5, 0.5, 1.0))?;
                 for coord in coords {
                     let (x, y) = coord.to_pixel(SPACING);
-                    graphics::draw(ctx, &outline.0, Point2::new(x, y), 0.0).unwrap();
+                    graphics::draw(ctx, &outline.0, Point2::new(x, y), 0.0)?;
                 }
             },
             game::MWKind::PlaceNode => {
@@ -332,29 +336,31 @@ impl <'a, 'b> System<'a> for DrawMouseWidget<'b> {
                 } else {
                     Color::new(0.8, 0.0, 0.0, 0.5)
                 };
-                graphics::set_color(ctx, color).unwrap();
+                graphics::set_color(ctx, color)?;
                 for c in graph::node_shape(coord) {
                     let (x, y) = c.to_pixel(SPACING);
-                    graphics::draw(ctx, &cell.0, Point2::new(x, y), 0.0).unwrap();
+                    graphics::draw(ctx, &cell.0, Point2::new(x, y), 0.0)?;
                 }
             },
         }
+        Ok(())
     }
 }
 
 struct DrawPaused<'a>(&'a mut Context);
 
-impl<'a, 'b> System<'a> for DrawPaused<'b> {
+impl<'a, 'b> SystemErr<'a> for DrawPaused<'b> {
     type SystemData = (
         ReadExpect<'a, PausedText>,
         ReadExpect<'a, super::Paused>,
     );
 
-    fn run(&mut self, (text, paused): Self::SystemData) {
+    fn run(&mut self, (text, paused): Self::SystemData) -> Result<()> {
         let ctx = &mut self.0;
         if paused.0 {
-            graphics::set_color(ctx, Color::new(0.5, 1.0, 0.5, 1.0)).unwrap();
-            graphics::draw(ctx, &text.0, Point2::new(0.0, 0.0), 0.0).unwrap();
+            graphics::set_color(ctx, Color::new(0.5, 1.0, 0.5, 1.0))?;
+            graphics::draw(ctx, &text.0, Point2::new(0.0, 0.0), 0.0)?;
         }
+        Ok(())
     }
 }

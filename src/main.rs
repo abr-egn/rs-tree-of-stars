@@ -123,7 +123,7 @@ fn make_update() -> Dispatcher<'static, 'static> {
     const GROW_TEST: &str = "grow_test";
 
     DispatcherBuilder::new()
-        .with(geom::Travel, TRAVEL, &[])
+        .with(error::SE(geom::Travel), TRAVEL, &[])
         .with(graph::Traverse, TRAVERSE, &[TRAVEL])
         .with(resource::Pull, PULL, &[])
         .with(resource::Receive, RECEIVE, &[PULL])
