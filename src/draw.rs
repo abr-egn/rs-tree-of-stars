@@ -1,18 +1,20 @@
 use std::f32::consts::PI;
 
 use ggez::{
+    self,
     graphics::{
         self,
         Color, BlendMode, DrawMode, DrawParam, Mesh, Point2, TextCached, Vector2,
     },
     timer::get_time_since_start,
-    Context, GameResult,
+    Context,
 };
 use hex2d::{Coordinate, Spacing};
 use specs::{
     prelude::*,
 };
 
+use error::Result;
 use game;
 use geom;
 use graph;
@@ -40,7 +42,7 @@ struct PacketSprite {
 }
 
 impl graphics::Drawable for PacketSprite {
-    fn draw_ex(&self, ctx: &mut Context, mut param: DrawParam) -> GameResult<()> {
+    fn draw_ex(&self, ctx: &mut Context, mut param: DrawParam) -> ggez::GameResult<()> {
         self.fill.draw_ex(ctx, param)?;
         param.color = Some(Color::new(1.0, 1.0, 1.0, 1.0));
         self.outline.draw_ex(ctx, param)?;
@@ -61,7 +63,7 @@ struct SourceOrbit(Mesh);
 
 const PACKET_RADIUS: f32 = 4.0;
 
-pub fn build_sprites(world: &mut World, ctx: &mut Context) -> GameResult<()> {
+pub fn build_sprites(world: &mut World, ctx: &mut Context) -> Result<()> {
     let points: Vec<Point2> = (0..6).map(|ix| {
         let a = (PI / 3.0) * (ix as f32);
         Point2::new(a.cos(), a.sin()) * HEX_SIDE
@@ -159,7 +161,7 @@ fn draw_orbit(
     ctx: &mut Context, screen: graphics::Rect, sprite: &PacketSprite,
     orbit_radius: f32, orbit_speed: f32,
     coord: Coordinate, pool: &resource::Pool,
-) -> GameResult<()> {
+) -> Result<()> {
     let mut resources: Vec<(Resource, usize)> = vec![];
     for res in Resource::all() {
         let count = pool.get(res);

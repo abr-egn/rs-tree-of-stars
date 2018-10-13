@@ -23,9 +23,11 @@ use std::time::{Duration, Instant};
 
 use ggez::{
     conf, event, graphics, timer,
-    Context, GameResult,
+    Context,
 };
 use specs::prelude::*;
+
+use error::Result;
 
 pub const UPDATES_PER_SECOND: u32 = 60;
 pub const UPDATE_DELTA: f32 = 1.0 / (UPDATES_PER_SECOND as f32);
@@ -34,7 +36,7 @@ pub const UPDATE_DURATION: Duration = Duration::from_nanos(1_000_000_000 / (UPDA
 pub struct Now(pub Instant);
 pub struct Paused(pub bool);
 
-fn make_world(ctx: &mut Context) -> GameResult<World> {
+fn make_world(ctx: &mut Context) -> Result<World> {
     let mut world = World::new();
 
     world.register::<geom::Motion>();
@@ -133,7 +135,7 @@ fn make_update() -> Dispatcher<'static, 'static> {
 pub const WINDOW_WIDTH: u32 = 800;
 pub const WINDOW_HEIGHT: u32 = 800;
 
-fn main() -> GameResult<()> {
+fn main() -> Result<()> {
     let mut c = conf::Conf::default();
     c.window_setup.title = "Tree of Stars".to_owned();
     c.window_setup.samples = conf::NumSamples::Eight;

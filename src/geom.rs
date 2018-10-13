@@ -3,7 +3,6 @@ use std::collections::{HashMap, HashSet};
 use ggez::{
     nalgebra,
     graphics::Point2,
-    GameResult, GameError,
 };
 use hex2d::Coordinate;
 use spade::{
@@ -96,6 +95,10 @@ impl Component for Space {
 #[derive(Debug)]
 pub struct Map(HashMap<Coordinate, Entity>);
 
+#[derive(Fail, Debug)]
+#[fail(display = "Occupied space.")]
+pub struct Occupied;
+
 impl Map {
     pub fn new() -> Self { Map(HashMap::new()) }
     pub fn get(&self, coord: Coordinate) -> Option<Entity> { self.0.get(&coord).cloned() }
@@ -105,9 +108,9 @@ impl Map {
     pub fn set(
         &mut self, locs: &mut WriteStorage<Space>,
         ent: Entity, space: Space,
-    ) -> GameResult<()> {
+    ) -> Result<()> {
         if self.is_occupied(&space) {
-            return Err(GameError::UnknownError(format!("occupied space: {:?}", space)))
+            return Err(Occupied.into())
         }
         for &c in space.coords() { self.0.insert(c, ent); }
         locs.insert(ent, space).unwrap();
