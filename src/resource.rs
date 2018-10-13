@@ -175,8 +175,8 @@ fn pull_worker(
     source: &mut Source,
 ) {
     let mut candidates: Vec<(Entity, Candidate)> = vec![];
-    let graph_nodes: Vec<_> = source.graph.nodes().collect();
-    for sink_ent in graph_nodes {
+    let (nodes_iter, mut router) = source.graph.nodes_route();
+    for sink_ent in nodes_iter {
         if sink_ent == source_ent { continue }
         let sink = if let Some(s) = sinks.get(sink_ent) { s } else { continue };
         let mut want = false;
@@ -188,7 +188,7 @@ fn pull_worker(
             }
         }
         if !want { continue }
-        let (len, route) = match source.graph.route(links, nodes, source_ent, sink_ent) {
+        let (len, route) = match router.route(links, nodes, source_ent, sink_ent) {
             None => continue,
             Some(p) => p,
         };

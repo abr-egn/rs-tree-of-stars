@@ -41,17 +41,25 @@ impl Graph {
         self.data.add_edge(link.from, link.to, entity);
         self.route_cache.clear();
     }
+    pub fn nodes_route<'a>(&'a mut self) -> (impl Iterator<Item=Entity> + 'a, Router<'a>) {
+        (self.data.nodes(), Router { data: &self.data, route_cache: &mut self.route_cache })
+    }
+}
+
+pub struct Router<'a> {
+    data: &'a GraphData,
+    route_cache: &'a mut HashMap<(Entity, Entity), Option<(usize, Route)>>,
+}
+
+impl<'a> Router<'a> {
     pub fn route(
         &mut self, links: &ReadStorage<Link>, nodes: &ReadStorage<Node>,
         from: Entity, to: Entity,
     ) -> Option<(usize, Route)> {
-        let data = &self.data;
+        let data = self.data;
         self.route_cache.entry((from, to))
             .or_insert_with(|| calc_route(data, links, nodes, from, to))
             .clone()
-    }
-    pub fn nodes<'a>(&'a self) -> impl Iterator<Item=Entity> + 'a {
-        self.data.nodes()
     }
 }
 
