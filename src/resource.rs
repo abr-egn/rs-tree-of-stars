@@ -13,8 +13,7 @@ use specs::{
     storage::BTreeStorage,
 };
 
-use geom;
-use graph::{self, Graph};
+use graph;
 use util::*;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -81,34 +80,19 @@ impl Pool {
 #[derive(Debug)]
 pub struct Source {
     pub has: Pool,
-    range: i32,
     last_send: HashMap<Entity /* Sink */, Instant>,
-    graph: Graph,  // TODO: move this to an AreaGraph component
 }
 
 impl Source {
-    pub fn add_link(&mut self, link: &graph::Link, entity: Entity) {
-        self.graph.add_link(link, entity)
+    pub fn add(world: &mut World, entity: Entity, has: Pool, range: i32) -> GameResult<()> {
+        graph::AreaGraph::add(world, entity, range)?;
+        world.write_storage().insert(entity, Source { has, last_send: HashMap::new() }).unwrap();
+        Ok(())
     }
 }
 
 impl Component for Source {
     type Storage = DenseVecStorage<Self>;
-}
-
-pub fn add_source(world: &mut World, entity: Entity, has: Pool, range: i32) {
-    let mut source = Source { has, range, last_send: HashMap::new(), graph: Graph::new() };
-    let at = if let Some(n) = world.read_storage::<graph::Node>().get(entity) {
-        n.at()
-    } else { return };
-    let links = world.read_storage::<graph::Link>();
-    for found in world.read_resource::<geom::Map>().in_range(at, range) {
-        if let Some(link) = links.get(found) {
-            source.add_link(link, found);
-        }
-    }
-    world.write_storage::<Source>().insert(entity, source).unwrap();
-    world.write_resource::<geom::AreaMap>().insert(at, range, entity);
 }
 
 #[derive(Debug)]
@@ -152,6 +136,7 @@ pub struct PullData<'a> {
     now: ReadExpect<'a, super::Now>,
     nodes: ReadStorage<'a, graph::Node>,
     links: ReadStorage<'a, graph::Link>,
+    ags: WriteStorage<'a, graph::AreaGraph>,
     sources: WriteStorage<'a, Source>,
     sinks: WriteStorage<'a, Sink>,
     lazy: Read<'a, LazyUpdate>,
@@ -173,9 +158,10 @@ fn pull_worker(
     sender: &mut Sender<(Entity, Candidate)>,
     source_ent: Entity,
     source: &mut Source,
+    ag: &mut graph::AreaGraph,
 ) {
     let mut candidates: Vec<(Entity, Candidate)> = vec![];
-    let (nodes_iter, mut router) = source.graph.nodes_route();
+    let (nodes_iter, mut router) = ag.nodes_route();
     for sink_ent in nodes_iter {
         if sink_ent == source_ent { continue }
         let sink = if let Some(s) = sinks.get(sink_ent) { s } else { continue };
@@ -229,9 +215,9 @@ impl<'a> System<'a> for Pull {
             let nodes = &data.nodes;
             let now = &data.now;
             let (sender, receiver) = channel::<(Entity, Candidate)>();
-            (&*data.entities, &mut data.sources).par_join().for_each_with(sender,
-                |sender, (source_ent, source)| {
-                pull_worker(sinks, links, nodes, now, sender, source_ent, source)
+            (&*data.entities, &mut data.sources, &mut data.ags).par_join().for_each_with(sender,
+                |sender, (source_ent, source, ag)| {
+                pull_worker(sinks, links, nodes, now, sender, source_ent, source, ag)
             });
             let mut sink_candidates = HashMap::<Entity, Vec<Candidate>>::new();
             for (sink_ent, candidate) in receiver {

@@ -39,6 +39,7 @@ fn make_world(ctx: &mut Context) -> GameResult<World> {
 
     world.register::<graph::Link>();
     world.register::<graph::Node>();
+    world.register::<graph::AreaGraph>();
     world.register::<graph::FollowRoute>();
     world.register::<graph::RouteDone>();
 

@@ -146,12 +146,12 @@ impl Mode for NodeSelected {
                         if world.read_storage::<resource::Source>().get(self.0).is_some() {
                             return TopAction::done()
                         }
-                        resource::add_source(
+                        resource::Source::add(
                             world,
                             self.0,
                             resource::Pool::from(vec![(Resource::H2, 6)]),
                             10,
-                        );
+                        ).unwrap();
                         TopAction::done()
                     },
                     Keycode::D => {
@@ -249,8 +249,9 @@ impl GrowTest {
             if grow.get(ent).is_some() { return }
             grow.insert(ent, GrowTest::new()).unwrap();
         }
-        resource::add_source(world, ent,
-            resource::Pool::from(vec![(Resource::H2, 6)]), 6);
+        resource::Source::add(world, ent,
+            resource::Pool::from(vec![(Resource::H2, 6)]), 6)
+            .unwrap();
         let mut sink = resource::Sink::new();
         sink.want.inc_by(Resource::H2, 6);
         world.write_storage::<resource::Sink>().insert(ent, sink).unwrap();

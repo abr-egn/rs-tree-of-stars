@@ -17,7 +17,6 @@ use specs::{
 
 use draw;
 use geom;
-use resource;
 use util::*;
 
 type GraphData = GraphMap<Entity, Entity, petgraph::Undirected>;
@@ -93,6 +92,40 @@ fn calc_route(
         }))
     }
     Some((len, route))
+}
+
+#[derive(Debug)]
+pub struct AreaGraph {
+    graph: Graph,
+    range: i32,
+}
+
+impl AreaGraph {
+    pub fn add(world: &mut World, entity: Entity, range: i32) -> GameResult<()> {
+        let at = try_get(&world.read_storage::<Node>(), entity)?.at();
+        let mut ag = AreaGraph { graph: Graph::new(), range };
+        let links = world.read_storage::<Link>();
+        for found in world.read_resource::<geom::Map>().in_range(at, range) {
+            if let Some(link) = links.get(found) {
+                ag.graph.add_link(link, found);
+            }
+        }
+        world.write_storage().insert(entity, ag).unwrap();
+        world.write_resource::<geom::AreaMap>().insert(at, range, entity);
+        Ok(())
+    }
+
+    #[allow(unused)]
+    pub fn graph(&self) -> &Graph { &self.graph }
+    #[allow(unused)]
+    pub fn range(&self) -> i32 { self.range }
+    pub fn nodes_route<'a>(&'a mut self) -> (impl Iterator<Item=Entity> + 'a, Router<'a>) {
+        self.graph.nodes_route()
+    }
+}
+
+impl Component for AreaGraph {
+    type Storage = DenseVecStorage<Self>;
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -363,12 +396,12 @@ pub fn make_link(world: &mut World, from: Entity, to: Entity) -> GameResult<Enti
     world.write_resource::<geom::Map>().set(
         &mut world.write_storage::<geom::Space>(), ent, geom::Space::new(ls.shape))?;
     let areas = world.read_resource::<geom::AreaMap>();
-    let sources_from: HashSet<Entity> = areas.find(ls.from).collect();
-    let sources_to: HashSet<Entity> = areas.find(ls.to).collect();
-    let mut sources = world.write_storage::<resource::Source>();
-    for &e in sources_from.intersection(&sources_to) {
-        if let Some(source) = sources.get_mut(e) {
-            source.add_link(&link, ent);
+    let found_from: HashSet<Entity> = areas.find(ls.from).collect();
+    let found_to: HashSet<Entity> = areas.find(ls.to).collect();
+    let mut ags = world.write_storage::<AreaGraph>();
+    for &e in found_from.intersection(&found_to) {
+        if let Some(ag) = ags.get_mut(e) {
+            ag.graph.add_link(&link, ent);
         }
     }
     Ok(ent)
