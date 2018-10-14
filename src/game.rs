@@ -10,10 +10,12 @@ use specs::{
 };
 
 use draw;
+use error::{LazyExt, Result, SystemErr};
 use geom;
 use graph;
 use mode::{Mode, EventAction, TopAction};
 use resource::{self, Resource};
+use util::*;
 
 pub fn prep_world(world: &mut World) {
     world.add_resource(MouseWidget {
@@ -29,7 +31,7 @@ impl Play {
 }
 
 impl Mode for Play {
-    fn on_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> EventAction {
+    fn on_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> Result<EventAction> {
         match event {
             Event::MouseMotion { x, y, .. } => {
                 let coord = pixel_to_coord(ctx, x, y);
@@ -41,33 +43,35 @@ impl Mode for Play {
             },
             _ => (),
         }
-        EventAction::Done
+        Ok(EventAction::Done)
     }
-    fn on_top_event(&mut self, _: &mut World, _: &mut Context, event: Event) -> TopAction {
-        match event {
+    fn on_top_event(&mut self, _: &mut World, _: &mut Context, event: Event) -> Result<TopAction> {
+        Ok(match event {
             Event::KeyDown { keycode: Some(kc), .. } => {
                 match kc {
-                    Keycode::N => TopAction::Do(EventAction::Push(PlaceNode::new())),
-                    Keycode::S => TopAction::Do(EventAction::Push(Select::new())),
+                    Keycode::N => TopAction::push(PlaceNode::new()),
+                    Keycode::S => TopAction::push(Select::new()),
                     _ => TopAction::AsEvent,
                 }
             },
             _ => TopAction::AsEvent,
-        }
+        })
     }
 }
 
 struct Select;
 
 impl Mode for Select {
-    fn on_start(&mut self, world: &mut World, _: &mut Context) {
+    fn on_start(&mut self, world: &mut World, _: &mut Context) -> Result<()> {
         world.write_resource::<MouseWidget>().kind = MWKind::Highlight;
+        Ok(())
     }
-    fn on_stop(&mut self, world: &mut World, _: &mut Context) {
+    fn on_stop(&mut self, world: &mut World, _: &mut Context) -> Result<()> {
         world.write_resource::<MouseWidget>().kind = MWKind::None;
+        Ok(())
     }
-    fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {
-        match event {
+    fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> Result<TopAction> {
+        Ok(match event {
             Event::MouseButtonDown { x, y, .. } => {
                 let coord = pixel_to_coord(ctx, x, y);
                 match world.read_resource::<geom::Map>().get(coord) {
@@ -79,7 +83,7 @@ impl Mode for Select {
             },
             Event::KeyDown { keycode: Some(Keycode::Escape), .. } => TopAction::Pop,
             _ => TopAction::AsEvent,
-        }
+        })
     }
 }
 
@@ -94,26 +98,28 @@ impl PlaceNode {
 }
 
 impl Mode for PlaceNode {
-    fn on_start(&mut self, world: &mut World, _: &mut Context) {
+    fn on_start(&mut self, world: &mut World, _: &mut Context) -> Result<()> {
         world.write_resource::<MouseWidget>().kind = MWKind::PlaceNode;
+        Ok(())
     }
-    fn on_stop(&mut self, world: &mut World, _: &mut Context) {
+    fn on_stop(&mut self, world: &mut World, _: &mut Context) -> Result<()> {
         world.write_resource::<MouseWidget>().kind = MWKind::None;
+        Ok(())
     }
-    fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {
-        match event {
+    fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> Result<TopAction> {
+        Ok(match event {
             Event::KeyDown { keycode: Some(Keycode::N), .. } |
             Event::KeyDown { keycode: Some(Keycode::Escape), .. } => TopAction::Pop,
             Event::MouseButtonDown { x, y, .. } => {
                 let coord = pixel_to_coord(ctx, x, y);
                 if !graph::space_for_node(&*world.read_resource::<geom::Map>(), coord) {
-                    return TopAction::Do(EventAction::Done)
+                    return Ok(TopAction::Do(EventAction::Done))
                 }
-                graph::make_node(world, coord).unwrap();
+                graph::make_node(world, coord)?;
                 TopAction::Pop
             },
             _ => TopAction::AsEvent,
-        }
+        })
     }
 }
 
@@ -124,49 +130,50 @@ impl NodeSelected {
 }
 
 impl Mode for NodeSelected {
-    fn on_start(&mut self, world: &mut World, _: &mut Context) {
-        world.write_storage::<Selected>().insert(self.0, Selected).unwrap();
+    fn on_start(&mut self, world: &mut World, _: &mut Context) -> Result<()> {
+        world.write_storage::<Selected>().insert(self.0, Selected)?;
+        Ok(())
     }
-    fn on_stop(&mut self, world: &mut World, _: &mut Context) {
+    fn on_stop(&mut self, world: &mut World, _: &mut Context) -> Result<()> {
         world.write_storage::<Selected>().remove(self.0);
+        Ok(())
     }
-    fn on_top_event(&mut self, world: &mut World, _: &mut Context, event: Event) -> TopAction {
-        match event {
+    fn on_top_event(&mut self, world: &mut World, _: &mut Context, event: Event) -> Result<TopAction> {
+        Ok(match event {
             Event::KeyDown { keycode: Some(kc), .. } => {
                 match kc {
                     Keycode::Escape => TopAction::Swap(Select::new()),
                     Keycode::L => TopAction::push(PlaceLink::new(self.0)),
                     Keycode::G => {
-                        GrowTest::start(world, self.0);
-                        world.write_storage::<GrowTest>().get_mut(self.0).unwrap()
-                            .next_growth = 0;
+                        GrowTest::start(world, self.0)?;
+                        try_get_mut(&mut world.write_storage::<GrowTest>(), self.0)?.next_growth = 0;
                         TopAction::done()
                     },
                     Keycode::S => {
                         if world.read_storage::<resource::Source>().get(self.0).is_some() {
-                            return TopAction::done()
+                            return Ok(TopAction::done())
                         }
                         resource::Source::add(
                             world,
                             self.0,
                             resource::Pool::from(vec![(Resource::H2, 6)]),
                             10,
-                        ).unwrap();
+                        )?;
                         TopAction::done()
                     },
                     Keycode::D => {
                         let mut sinks = world.write_storage::<resource::Sink>();
-                        if sinks.get(self.0).is_some() { return TopAction::done() }
+                        if sinks.get(self.0).is_some() { return Ok(TopAction::done()) }
                         let mut sink = resource::Sink::new();
                         sink.want.inc_by(Resource::H2, 6);
-                        sinks.insert(self.0, sink).unwrap();
+                        sinks.insert(self.0, sink)?;
                         TopAction::done()
                     },
                     _ => TopAction::AsEvent,
                 }
             },
             _ => TopAction::AsEvent,
-        }
+        })
     }
 }
 
@@ -177,14 +184,16 @@ impl PlaceLink {
 }
 
 impl Mode for PlaceLink {
-    fn on_start(&mut self, world: &mut World, _: &mut Context) {
+    fn on_start(&mut self, world: &mut World, _: &mut Context) -> Result<()> {
         world.write_resource::<MouseWidget>().kind = MWKind::Highlight;
+        Ok(())
     }
-    fn on_stop(&mut self, world: &mut World, _: &mut Context) {
+    fn on_stop(&mut self, world: &mut World, _: &mut Context) -> Result<()> {
         world.write_resource::<MouseWidget>().kind = MWKind::None;
+        Ok(())
     }
-    fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {
-        match event {
+    fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> Result<TopAction> {
+        Ok(match event {
             Event::MouseButtonDown { x, y, .. } => {
                 let coord = pixel_to_coord(ctx, x, y);
                 let found = world.read_resource::<geom::Map>().get(coord);
@@ -192,12 +201,12 @@ impl Mode for PlaceLink {
                     Some(ent) if ent != self.0 => {
                         let dest_at = if let Some(dest_node) = world.read_storage::<graph::Node>().get(ent) {
                             dest_node.at()
-                        } else { return TopAction::AsEvent };
-                        let self_at = world.read_storage::<graph::Node>().get(self.0).unwrap().at();
+                        } else { return Ok(TopAction::AsEvent) };
+                        let self_at = try_get(&world.read_storage::<graph::Node>(), self.0)?.at();
                         if !graph::space_for_link(&*world.read_resource(), self_at, dest_at) {
-                            return TopAction::AsEvent
+                            return Ok(TopAction::AsEvent)
                         }
-                        graph::make_link(world, self.0, ent).unwrap();
+                        graph::make_link(world, self.0, ent)?;
                         TopAction::Pop
                     },
                     _ => TopAction::AsEvent,
@@ -205,9 +214,8 @@ impl Mode for PlaceLink {
             },
             Event::KeyDown { keycode: Some(Keycode::Escape), .. } => TopAction::Pop,
             _ => TopAction::AsEvent,
-        }
+        })
     }
-
 }
 
 #[derive(Debug)]
@@ -243,18 +251,18 @@ impl GrowTest {
             next_growth: 1,
         }
     }
-    pub fn start(world: &mut World, ent: Entity) {
+    pub fn start(world: &mut World, ent: Entity) -> Result<()> {
         {
             let mut grow = world.write_storage::<GrowTest>();
-            if grow.get(ent).is_some() { return }
-            grow.insert(ent, GrowTest::new()).unwrap();
+            if grow.get(ent).is_some() { return Ok(()) }
+            grow.insert(ent, GrowTest::new())?;
         }
         resource::Source::add(world, ent,
-            resource::Pool::from(vec![(Resource::H2, 6)]), 6)
-            .unwrap();
+            resource::Pool::from(vec![(Resource::H2, 6)]), 6)?;
         let mut sink = resource::Sink::new();
         sink.want.inc_by(Resource::H2, 6);
-        world.write_storage::<resource::Sink>().insert(ent, sink).unwrap();
+        world.write_storage::<resource::Sink>().insert(ent, sink)?;
+        Ok(())
     }
 }
 
@@ -276,10 +284,10 @@ pub struct GrowTestData<'a> {
 
 const GROW_LEN: usize = 5;
 
-impl<'a> System<'a> for RunGrowTest {
+impl<'a> SystemErr<'a> for RunGrowTest {
     type SystemData = GrowTestData<'a>;
 
-    fn run(&mut self, mut data: Self::SystemData) {
+    fn run(&mut self, mut data: Self::SystemData) -> Result<()> {
         let mut to_grow: Vec<(Entity, Coordinate, Coordinate)> = vec![];
         for (ent, node, sink, grow) in (&*data.entities, &mut data.nodes, &mut data.sinks, &mut data.grow).join() {
             if sink.has.get(Resource::H2) < grow.next_growth { continue }
@@ -291,18 +299,20 @@ impl<'a> System<'a> for RunGrowTest {
             to_grow.push((ent, node.at(), next_coord));
             grow.next_growth += 1;
         }
-        data.lazy.exec_mut(move |world| {
+        data.lazy.exec_mut_err(move |world| {
             for (from, at, next_coord) in to_grow {
                 {
                     let map = &*world.read_resource::<geom::Map>();
                     if !graph::space_for_node(map, next_coord) { continue }
                     if !graph::space_for_link(map, at, next_coord) { continue }
                 }
-                let ent = graph::make_node(world, next_coord).unwrap();
-                GrowTest::start(world, ent);
-                graph::make_link(world, from, ent).unwrap();
+                let ent = graph::make_node(world, next_coord)?;
+                GrowTest::start(world, ent)?;
+                graph::make_link(world, from, ent)?;
             }
-        })
+            Ok(())
+        });
+        Ok(())
     }
 }
 

@@ -19,3 +19,16 @@ impl<'a, T: SystemErr<'a>> System<'a> for SE<T> {
         self.0.run(data).unwrap();
     }
 }
+
+pub trait LazyExt {
+    fn exec_mut_err<F>(&self, f: F)
+        where F: FnOnce(&mut World) -> Result<()> + 'static + Send + Sync;
+}
+
+impl LazyExt for LazyUpdate {
+    fn exec_mut_err<F>(&self, f: F)
+        where F: FnOnce(&mut World) -> Result<()> + 'static + Send + Sync
+    {
+        self.exec_mut(move |world| { f(world).unwrap() })
+    }
+}

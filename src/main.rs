@@ -128,7 +128,7 @@ fn make_update() -> Dispatcher<'static, 'static> {
         .with(resource::Pull, PULL, &[])
         .with(resource::Receive, RECEIVE, &[PULL])
         .with(resource::Reaction, REACTION, &[])
-        .with(game::RunGrowTest, GROW_TEST, &[])
+        .with(error::SE(game::RunGrowTest), GROW_TEST, &[])
         .build()
 }
 
@@ -154,7 +154,7 @@ fn main() -> Result<()> {
     let mut world = make_world(&mut ctx)?;
     let mut update = make_update();
     let mut stack = mode::Stack::new();
-    stack.push(&mut world, &mut ctx, game::Play::new());
+    stack.push(&mut world, &mut ctx, game::Play::new())?;
 
     let mut running = true;
     while running {
@@ -165,7 +165,7 @@ fn main() -> Result<()> {
             use event::Event;
             match event {
                 Event::Quit { .. } => { running = false; break },
-                ev => stack.handle(&mut world, &mut ctx, ev),
+                ev => stack.handle(&mut world, &mut ctx, ev)?,
             }
         }
         if !running { break }
