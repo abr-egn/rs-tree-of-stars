@@ -17,7 +17,7 @@ use specs::{
 };
 
 use draw;
-use error::{Result, SystemErr};
+use error::{Result, or_die};
 use util::*;
 
 #[derive(Debug)]
@@ -56,14 +56,14 @@ impl Component for MotionDone {
 #[derive(Debug)]
 pub struct Travel;
 
-impl<'a> SystemErr<'a> for Travel {
+impl<'a> System<'a> for Travel {
     type SystemData = (
         Entities<'a>,
         WriteStorage<'a, Motion>,
         WriteStorage<'a, MotionDone>,
     );
 
-    fn run(&mut self, (entities, mut motions, mut arrived): Self::SystemData) -> Result<()> {
+    fn run(&mut self, (entities, mut motions, mut arrived): Self::SystemData) {
         let mut v = Vec::new();
         for (entity, motion, ()) in (&*entities, &mut motions, !&arrived).join() {
             if motion.at >= 1.0 { continue };
@@ -72,10 +72,12 @@ impl<'a> SystemErr<'a> for Travel {
                 v.push(entity);
             }
         }
-        for entity in v {
-            arrived.insert(entity, MotionDone)?;
-        }
-        Ok(())
+        or_die(|| {
+            for entity in v {
+                arrived.insert(entity, MotionDone)?;
+            }
+            Ok(())
+        })
     }
 }
 
@@ -113,8 +115,9 @@ impl Map {
         if self.is_occupied(&space) {
             return Err(Occupied.into())
         }
-        for &c in space.coords() { self.0.insert(c, ent); }
+        let coords = space.0.clone();
         locs.insert(ent, space)?;
+        for c in coords { self.0.insert(c, ent); }
         Ok(())
     }
     #[allow(unused)]

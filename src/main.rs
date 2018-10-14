@@ -36,7 +36,7 @@ pub const UPDATE_DURATION: Duration = Duration::from_nanos(1_000_000_000 / (UPDA
 pub struct Now(pub Instant);
 pub struct Paused(pub bool);
 
-fn make_world(ctx: &mut Context) -> Result<World> {
+fn make_world(ctx: &mut Context) -> World {
     let mut world = World::new();
 
     world.register::<geom::Motion>();
@@ -64,7 +64,7 @@ fn make_world(ctx: &mut Context) -> Result<World> {
     world.add_resource(geom::Map::new());
     world.add_resource(geom::AreaMap::new());
 
-    draw::build_sprites(&mut world, ctx)?;
+    draw::build_sprites(&mut world, ctx);
     game::prep_world(&mut world);
 
     /*
@@ -111,7 +111,7 @@ fn make_world(ctx: &mut Context) -> Result<World> {
     graph::make_link(&mut world, top_ent, side_ent)?;
     */
 
-    Ok(world)
+    world
 }
 
 fn make_update() -> Dispatcher<'static, 'static> {
@@ -123,12 +123,12 @@ fn make_update() -> Dispatcher<'static, 'static> {
     const GROW_TEST: &str = "grow_test";
 
     DispatcherBuilder::new()
-        .with(error::SE(geom::Travel), TRAVEL, &[])
-        .with(error::SE(graph::Traverse), TRAVERSE, &[TRAVEL])
+        .with(geom::Travel, TRAVEL, &[])
+        .with(graph::Traverse, TRAVERSE, &[TRAVEL])
         .with(resource::Pull, PULL, &[])
         .with(resource::Receive, RECEIVE, &[PULL])
         .with(resource::Reaction, REACTION, &[])
-        .with(error::SE(game::RunGrowTest), GROW_TEST, &[])
+        .with(game::RunGrowTest, GROW_TEST, &[])
         .build()
 }
 
@@ -151,10 +151,10 @@ fn main() -> Result<()> {
     })?;
     let mut events = event::Events::new(&ctx)?;
 
-    let mut world = make_world(&mut ctx)?;
+    let mut world = make_world(&mut ctx);
     let mut update = make_update();
     let mut stack = mode::Stack::new();
-    stack.push(&mut world, &mut ctx, game::Play::new())?;
+    stack.push(&mut world, &mut ctx, game::Play::new());
 
     let mut running = true;
     while running {
@@ -165,7 +165,7 @@ fn main() -> Result<()> {
             use event::Event;
             match event {
                 Event::Quit { .. } => { running = false; break },
-                ev => stack.handle(&mut world, &mut ctx, ev)?,
+                ev => stack.handle(&mut world, &mut ctx, ev),
             }
         }
         if !running { break }

@@ -2,7 +2,6 @@ use std::{
     cmp::max,
     collections::{
         HashSet, HashMap,
-        hash_map::Entry,
     },
 };
 
@@ -20,8 +19,8 @@ use specs::{
 
 use draw;
 use error::{
-    Result, SystemErr,
-    get_or_die, into_error,
+    Result,
+    or_die, into_error,
 };
 use geom;
 use util::*;
@@ -61,12 +60,11 @@ impl<'a> Router<'a> {
     pub fn route(
         &mut self, links: &ReadStorage<Link>, nodes: &ReadStorage<Node>,
         from: Entity, to: Entity,
-    ) -> Result<Option<(usize, Route)>> {
+    ) -> Option<(usize, Route)> {
         let data = self.data;
-        Ok(match self.route_cache.entry((from, to)) {
-            Entry::Occupied(e) => e.into_mut(),
-            Entry::Vacant(e) => e.insert(calc_route(data, links, nodes, from, to)?),
-        }.clone())
+        self.route_cache.entry((from, to))
+            .or_insert_with(|| calc_route(data, links, nodes, from, to))
+            .clone()
     }
 }
 
@@ -77,34 +75,36 @@ pub struct NoSuchEdge;
 fn calc_route(
     data: &GraphData, links: &ReadStorage<Link>, nodes: &ReadStorage<Node>,
     from: Entity, to: Entity,
-) -> Result<Option<(usize, Route)>> {
-    let from_coord = try_get(nodes, from)?.at;
-    let (len, nodes) = if let Some(p) = petgraph::algo::astar(
-        /* graph= */ data,
-        /* start= */ from,
-        /* is_goal= */ |ent| { ent == to },
-        /* edge_cost= */ |(_, _, &link_ent)| {
-            get_or_die(links, link_ent).path.len()
-        },
-        /* estimate_cost= */ |ent| {
-            let ent_coord = get_or_die(nodes, ent).at;
-            max(0, from_coord.distance(ent_coord) - 2) as usize
-        },
-    ) { p } else { return Ok(None) };
-    let mut route: Vec<(Entity, PathDir)> = vec![];
-    for ix in 0..nodes.len()-1 {
-        let link_ent = *data.edge_weight(nodes[ix], nodes[ix+1])
-            .ok_or_else(|| into_error(NoSuchEdge))?;
-        let link = try_get(links, link_ent)?;
-        route.push((link_ent, if link.from == nodes[ix] {
-            PathDir::Fwd
-        } else if link.to == nodes[ix] {
-            PathDir::Rev
-        } else {
-            panic!("invalid link data")
-        }))
-    }
-    Ok(Some((len, route)))
+) -> Option<(usize, Route)> {
+    or_die(|| {
+        let from_coord = try_get(nodes, from)?.at;
+        let (len, nodes) = if let Some(p) = petgraph::algo::astar(
+            /* graph= */ data,
+            /* start= */ from,
+            /* is_goal= */ |ent| { ent == to },
+            /* edge_cost= */ |(_, _, &link_ent)| or_die(|| {
+                Ok(try_get(links, link_ent)?.path.len())
+            }),
+            /* estimate_cost= */ |ent| or_die(|| {
+                let ent_coord = try_get(nodes, ent)?.at;
+                Ok(max(0, from_coord.distance(ent_coord) - 2) as usize)
+            }),
+        ) { p } else { return Ok(None) };
+        let mut route: Vec<(Entity, PathDir)> = vec![];
+        for ix in 0..nodes.len()-1 {
+            let link_ent = *data.edge_weight(nodes[ix], nodes[ix+1])
+                .ok_or_else(|| into_error(NoSuchEdge))?;
+            let link = try_get(links, link_ent)?;
+            route.push((link_ent, if link.from == nodes[ix] {
+                PathDir::Fwd
+            } else if link.to == nodes[ix] {
+                PathDir::Rev
+            } else {
+                panic!("invalid link data")
+            }))
+        }
+        Ok(Some((len, route)))
+    })
 }
 
 #[derive(Debug)]
@@ -241,13 +241,15 @@ impl Traverse {
         start: Coordinate,
         route: Route,
         speed: f32,
-    ) -> Result<()> {
-        let (first_coord, p) = path_ix(route[0], 0, &world.read_storage::<Link>())?;
-        let follow = FollowRoute::new(route, speed, RoutePhase::ToLink(first_coord, p));
-        world.write_storage::<geom::Motion>().insert(entity,
-            geom::Motion::new(start, first_coord, follow.speed))?;
-        world.write_storage::<FollowRoute>().insert(entity, follow)?;
-        Ok(())
+    ) {
+        or_die(|| {
+            let (first_coord, p) = path_ix(route[0], 0, &world.read_storage::<Link>())?;
+            let follow = FollowRoute::new(route, speed, RoutePhase::ToLink(first_coord, p));
+            world.write_storage::<geom::Motion>().insert(entity,
+                geom::Motion::new(start, first_coord, follow.speed))?;
+            world.write_storage::<FollowRoute>().insert(entity, follow)?;
+            Ok(())
+        })
     }
 }
 
@@ -262,10 +264,10 @@ pub struct TraverseData<'a> {
     route_done: WriteStorage<'a, RouteDone>,
 }
 
-impl<'a> SystemErr<'a> for Traverse {
+impl<'a> System<'a> for Traverse {
     type SystemData = TraverseData<'a>;
 
-    fn run(&mut self, mut data: Self::SystemData) -> Result<()> {
+    fn run(&mut self, mut data: Self::SystemData) {
         let mut more_motion = Vec::new();
         let mut no_more_route = Vec::new();
         for (entity, motion, route, _, ()) in (
@@ -295,24 +297,30 @@ impl<'a> SystemErr<'a> for Traverse {
                 },
             };
             /* And given the new phase, where is it going? */
-            let to_coord = if link_next {
-                let (coord, more) = path_ix(
-                    route.route[route.link_ix],
-                    route.coord_ix,
-                    &data.links
-                )?;
-                route.phase = RoutePhase::ToLink(coord, more);
-                coord
-            } else {
-                let (link_ent, path_dir) = route.route[route.link_ix];
-                let link = try_get(&data.links, link_ent)?;
-                let node_ent = match path_dir {
-                    PathDir::Fwd => link.to,
-                    PathDir::Rev => link.from,
-                };
-                let coord = try_get(&data.nodes, node_ent)?.at;
-                route.phase = RoutePhase::ToNode(coord);
-                coord
+            let to_coord = {
+                let links = &data.links;
+                let nodes = &data.nodes;
+                or_die(|| {
+                    if link_next {
+                        let (coord, more) = path_ix(
+                            route.route[route.link_ix],
+                            route.coord_ix,
+                            links
+                        )?;
+                        route.phase = RoutePhase::ToLink(coord, more);
+                        Ok(coord)
+                    } else {
+                        let (link_ent, path_dir) = route.route[route.link_ix];
+                        let link = try_get(links, link_ent)?;
+                        let node_ent = match path_dir {
+                            PathDir::Fwd => link.to,
+                            PathDir::Rev => link.from,
+                        };
+                        let coord = try_get(nodes, node_ent)?.at;
+                        route.phase = RoutePhase::ToNode(coord);
+                        Ok(coord)
+                    }
+                })
             };
             more_motion.push(entity);  // arrival flag clear
             let rem = motion.at - 1.0;
@@ -322,10 +330,12 @@ impl<'a> SystemErr<'a> for Traverse {
         for entity in more_motion {
             data.motion_done.remove(entity);
         }
-        for entity in no_more_route {
-            data.route_done.insert(entity, RouteDone)?;
-        }
-        Ok(())
+        or_die(|| {
+            for entity in no_more_route {
+                data.route_done.insert(entity, RouteDone)?;
+            }
+            Ok(())
+        });
     }
 }
 
@@ -346,7 +356,7 @@ pub fn space_for_node(map: &geom::Map, center: Coordinate) -> bool {
     true
 }
 
-pub fn make_node(world: &mut World, center: Coordinate) -> Result<Entity> {
+pub fn make_node(world: &mut World, center: Coordinate) -> Entity {
     let ent = world.create_entity()
         .with(draw::Shape {
             coords: node_shape(center),
@@ -354,11 +364,11 @@ pub fn make_node(world: &mut World, center: Coordinate) -> Result<Entity> {
         })
         .with(Node { at: center })
         .build();
-    world.write_resource::<geom::Map>().set(
+    or_die(|| world.write_resource::<geom::Map>().set(
         &mut world.write_storage::<geom::Space>(), ent,
         geom::Space::new(node_space(center)),
-    )?;
-    Ok(ent)
+    ));
+    ent
 }
 
 struct LinkSpace {
@@ -400,8 +410,8 @@ pub fn space_for_link(map: &geom::Map, from: Coordinate, to: Coordinate) -> bool
     true
 }
 
-pub fn make_link(world: &mut World, from: Entity, to: Entity) -> Result<Entity> {
-    let ls = LinkSpace::new(&world.read_storage::<Node>(), from, to)?;
+pub fn make_link(world: &mut World, from: Entity, to: Entity) -> Entity {
+    let ls = or_die(|| LinkSpace::new(&world.read_storage::<Node>(), from, to));
     let link = Link { from, to, path: ls.path };
     let ent = world.create_entity()
         .with(draw::Shape {
@@ -410,8 +420,9 @@ pub fn make_link(world: &mut World, from: Entity, to: Entity) -> Result<Entity> 
         })
         .with(link.clone())
         .build();
-    world.write_resource::<geom::Map>().set(
-        &mut world.write_storage::<geom::Space>(), ent, geom::Space::new(ls.shape))?;
+    let shape = ls.shape;
+    or_die(|| world.write_resource::<geom::Map>().set(
+        &mut world.write_storage::<geom::Space>(), ent, geom::Space::new(shape)));
     let areas = world.read_resource::<geom::AreaMap>();
     let found_from: HashSet<Entity> = areas.find(ls.from).collect();
     let found_to: HashSet<Entity> = areas.find(ls.to).collect();
@@ -421,5 +432,5 @@ pub fn make_link(world: &mut World, from: Entity, to: Entity) -> Result<Entity> 
             ag.graph.add_link(&link, ent);
         }
     }
-    Ok(ent)
+    ent
 }

@@ -10,7 +10,10 @@ use specs::{
     storage::BTreeStorage,
 };
 
-use error::Result;
+use error::{
+    Result,
+    or_die,
+};
 use graph;
 use util::*;
 
@@ -86,10 +89,12 @@ pub struct Source {
 }
 
 impl Source {
-    pub fn add(world: &mut World, entity: Entity, has: Pool, range: i32) -> Result<()> {
-        graph::AreaGraph::add(world, entity, range)?;
-        world.write_storage().insert(entity, Source { has, last_send: HashMap::new() }).unwrap();
-        Ok(())
+    pub fn add(world: &mut World, entity: Entity, has: Pool, range: i32) {
+        or_die(|| {
+            graph::AreaGraph::add(world, entity, range)?;
+            world.write_storage().insert(entity, Source { has, last_send: HashMap::new() })?;
+            Ok(())
+        });
     }
 }
 
@@ -161,7 +166,7 @@ fn pull_worker(
     source_ent: Entity,
     source: &mut Source,
     ag: &mut graph::AreaGraph,
-) -> Result<()> {
+) {
     let mut candidates: Vec<(Entity, Candidate)> = vec![];
     let (nodes_iter, mut router) = ag.nodes_route();
     for sink_ent in nodes_iter {
@@ -176,7 +181,7 @@ fn pull_worker(
             }
         }
         if !want { continue }
-        let (len, route) = match router.route(links, nodes, source_ent, sink_ent)? {
+        let (len, route) = match router.route(links, nodes, source_ent, sink_ent) {
             None => continue,
             Some(p) => p,
         };
@@ -195,7 +200,7 @@ fn pull_worker(
             source: source_ent, route, route_time, on_cooldown,
         }));
     }
-    if candidates.is_empty() { return Ok(()) }
+    if candidates.is_empty() { return }
     candidates.sort_unstable_by_key(|(_, c)| c.route_time);
     let mut tmp = (source_ent, Candidate {
         source: source_ent,
@@ -204,8 +209,7 @@ fn pull_worker(
         on_cooldown: false,
     });
     swap(&mut tmp, &mut candidates[0]);
-    sender.send(tmp)?;
-    Ok(())
+    or_die(|| { sender.send(tmp)?; Ok(()) });
 }
 
 impl<'a> System<'a> for Pull {
@@ -220,7 +224,7 @@ impl<'a> System<'a> for Pull {
             let (sender, receiver) = channel::<(Entity, Candidate)>();
             (&*data.entities, &mut data.sources, &mut data.ags).par_join().for_each_with(sender,
                 |sender, (source_ent, source, ag)| {
-                pull_worker(sinks, links, nodes, now, sender, source_ent, source, ag).unwrap()
+                pull_worker(sinks, links, nodes, now, sender, source_ent, source, ag)
             });
             let mut sink_candidates = HashMap::<Entity, Vec<Candidate>>::new();
             for (sink_ent, candidate) in receiver {
@@ -251,10 +255,13 @@ impl<'a> System<'a> for Pull {
             let pull_res = can_pull[0].0;
 
             source.last_send.insert(sink_ent, data.now.0);
-            source.has.dec(pull_res).unwrap();
+            or_die(|| source.has.dec(pull_res));
             sink.in_transit.inc(pull_res);
 
-            let source_coord = data.nodes.get(candidate.source).unwrap().at();
+            let source_coord = {
+                let nodes = &data.nodes;
+                or_die(|| try_get(nodes, candidate.source)).at()
+            };
             let route = candidate.route.clone();
             data.lazy.exec_mut(move |world| {
                 let packet = world.create_entity()
@@ -269,7 +276,7 @@ impl<'a> System<'a> for Pull {
                     source_coord,
                     route,
                     PACKET_SPEED,
-                ).unwrap();
+                );
             });
         }
     }
@@ -287,12 +294,15 @@ impl<'a> System<'a> for Receive {
     );
 
     fn run(&mut self, (entities, route_done, packets, mut sinks): Self::SystemData) {
+        or_die(|| {
         for (entity, _, packet) in (&*entities, &route_done, &packets).join() {
-            let sink = sinks.get_mut(packet.sink).unwrap();
-            sink.in_transit.dec(packet.resource).unwrap();
+            let sink = try_get_mut(&mut sinks, packet.sink)?;
+            sink.in_transit.dec(packet.resource)?;
             sink.has.inc(packet.resource);
-            entities.delete(entity).unwrap();
+            entities.delete(entity)?;
         };
+        Ok(())
+        })
     }
 }
 

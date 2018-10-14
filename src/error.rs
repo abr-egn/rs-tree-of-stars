@@ -1,47 +1,24 @@
-use failure;
-use shred::DynamicSystemData;
-use specs::{
-    prelude::*,
-    storage::GenericReadStorage,
-};
+/*
+Most errors in ToS are unrecoverable - graphics call failed, game logic
+invariant broken - and will leave the system in some variety of corrupt state,
+so there's nothing more reasonable to do than panic, maybe with a toplevel
+panic handler for crash reporting.
 
-use util::try_get;
+`or_die` lets fallible blocks use the convenient `?` syntax instead of
+peppering `unwrap` everywhere, and forces the type to be `failure::Error` for
+niceties like stack traces.
+
+Those very few places where an operation can fail without leaving broken state
+can define a `Fail` type and return a `Result` directly.
+*/
+
+use failure;
 
 pub type Result<T> = ::std::result::Result<T, failure::Error>;
 
-pub trait SystemErr<'a> {
-    type SystemData: DynamicSystemData<'a>;
-
-    fn run(&mut self, data: Self::SystemData) -> Result<()>;
-}
-
-pub struct SE<T>(pub T);
-
-impl<'a, T: SystemErr<'a>> System<'a> for SE<T> {
-    type SystemData = <T as SystemErr<'a>>::SystemData;
-
-    fn run(&mut self, data: Self::SystemData) {
-        self.0.run(data).unwrap();
-    }
-}
-
-pub trait LazyExt {
-    fn exec_mut_err<F>(&self, f: F)
-        where F: FnOnce(&mut World) -> Result<()> + 'static + Send + Sync;
-}
-
-impl LazyExt for LazyUpdate {
-    fn exec_mut_err<F>(&self, f: F)
-        where F: FnOnce(&mut World) -> Result<()> + 'static + Send + Sync
-    {
-        self.exec_mut(move |world| { f(world).unwrap() })
-    }
+pub fn or_die<T, F: FnOnce() -> Result<T>>(f: F) -> T {
+    f().unwrap()
 }
 
 // Types for the type checker.
 pub fn into_error<T: Into<failure::Error>>(e: T) -> failure::Error { e.into() }
-
-pub fn get_or_die<S, T>(storage: &S, ent: Entity) -> &T
-    where S: GenericReadStorage<Component=T>,
-          T: Component,
-{ try_get(storage, ent).unwrap() }
