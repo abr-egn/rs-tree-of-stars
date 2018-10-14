@@ -1,6 +1,9 @@
 use std::{
     cmp::max,
-    collections::{HashSet, HashMap},
+    collections::{
+        HashSet, HashMap,
+        hash_map::Entry,
+    },
 };
 
 use ggez::graphics;
@@ -16,7 +19,10 @@ use specs::{
 };
 
 use draw;
-use error::Result;
+use error::{
+    Result, SystemErr,
+    get_or_die, into_error,
+};
 use geom;
 use util::*;
 
@@ -55,35 +61,41 @@ impl<'a> Router<'a> {
     pub fn route(
         &mut self, links: &ReadStorage<Link>, nodes: &ReadStorage<Node>,
         from: Entity, to: Entity,
-    ) -> Option<(usize, Route)> {
+    ) -> Result<Option<(usize, Route)>> {
         let data = self.data;
-        self.route_cache.entry((from, to))
-            .or_insert_with(|| calc_route(data, links, nodes, from, to))
-            .clone()
+        Ok(match self.route_cache.entry((from, to)) {
+            Entry::Occupied(e) => e.into_mut(),
+            Entry::Vacant(e) => e.insert(calc_route(data, links, nodes, from, to)?),
+        }.clone())
     }
 }
+
+#[derive(Fail, Debug)]
+#[fail(display = "No such edge.")]
+pub struct NoSuchEdge;
 
 fn calc_route(
     data: &GraphData, links: &ReadStorage<Link>, nodes: &ReadStorage<Node>,
     from: Entity, to: Entity,
-) -> Option<(usize, Route)> {
-    let from_coord = nodes.get(from).unwrap().at;
+) -> Result<Option<(usize, Route)>> {
+    let from_coord = try_get(nodes, from)?.at;
     let (len, nodes) = if let Some(p) = petgraph::algo::astar(
         /* graph= */ data,
         /* start= */ from,
         /* is_goal= */ |ent| { ent == to },
         /* edge_cost= */ |(_, _, &link_ent)| {
-            links.get(link_ent).unwrap().path.len()
+            get_or_die(links, link_ent).path.len()
         },
         /* estimate_cost= */ |ent| {
-            let ent_coord = nodes.get(ent).unwrap().at;
+            let ent_coord = get_or_die(nodes, ent).at;
             max(0, from_coord.distance(ent_coord) - 2) as usize
         },
-    ) { p } else { return None };
+    ) { p } else { return Ok(None) };
     let mut route: Vec<(Entity, PathDir)> = vec![];
     for ix in 0..nodes.len()-1 {
-        let link_ent = *data.edge_weight(nodes[ix], nodes[ix+1]).unwrap();
-        let link = links.get(link_ent).unwrap();
+        let link_ent = *data.edge_weight(nodes[ix], nodes[ix+1])
+            .ok_or_else(|| into_error(NoSuchEdge))?;
+        let link = try_get(links, link_ent)?;
         route.push((link_ent, if link.from == nodes[ix] {
             PathDir::Fwd
         } else if link.to == nodes[ix] {
@@ -92,7 +104,7 @@ fn calc_route(
             panic!("invalid link data")
         }))
     }
-    Some((len, route))
+    Ok(Some((len, route)))
 }
 
 #[derive(Debug)]
@@ -111,7 +123,7 @@ impl AreaGraph {
                 ag.graph.add_link(link, found);
             }
         }
-        world.write_storage().insert(entity, ag).unwrap();
+        world.write_storage().insert(entity, ag)?;
         world.write_resource::<geom::AreaMap>().insert(at, range, entity);
         Ok(())
     }
@@ -250,10 +262,10 @@ pub struct TraverseData<'a> {
     route_done: WriteStorage<'a, RouteDone>,
 }
 
-impl<'a> System<'a> for Traverse {
+impl<'a> SystemErr<'a> for Traverse {
     type SystemData = TraverseData<'a>;
 
-    fn run(&mut self, mut data: Self::SystemData) {
+    fn run(&mut self, mut data: Self::SystemData) -> Result<()> {
         let mut more_motion = Vec::new();
         let mut no_more_route = Vec::new();
         for (entity, motion, route, _, ()) in (
@@ -288,17 +300,17 @@ impl<'a> System<'a> for Traverse {
                     route.route[route.link_ix],
                     route.coord_ix,
                     &data.links
-                ).unwrap();
+                )?;
                 route.phase = RoutePhase::ToLink(coord, more);
                 coord
             } else {
                 let (link_ent, path_dir) = route.route[route.link_ix];
-                let link = data.links.get(link_ent).unwrap();
+                let link = try_get(&data.links, link_ent)?;
                 let node_ent = match path_dir {
                     PathDir::Fwd => link.to,
                     PathDir::Rev => link.from,
                 };
-                let coord = data.nodes.get(node_ent).unwrap().at;
+                let coord = try_get(&data.nodes, node_ent)?.at;
                 route.phase = RoutePhase::ToNode(coord);
                 coord
             };
@@ -311,8 +323,9 @@ impl<'a> System<'a> for Traverse {
             data.motion_done.remove(entity);
         }
         for entity in no_more_route {
-            data.route_done.insert(entity, RouteDone).unwrap();
+            data.route_done.insert(entity, RouteDone)?;
         }
+        Ok(())
     }
 }
 

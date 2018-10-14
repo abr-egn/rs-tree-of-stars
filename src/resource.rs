@@ -161,7 +161,7 @@ fn pull_worker(
     source_ent: Entity,
     source: &mut Source,
     ag: &mut graph::AreaGraph,
-) {
+) -> Result<()> {
     let mut candidates: Vec<(Entity, Candidate)> = vec![];
     let (nodes_iter, mut router) = ag.nodes_route();
     for sink_ent in nodes_iter {
@@ -176,7 +176,7 @@ fn pull_worker(
             }
         }
         if !want { continue }
-        let (len, route) = match router.route(links, nodes, source_ent, sink_ent) {
+        let (len, route) = match router.route(links, nodes, source_ent, sink_ent)? {
             None => continue,
             Some(p) => p,
         };
@@ -195,7 +195,7 @@ fn pull_worker(
             source: source_ent, route, route_time, on_cooldown,
         }));
     }
-    if candidates.is_empty() { return }
+    if candidates.is_empty() { return Ok(()) }
     candidates.sort_unstable_by_key(|(_, c)| c.route_time);
     let mut tmp = (source_ent, Candidate {
         source: source_ent,
@@ -204,7 +204,8 @@ fn pull_worker(
         on_cooldown: false,
     });
     swap(&mut tmp, &mut candidates[0]);
-    sender.send(tmp).unwrap();
+    sender.send(tmp)?;
+    Ok(())
 }
 
 impl<'a> System<'a> for Pull {
@@ -219,7 +220,7 @@ impl<'a> System<'a> for Pull {
             let (sender, receiver) = channel::<(Entity, Candidate)>();
             (&*data.entities, &mut data.sources, &mut data.ags).par_join().for_each_with(sender,
                 |sender, (source_ent, source, ag)| {
-                pull_worker(sinks, links, nodes, now, sender, source_ent, source, ag)
+                pull_worker(sinks, links, nodes, now, sender, source_ent, source, ag).unwrap()
             });
             let mut sink_candidates = HashMap::<Entity, Vec<Candidate>>::new();
             for (sink_ent, candidate) in receiver {

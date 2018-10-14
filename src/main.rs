@@ -124,7 +124,7 @@ fn make_update() -> Dispatcher<'static, 'static> {
 
     DispatcherBuilder::new()
         .with(error::SE(geom::Travel), TRAVEL, &[])
-        .with(graph::Traverse, TRAVERSE, &[TRAVEL])
+        .with(error::SE(graph::Traverse), TRAVERSE, &[TRAVEL])
         .with(resource::Pull, PULL, &[])
         .with(resource::Receive, RECEIVE, &[PULL])
         .with(resource::Reaction, REACTION, &[])

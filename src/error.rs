@@ -1,6 +1,11 @@
 use failure;
 use shred::DynamicSystemData;
-use specs::prelude::*;
+use specs::{
+    prelude::*,
+    storage::GenericReadStorage,
+};
+
+use util::try_get;
 
 pub type Result<T> = ::std::result::Result<T, failure::Error>;
 
@@ -32,3 +37,11 @@ impl LazyExt for LazyUpdate {
         self.exec_mut(move |world| { f(world).unwrap() })
     }
 }
+
+// Types for the type checker.
+pub fn into_error<T: Into<failure::Error>>(e: T) -> failure::Error { e.into() }
+
+pub fn get_or_die<S, T>(storage: &S, ent: Entity) -> &T
+    where S: GenericReadStorage<Component=T>,
+          T: Component,
+{ try_get(storage, ent).unwrap() }
