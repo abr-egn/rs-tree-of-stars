@@ -23,14 +23,20 @@ pub enum Resource {
     H2 = 0usize,
     O2,
     H2O,
+    C,
+    CO2,
+    CH4,
 }
 
 impl Resource {
     pub fn all() -> impl Iterator<Item=Resource> {
-        const ALL: [Resource; 3] = [
+        const ALL: [Resource; 6] = [
             Resource::H2,
             Resource::O2,
             Resource::H2O,
+            Resource::C,
+            Resource::CO2,
+            Resource::CH4,
         ];
         ALL.iter().cloned()
     }
@@ -43,8 +49,8 @@ impl Resource {
 
 #[derive(Debug, Clone)]
 pub struct Pool {
-    count: [usize; 3],
-    cap: [usize; 3],
+    count: [usize; 6],
+    cap: [usize; 6],
 }
 
 #[derive(Fail, Debug)]
@@ -54,8 +60,8 @@ pub struct PoolUnderflow;
 impl Pool {
     pub fn new() -> Self {
         Pool {
-            count: [0, 0, 0],
-            cap: [6, 6, 6],
+            count: [0, 0, 0, 0, 0, 0],
+            cap: [6, 6, 6, 6, 6, 6],
         }
     }
     pub fn from<T>(t: T) -> Self

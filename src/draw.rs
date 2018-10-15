@@ -166,6 +166,9 @@ fn res_color(res: Resource) -> Color {
         Resource::H2 => Color::new(1.0, 1.0, 0.0, 1.0),
         Resource::O2 => Color::new(0.0, 1.0, 0.0, 1.0),
         Resource::H2O => Color::new(0.0, 0.0, 1.0, 1.0),
+        Resource::C => Color::new(0.7, 0.7, 0.7, 1.0),
+        Resource::CO2 => Color::new(1.0, 0.0, 1.0, 1.0),
+        Resource::CH4 => Color::new(1.0, 0.5, 0.0, 1.0),
     }
 }
 

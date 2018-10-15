@@ -251,12 +251,48 @@ impl Mode for AddReactor {
         match event {
             Event::KeyDown { keycode: Some(kc), .. } => match kc {
                 Keycode::Escape => TopAction::Pop,
-                Keycode::Num1 => {  // H2O source
-                    println!("Adding H2O source");
+                Keycode::Num1 => {
+                    println!("-> H2O");
                     self.add_reactor(world,
                         /* input= */ Pool::new(),
                         /* delay= */ Duration::from_millis(1000),
                         /* output= */ Pool::from(vec![(Resource::H2O, 1)]),
+                    );
+                    TopAction::Pop
+                },
+                Keycode::Num2 => {
+                    println!("-> C");
+                    self.add_reactor(world,
+                        /* input= */ Pool::new(),
+                        /* delay= */ Duration::from_millis(1000),
+                        /* output= */ Pool::from(vec![(Resource::C, 1)]),
+                    );
+                    TopAction::Pop
+                },
+                Keycode::Num3 => {
+                    println!("2H2O -> O2 + 2H2");
+                    self.add_reactor(world,
+                        /* input= */ Pool::from(vec![(Resource::H2O, 2)]),
+                        /* delay= */ Duration::from_millis(1000),
+                        /* output= */ Pool::from(vec![(Resource::O2, 1), (Resource::H2, 2)]),
+                    );
+                    TopAction::Pop
+                },
+                Keycode::Num4 => {
+                    println!("C + O2 => CO2");
+                    self.add_reactor(world,
+                        /* input= */ Pool::from(vec![(Resource::C, 1), (Resource::O2, 1)]),
+                        /* delay= */ Duration::from_millis(1000),
+                        /* output= */ Pool::from(vec![(Resource::CO2, 1)]),
+                    );
+                    TopAction::Pop
+                },
+                Keycode::Num5 => {
+                    println!("CO2 + 4H2 => CH4 + 2H2O");
+                    self.add_reactor(world,
+                        /* input= */ Pool::from(vec![(Resource::CO2, 1), (Resource::H2, 4)]),
+                        /* delay= */ Duration::from_millis(1000),
+                        /* output= */ Pool::from(vec![(Resource::CH4, 1), (Resource::H2O, 2)]),
                     );
                     TopAction::Pop
                 },
