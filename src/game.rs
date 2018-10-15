@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use ggez::{
     event::{Event, Keycode},
     graphics,
@@ -31,6 +33,7 @@ impl Play {
 }
 
 impl Mode for Play {
+    fn name(&self) -> &str { "play" }
     fn on_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> EventAction {
         match event {
             Event::MouseMotion { x, y, .. } => {
@@ -62,6 +65,7 @@ impl Mode for Play {
 struct Select;
 
 impl Mode for Select {
+    fn name(&self) -> &str { "select" }
     fn on_push(&mut self, world: &mut World, _: &mut Context) {
         world.write_resource::<MouseWidget>().kind = MWKind::Highlight;
     }
@@ -96,6 +100,7 @@ impl PlaceNode {
 }
 
 impl Mode for PlaceNode {
+    fn name(&self) -> &str { "place node" }
     fn on_push(&mut self, world: &mut World, _: &mut Context) {
         world.write_resource::<MouseWidget>().kind = MWKind::PlaceNode;
     }
@@ -126,6 +131,7 @@ impl NodeSelected {
 }
 
 impl Mode for NodeSelected {
+    fn name(&self) -> &str { "node selected" }
     fn on_push(&mut self, world: &mut World, _: &mut Context) {
         or_die(|| {
             world.write_storage::<Selected>().insert(self.0, Selected)?;
@@ -169,6 +175,7 @@ impl Mode for NodeSelected {
                         or_die(|| { sinks.insert(self.0, sink)?; Ok(()) });
                         TopAction::done()
                     },
+                    Keycode::R => TopAction::push(AddReactor::new(self.0)),
                     _ => TopAction::AsEvent,
                 }
             },
@@ -184,6 +191,7 @@ impl PlaceLink {
 }
 
 impl Mode for PlaceLink {
+    fn name(&self) -> &str { "place link" }
     fn on_push(&mut self, world: &mut World, _: &mut Context) {
         world.write_resource::<MouseWidget>().kind = MWKind::Highlight;
     }
@@ -215,6 +223,46 @@ impl Mode for PlaceLink {
             },
             Event::KeyDown { keycode: Some(Keycode::Escape), .. } => TopAction::Pop,
             _ => TopAction::AsEvent,
+        }
+    }
+}
+
+struct AddReactor(Entity);
+
+impl AddReactor {
+    fn new(ent: Entity) -> Box<Mode> { Box::new(AddReactor(ent)) }
+    fn add_reactor(
+        &self, world: &mut World,
+        input: resource::Pool, delay: Duration, output: resource::Pool,
+    ) {
+        resource::Source::add(world, self.0, resource::Pool::new(), /* range= */ 20);
+        or_die(|| {
+            world.write_storage().insert(self.0, resource::Sink::new())?;
+            world.write_storage().insert(self.0, resource::Reactor::new(input, delay, output))?;
+            Ok(())
+        });
+    }
+}
+
+impl Mode for AddReactor {
+    fn name(&self) -> &str { "add reactor" }
+    fn on_top_event(&mut self, world: &mut World, _: &mut Context, event: Event) -> TopAction {
+        use resource::Pool;
+        match event {
+            Event::KeyDown { keycode: Some(kc), .. } => match kc {
+                Keycode::Escape => TopAction::Pop,
+                Keycode::Num1 => {  // H2O source
+                    println!("Adding H2O source");
+                    self.add_reactor(world,
+                        /* input= */ Pool::new(),
+                        /* delay= */ Duration::from_millis(1000),
+                        /* output= */ Pool::from(vec![(Resource::H2O, 1)]),
+                    );
+                    TopAction::Pop
+                },
+                _ => TopAction::AsEvent,
+            },
+            _ => TopAction::AsEvent
         }
     }
 }

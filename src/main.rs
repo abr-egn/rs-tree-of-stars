@@ -178,11 +178,13 @@ fn main() -> Result<()> {
         }
 
         draw::draw(&mut world, &mut ctx);
+        /*
         let mut count: usize = 0;
         for _ in world.read_storage::<graph::Node>().join() {
             count += 1;
         }
         println!("Nodes: {}", count);
+        */
         timer::yield_now();
     }
 

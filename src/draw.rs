@@ -61,6 +61,14 @@ struct PausedText(TextCached);
 
 struct SourceOrbit(Mesh);
 
+pub struct ModeText(TextCached);
+
+impl ModeText {
+    pub fn set(&mut self, s: &str) {
+        or_die(|| { self.0 = TextCached::new(s)?; Ok(()) })
+    }
+}
+
 const PACKET_RADIUS: f32 = 4.0;
 
 pub fn build_sprites(world: &mut World, ctx: &mut Context) {
@@ -78,12 +86,12 @@ pub fn build_sprites(world: &mut World, ctx: &mut Context) {
             source_radius(),
             /* tolerance= */ 0.5,
         )?));
-
         let origin = Point2::new(0.0, 0.0);
         world.add_resource(PacketSprite {
             outline: Mesh::new_circle(ctx, DrawMode::Line(0.5), origin, PACKET_RADIUS, 0.5)?,
             fill: Mesh::new_circle(ctx, DrawMode::Fill, origin, PACKET_RADIUS, 0.5)?,
         });
+        world.add_resource(ModeText(TextCached::new("<INVALID>")?));
         Ok(())
     })
 }
@@ -97,7 +105,7 @@ pub fn draw(world: &mut World, ctx: &mut Context) {
     DrawSources(ctx).run_now(&mut world.res);
     DrawSinks(ctx).run_now(&mut world.res);
     DrawMouseWidget(ctx).run_now(&mut world.res);
-    DrawPaused(ctx).run_now(&mut world.res);
+    DrawText(ctx).run_now(&mut world.res);
     world.maintain();
 
     graphics::present(ctx);
@@ -356,22 +364,24 @@ impl <'a, 'b> System<'a> for DrawMouseWidget<'b> {
     }
 }
 
-struct DrawPaused<'a>(&'a mut Context);
+struct DrawText<'a>(&'a mut Context);
 
-impl<'a, 'b> System<'a> for DrawPaused<'b> {
+impl<'a, 'b> System<'a> for DrawText<'b> {
     type SystemData = (
+        ReadExpect<'a, ModeText>,
         ReadExpect<'a, PausedText>,
         ReadExpect<'a, super::Paused>,
     );
 
-    fn run(&mut self, (text, paused): Self::SystemData) {
+    fn run(&mut self, (mode_text, paused_text, is_paused): Self::SystemData) {
         let ctx = &mut self.0;
-        if paused.0 {
-            or_die(|| {
-                graphics::set_color(ctx, Color::new(0.5, 1.0, 0.5, 1.0))?;
-                graphics::draw(ctx, &text.0, Point2::new(0.0, 0.0), 0.0)?;
-                Ok(())
-            });
-        }
+        or_die(|| {
+            graphics::set_color(ctx, Color::new(0.5, 1.0, 0.5, 1.0))?;
+            if is_paused.0 {
+                graphics::draw(ctx, &paused_text.0, Point2::new(0.0, 0.0), 0.0)?;
+            }
+            graphics::draw(ctx, &mode_text.0, Point2::new(0.0, 780.0), 0.0)?;
+            Ok(())
+        });
     }
 }

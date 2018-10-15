@@ -44,7 +44,7 @@ impl Resource {
 #[derive(Debug, Clone)]
 pub struct Pool {
     count: [usize; 3],
-    cap: [Option<usize>; 3],
+    cap: [usize; 3],
 }
 
 #[derive(Fail, Debug)]
@@ -55,7 +55,7 @@ impl Pool {
     pub fn new() -> Self {
         Pool {
             count: [0, 0, 0],
-            cap: [None, None, None],
+            cap: [6, 6, 6],
         }
     }
     pub fn from<T>(t: T) -> Self
@@ -74,7 +74,7 @@ impl Pool {
     {
         let mut p = Pool::new();
         for (res, count) in c.into_iter() {
-            p.set_cap(res, Some(count))
+            p.set_cap(res, count)
         }
         for (res, count) in r.into_iter() {
             p.set(res, count);
@@ -83,12 +83,10 @@ impl Pool {
     }
     pub fn get(&self, res: Resource) -> usize { self.count[res as usize] }
     fn cap(&self, res: Resource, count: usize) -> (usize, Option<usize>) {
-        match self.cap[res as usize] {
-            None => (count, None),
-            Some(c) => if c < count {
-                (c, Some(count - c))
-            } else { (count, None) }
-        }
+        let c = self.cap[res as usize];
+        if c < count {
+            (c, Some(count - c))
+        } else { (count, None) }
     }
     pub fn set(&mut self, res: Resource, count: usize) -> Option<usize> {
         let (c, o) = self.cap(res, count);
@@ -111,7 +109,7 @@ impl Pool {
         Err(PoolUnderflow.into())
     }
     #[allow(unused)]
-    pub fn set_cap(&mut self, res: Resource, cap: Option<usize>) {
+    pub fn set_cap(&mut self, res: Resource, cap: usize) {
         self.cap[res as usize] = cap;
     }
     pub fn iter<'a>(&'a self) -> impl Iterator<Item=(Resource, usize)> + 'a {
