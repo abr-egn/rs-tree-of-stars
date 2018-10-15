@@ -127,10 +127,10 @@ fn make_update() -> Dispatcher<'static, 'static> {
     DispatcherBuilder::new()
         .with(geom::Travel, TRAVEL, &[])
         .with(graph::Traverse, TRAVERSE, &[TRAVEL])
-        .with(resource::Pull, PULL, &[])
+        .with(resource::DoStorage, STORAGE, &[])
+        .with(resource::Pull, PULL, &[STORAGE])
         .with(resource::Receive, RECEIVE, &[PULL])
         .with(resource::Reaction, REACTION, &[])
-        .with(resource::DoStorage, STORAGE, &[])
         .with(game::RunGrowTest, GROW_TEST, &[])
         .build()
 }

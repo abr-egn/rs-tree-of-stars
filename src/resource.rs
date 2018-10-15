@@ -435,6 +435,12 @@ impl<'a> System<'a> for DoStorage {
     fn run(&mut self, (stores, mut sources, mut sinks): Self::SystemData) {
         for (_, source, sink) in (&stores, &mut sources, &mut sinks).join() {
             for res in Resource::all() {
+                let pending = source.has.get(res) + sink.has.get(res) + sink.in_transit.get(res);
+                if source.has.cap(res) > pending {
+                    sink.want.set(res, source.has.cap(res) - pending);
+                } else {
+                    sink.want.set(res, 0);
+                }
                 if sink.has.get(res) > 0 && source.has.get(res) < source.has.cap(res) {
                     or_die(|| sink.has.dec(res));
                     source.has.inc(res);

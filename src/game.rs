@@ -298,11 +298,14 @@ impl Mode for AddReactor {
                 },
                 Keycode::W => {
                     println!("H2O storage");
-                    resource::Source::add(world, self.0, resource::Pool::new(), /* range= */ 20);
-                    let mut sink = resource::Sink::new();
-                    sink.want.inc(Resource::H2O);
+                    let mut pool = Pool::new();
+                    for res in Resource::all() {
+                        pool.set_cap(res, 0);
+                    }
+                    pool.set_cap(Resource::H2O, 6);
+                    resource::Source::add(world, self.0, pool, /* range= */ 20);
                     or_die(|| {
-                        world.write_storage().insert(self.0, sink)?;
+                        world.write_storage().insert(self.0, resource::Sink::new())?;
                         world.write_storage().insert(self.0, resource::Storage)?;
                         Ok(())
                     });
