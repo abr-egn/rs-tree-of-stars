@@ -62,10 +62,10 @@ impl Mode for Play {
 struct Select;
 
 impl Mode for Select {
-    fn on_start(&mut self, world: &mut World, _: &mut Context) {
+    fn on_push(&mut self, world: &mut World, _: &mut Context) {
         world.write_resource::<MouseWidget>().kind = MWKind::Highlight;
     }
-    fn on_stop(&mut self, world: &mut World, _: &mut Context) {
+    fn on_pop(&mut self, world: &mut World, _: &mut Context) {
         world.write_resource::<MouseWidget>().kind = MWKind::None;
     }
     fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {
@@ -96,10 +96,10 @@ impl PlaceNode {
 }
 
 impl Mode for PlaceNode {
-    fn on_start(&mut self, world: &mut World, _: &mut Context) {
+    fn on_push(&mut self, world: &mut World, _: &mut Context) {
         world.write_resource::<MouseWidget>().kind = MWKind::PlaceNode;
     }
-    fn on_stop(&mut self, world: &mut World, _: &mut Context) {
+    fn on_pop(&mut self, world: &mut World, _: &mut Context) {
         world.write_resource::<MouseWidget>().kind = MWKind::None;
     }
     fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {
@@ -126,13 +126,13 @@ impl NodeSelected {
 }
 
 impl Mode for NodeSelected {
-    fn on_start(&mut self, world: &mut World, _: &mut Context) {
+    fn on_push(&mut self, world: &mut World, _: &mut Context) {
         or_die(|| {
             world.write_storage::<Selected>().insert(self.0, Selected)?;
             Ok(())
         });
     }
-    fn on_stop(&mut self, world: &mut World, _: &mut Context) {
+    fn on_pop(&mut self, world: &mut World, _: &mut Context) {
         world.write_storage::<Selected>().remove(self.0);
     }
     fn on_top_event(&mut self, world: &mut World, _: &mut Context, event: Event) -> TopAction {
@@ -184,10 +184,10 @@ impl PlaceLink {
 }
 
 impl Mode for PlaceLink {
-    fn on_start(&mut self, world: &mut World, _: &mut Context) {
+    fn on_push(&mut self, world: &mut World, _: &mut Context) {
         world.write_resource::<MouseWidget>().kind = MWKind::Highlight;
     }
-    fn on_stop(&mut self, world: &mut World, _: &mut Context) {
+    fn on_pop(&mut self, world: &mut World, _: &mut Context) {
         world.write_resource::<MouseWidget>().kind = MWKind::None;
     }
     fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {

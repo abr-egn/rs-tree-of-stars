@@ -25,8 +25,10 @@ pub enum EventAction {
 }
 
 pub trait Mode {
-    fn on_start(&mut self, _world: &mut World, _ctx: &mut Context) { }
-    fn on_stop(&mut self, _world: &mut World, _ctx: &mut Context) { }    
+    fn on_push(&mut self, _world: &mut World, _ctx: &mut Context) { }
+    fn on_pop(&mut self, _world: &mut World, _ctx: &mut Context) { }
+    fn on_show(&mut self, _world: &mut World, _ctx: &mut Context) { }
+    fn on_hide(&mut self, _world: &mut World, _ctx: &mut Context) { }
     fn on_event(&mut self, _world: &mut World, _ctx: &mut Context, _event: event::Event) -> EventAction {
         EventAction::Continue
     }
@@ -39,14 +41,26 @@ pub struct Stack(Vec<Box<Mode>>);
 
 impl Stack {
     pub fn new() -> Self { Stack(vec![]) }
+    fn top_mut(&mut self) -> Option<&mut Box<Mode>> {
+        if self.0.is_empty() { return None }
+        let ix = self.0.len()-1;
+        return Some(&mut self.0[ix])
+    }
     pub fn push(&mut self, world: &mut World, ctx: &mut Context, mut mode: Box<Mode>) {
-        mode.on_start(world, ctx);
+        self.top_mut().map(|mode| mode.on_hide(world, ctx));
+        mode.on_push(world, ctx);
+        mode.on_show(world, ctx);
         self.0.push(mode);
     }
     pub fn pop(&mut self, world: &mut World, ctx: &mut Context) -> bool {
         match self.0.pop() {
             None => false,
-            Some(mut m) => { m.on_stop(world, ctx); true }
+            Some(mut m) => {
+                m.on_hide(world, ctx);
+                m.on_pop(world, ctx);
+                self.top_mut().map(|mode| mode.on_show(world, ctx));
+                true
+            }
         }
     }
     pub fn handle(&mut self, world: &mut World, ctx: &mut Context, event: event::Event) {
