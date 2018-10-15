@@ -355,10 +355,13 @@ impl<'a> System<'a> for Reaction {
                     source.has.inc_by(res, count)
                 }
             }
+
             // If nothing's in progress (or has just finished), start.
             if reactor.in_progress.is_some() { continue }
             let has_input = reactor.input.iter().all(|(r, c)| sink.has.get(r) >= c);
             if !has_input { continue }
+            let needs_output = reactor.output.iter().any(|(r, c)| source.has.get(r) < c);
+            if !needs_output { continue }
             for (res, count) in reactor.input.iter() {
                 if count == 0 { continue }
                 sink.has.dec_by(res, count).unwrap();
