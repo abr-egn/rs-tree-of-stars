@@ -12,6 +12,7 @@ use specs::{
 
 use error::{
     Result,
+    into_error,
     or_die,
 };
 use graph;
@@ -427,25 +428,37 @@ impl Component for Storage {
 #[derive(Debug)]
 pub struct DoStorage;
 
+#[derive(Fail, Debug)]
+#[fail(display = "Storage overflow.")]
+pub struct StorageOverflow;
+
 impl<'a> System<'a> for DoStorage {
     type SystemData = (
+        Entities<'a>,
         ReadStorage<'a, Storage>,
         WriteStorage<'a, Source>,
         WriteStorage<'a, Sink>,
     );
 
-    fn run(&mut self, (stores, mut sources, mut sinks): Self::SystemData) {
-        for (_, source, sink) in (&stores, &mut sources, &mut sinks).join() {
+    fn run(&mut self, (entities, stores, mut sources, mut sinks): Self::SystemData) {
+        for (entity, _, source, sink) in (&*entities, &stores, &mut sources, &mut sinks).join() {
             for res in Resource::all() {
-                let pending = source.has.get(res) + sink.has.get(res) + sink.in_transit.get(res);
-                if source.has.cap(res) > pending {
-                    sink.want.set(res, source.has.cap(res) - pending);
-                } else {
-                    sink.want.set(res, 0);
+                let has = sink.has.get(res);
+                if has > 0 {
+                    //println!("{:?}: storing {:?}", entity, has);
+                    sink.has.set(res, 0);
+                    or_die(|| {
+                        source.has.inc_by(res, has)
+                            .map_or(Ok(()), |_| Err(into_error(StorageOverflow)))
+                    });
                 }
-                if sink.has.get(res) > 0 && source.has.get(res) < source.has.cap(res) {
-                    or_die(|| sink.has.dec(res));
-                    source.has.inc(res);
+                let pending = source.has.get(res);
+                let want = if source.has.cap(res) > pending {
+                    source.has.cap(res) - pending
+                } else { 0 };
+                if want != sink.want.get(res) {
+                    //println!("{:?}: pending {:?} (has {:?}, in transit {:?}) => want {:?}", entity, pending, source.has.get(res), sink.in_transit.get(res), want);
+                    sink.want.set(res, want);
                 }
             }
         }
