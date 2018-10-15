@@ -53,6 +53,7 @@ fn make_world(ctx: &mut Context) -> World {
     world.register::<resource::Sink>();
     world.register::<resource::Packet>();
     world.register::<resource::Reactor>();
+    world.register::<resource::Storage>();
 
     world.register::<draw::Shape>();
 
@@ -120,6 +121,7 @@ fn make_update() -> Dispatcher<'static, 'static> {
     const PULL: &str = "pull";
     const RECEIVE: &str = "receive";
     const REACTION: &str = "reaction";
+    const STORAGE: &str = "storage";
     const GROW_TEST: &str = "grow_test";
 
     DispatcherBuilder::new()
@@ -128,6 +130,7 @@ fn make_update() -> Dispatcher<'static, 'static> {
         .with(resource::Pull, PULL, &[])
         .with(resource::Receive, RECEIVE, &[PULL])
         .with(resource::Reaction, REACTION, &[])
+        .with(resource::DoStorage, STORAGE, &[])
         .with(game::RunGrowTest, GROW_TEST, &[])
         .build()
 }

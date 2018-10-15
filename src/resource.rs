@@ -88,14 +88,15 @@ impl Pool {
         p
     }
     pub fn get(&self, res: Resource) -> usize { self.count[res as usize] }
-    fn cap(&self, res: Resource, count: usize) -> (usize, Option<usize>) {
+    pub fn cap(&self, res: Resource) -> usize { self.cap[res as usize] }
+    fn do_cap(&self, res: Resource, count: usize) -> (usize, Option<usize>) {
         let c = self.cap[res as usize];
         if c < count {
             (c, Some(count - c))
         } else { (count, None) }
     }
     pub fn set(&mut self, res: Resource, count: usize) -> Option<usize> {
-        let (c, o) = self.cap(res, count);
+        let (c, o) = self.do_cap(res, count);
         self.count[res as usize] = c;
         o
     }
@@ -409,6 +410,35 @@ impl<'a> System<'a> for Reaction {
                 sink.has.dec_by(res, count).unwrap();
             }
             reactor.in_progress = Some(Duration::new(0, 0));
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Storage;
+
+impl Component for Storage {
+    type Storage = BTreeStorage<Self>;
+}
+
+#[derive(Debug)]
+pub struct DoStorage;
+
+impl<'a> System<'a> for DoStorage {
+    type SystemData = (
+        ReadStorage<'a, Storage>,
+        WriteStorage<'a, Source>,
+        WriteStorage<'a, Sink>,
+    );
+
+    fn run(&mut self, (stores, mut sources, mut sinks): Self::SystemData) {
+        for (_, source, sink) in (&stores, &mut sources, &mut sinks).join() {
+            for res in Resource::all() {
+                if sink.has.get(res) > 0 && source.has.get(res) < source.has.cap(res) {
+                    or_die(|| sink.has.dec(res));
+                    source.has.inc(res);
+                }
+            }
         }
     }
 }

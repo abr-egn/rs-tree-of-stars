@@ -296,6 +296,18 @@ impl Mode for AddReactor {
                     );
                     TopAction::Pop
                 },
+                Keycode::W => {
+                    println!("H2O storage");
+                    resource::Source::add(world, self.0, resource::Pool::new(), /* range= */ 20);
+                    let mut sink = resource::Sink::new();
+                    sink.want.inc(Resource::H2O);
+                    or_die(|| {
+                        world.write_storage().insert(self.0, sink)?;
+                        world.write_storage().insert(self.0, resource::Storage)?;
+                        Ok(())
+                    });
+                    TopAction::Pop
+                }
                 _ => TopAction::AsEvent,
             },
             _ => TopAction::AsEvent
