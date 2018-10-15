@@ -310,7 +310,18 @@ impl Mode for AddReactor {
                         Ok(())
                     });
                     TopAction::Pop
-                }
+                },
+                Keycode::M => {
+                    println!("CH4 burn");
+                    let mut sink = resource::Sink::new();
+                    sink.want.set(Resource::CH4, 1);
+                    or_die(|| {
+                        world.write_storage().insert(self.0, sink)?;
+                        world.write_storage().insert(self.0, resource::Burn)?;
+                        Ok(())
+                    });
+                    TopAction::Pop
+                },
                 _ => TopAction::AsEvent,
             },
             _ => TopAction::AsEvent

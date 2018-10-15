@@ -415,11 +415,11 @@ impl<'a> System<'a> for Reaction {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Storage;
 
 impl Component for Storage {
-    type Storage = BTreeStorage<Self>;
+    type Storage = NullStorage<Self>;
 }
 
 #[derive(Debug)]
@@ -445,6 +445,31 @@ impl<'a> System<'a> for DoStorage {
                     or_die(|| sink.has.dec(res));
                     source.has.inc(res);
                 }
+            }
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct Burn;
+
+impl Component for Burn {
+    type Storage = NullStorage<Self>;
+}
+
+#[derive(Debug)]
+pub struct DoBurn;
+
+impl<'a> System<'a> for DoBurn {
+    type SystemData = (
+        ReadStorage<'a, Burn>,
+        WriteStorage<'a, Sink>,
+    );
+
+    fn run(&mut self, (stores, mut sinks): Self::SystemData) {
+        for (_, sink) in (&stores, &mut sinks).join() {
+            for res in Resource::all() {
+                sink.has.set(res, 0);
             }
         }
     }
