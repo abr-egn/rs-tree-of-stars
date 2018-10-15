@@ -251,6 +251,8 @@ impl AddReactor {
     }
 }
 
+const REACTION_TIME: Duration = Duration::from_millis(5000);
+
 impl Mode for AddReactor {
     fn name(&self) -> &str { "add reactor" }
     fn on_top_event(&mut self, world: &mut World, _: &mut Context, event: Event) -> TopAction {
@@ -262,7 +264,7 @@ impl Mode for AddReactor {
                     println!("-> H2O");
                     self.add_reactor(world,
                         /* input= */ Pool::new(),
-                        /* delay= */ Duration::from_millis(1000),
+                        /* delay= */ REACTION_TIME,
                         /* output= */ Pool::from(vec![(Resource::H2O, 1)]),
                     );
                     TopAction::Pop
@@ -271,7 +273,7 @@ impl Mode for AddReactor {
                     println!("-> C");
                     self.add_reactor(world,
                         /* input= */ Pool::new(),
-                        /* delay= */ Duration::from_millis(1000),
+                        /* delay= */ REACTION_TIME,
                         /* output= */ Pool::from(vec![(Resource::C, 1)]),
                     );
                     TopAction::Pop
@@ -280,7 +282,7 @@ impl Mode for AddReactor {
                     println!("2H2O -> O2 + 2H2");
                     self.add_reactor(world,
                         /* input= */ Pool::from(vec![(Resource::H2O, 2)]),
-                        /* delay= */ Duration::from_millis(1000),
+                        /* delay= */ REACTION_TIME,
                         /* output= */ Pool::from(vec![(Resource::O2, 1), (Resource::H2, 2)]),
                     );
                     TopAction::Pop
@@ -289,7 +291,7 @@ impl Mode for AddReactor {
                     println!("C + O2 => CO2");
                     self.add_reactor(world,
                         /* input= */ Pool::from(vec![(Resource::C, 1), (Resource::O2, 1)]),
-                        /* delay= */ Duration::from_millis(1000),
+                        /* delay= */ REACTION_TIME,
                         /* output= */ Pool::from(vec![(Resource::CO2, 1)]),
                     );
                     TopAction::Pop
@@ -298,7 +300,7 @@ impl Mode for AddReactor {
                     println!("CO2 + 4H2 => CH4 + 2H2O");
                     self.add_reactor(world,
                         /* input= */ Pool::from(vec![(Resource::CO2, 1), (Resource::H2, 4)]),
-                        /* delay= */ Duration::from_millis(1000),
+                        /* delay= */ REACTION_TIME,
                         /* output= */ Pool::from(vec![(Resource::CH4, 1), (Resource::H2O, 2)]),
                     );
                     TopAction::Pop
@@ -324,7 +326,7 @@ impl Mode for AddReactor {
                     sink.want.set(Resource::CH4, 1);
                     or_die(|| {
                         world.write_storage().insert(self.0, sink)?;
-                        world.write_storage().insert(self.0, resource::Burn)?;
+                        world.write_storage().insert(self.0, resource::Burn::new(REACTION_TIME))?;
                         Ok(())
                     });
                     TopAction::Pop

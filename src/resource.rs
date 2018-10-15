@@ -441,7 +441,7 @@ impl<'a> System<'a> for DoStorage {
     );
 
     fn run(&mut self, (entities, stores, mut sources, mut sinks): Self::SystemData) {
-        for (entity, _, source, sink) in (&*entities, &stores, &mut sources, &mut sinks).join() {
+        for (_entity, _, source, sink) in (&*entities, &stores, &mut sources, &mut sinks).join() {
             for res in Resource::all() {
                 let has = sink.has.get(res);
                 if has > 0 {
@@ -466,10 +466,19 @@ impl<'a> System<'a> for DoStorage {
 }
 
 #[derive(Debug, Default)]
-pub struct Burn;
+pub struct Burn {
+    cooldown: Duration,
+    last: Option<Instant>,
+}
+
+impl Burn {
+    pub fn new(cooldown: Duration) -> Self {
+        Burn { cooldown, last: None }
+    }
+}
 
 impl Component for Burn {
-    type Storage = NullStorage<Self>;
+    type Storage = BTreeStorage<Self>;
 }
 
 #[derive(Debug)]
@@ -477,14 +486,22 @@ pub struct DoBurn;
 
 impl<'a> System<'a> for DoBurn {
     type SystemData = (
-        ReadStorage<'a, Burn>,
+        ReadExpect<'a, super::Now>,
+        WriteStorage<'a, Burn>,
         WriteStorage<'a, Sink>,
     );
 
-    fn run(&mut self, (stores, mut sinks): Self::SystemData) {
-        for (_, sink) in (&stores, &mut sinks).join() {
+    fn run(&mut self, (now, mut burns, mut sinks): Self::SystemData) {
+        for (burn, sink) in (&mut burns, &mut sinks).join() {
+            if let Some(t) = burn.last {
+                if now.0 - t < burn.cooldown { continue }
+            }
             for res in Resource::all() {
-                sink.has.set(res, 0);
+                if sink.has.get(res) > 0 {
+                    or_die(|| sink.has.dec(res));
+                    burn.last = Some(now.0);
+                    break;
+                }
             }
         }
     }
