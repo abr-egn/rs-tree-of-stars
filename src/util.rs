@@ -29,5 +29,5 @@ pub fn duration_f32(dt: Duration) -> f32 {
 }
 
 pub fn f32_duration(ft: f32) -> Duration {
-    Duration::from_nanos((ft * 1e-9) as u64)
+    Duration::from_micros((ft * 1e6) as u64)
 }

@@ -191,6 +191,7 @@ pub struct PullData<'a> {
     lazy: Read<'a, LazyUpdate>,
 }
 
+#[derive(Debug)]
 struct Candidate {
     source: Entity,
     route: graph::Route,
@@ -227,7 +228,7 @@ fn pull_worker(
             None => continue,
             Some(p) => p,
         };
-        let mut route_time = f32_duration(PACKET_SPEED * (len as f32));
+        let mut route_time = f32_duration((len as f32) / PACKET_SPEED);
         let on_cooldown = match source.last_send.get(&sink_ent) {
             None => false,
             Some(&t) => {
@@ -247,7 +248,7 @@ fn pull_worker(
     let mut tmp = (source_ent, Candidate {
         source: source_ent,
         route: vec![],
-        route_time: Duration::from_millis(0),
+        route_time: Duration::from_millis(13),
         on_cooldown: false,
     });
     swap(&mut tmp, &mut candidates[0]);
