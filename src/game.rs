@@ -176,6 +176,13 @@ impl Mode for NodeSelected {
                         TopAction::done()
                     },
                     Keycode::R => TopAction::push(AddReactor::new(self.0)),
+                    Keycode::X => {
+                        if world.read_storage::<resource::Source>().get(self.0).is_some() {
+                            TopAction::push(ToggleExclude::new(self.0))
+                        } else {
+                            TopAction::AsEvent
+                        }
+                    },
                     _ => TopAction::AsEvent,
                 }
             },
@@ -325,6 +332,40 @@ impl Mode for AddReactor {
                 _ => TopAction::AsEvent,
             },
             _ => TopAction::AsEvent
+        }
+    }
+}
+
+struct ToggleExclude(Entity);
+
+impl ToggleExclude {
+    fn new(node: Entity) -> Box<Mode> { Box::new(ToggleExclude(node)) }
+}
+
+impl Mode for ToggleExclude {
+    fn name(&self) -> &str { "toggle exclude" }
+    fn on_push(&mut self, world: &mut World, _: &mut Context) {
+        world.write_resource::<MouseWidget>().kind = MWKind::Highlight;
+    }
+    fn on_pop(&mut self, world: &mut World, _: &mut Context) {
+        world.write_resource::<MouseWidget>().kind = MWKind::None;
+    }
+    fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {
+        match event {
+            Event::MouseButtonDown { x, y, .. } => {
+                let coord = pixel_to_coord(ctx, x, y);
+                let found = if let Some(e) = world.read_resource::<geom::Map>().get(coord) { e }
+                else { return TopAction::AsEvent };
+                if world.read_storage::<graph::Node>().get(found).is_none() {
+                    return TopAction::AsEvent;
+                }
+                let mut sources = world.write_storage::<resource::Source>();
+                let exclude = &mut or_die(|| try_get_mut(&mut sources, self.0)).exclude;
+                if !exclude.remove(&found) { exclude.insert(found); }
+                TopAction::Pop
+            },
+            Event::KeyDown { keycode: Some(Keycode::Escape), .. } => TopAction::Pop,
+            _ => TopAction::AsEvent,
         }
     }
 }
