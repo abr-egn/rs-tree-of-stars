@@ -42,43 +42,80 @@ impl Resource {
 // the Source/Sink numbers.
 
 #[derive(Debug, Clone)]
-pub struct Pool([usize; 3]);
+pub struct Pool {
+    count: [usize; 3],
+    cap: [Option<usize>; 3],
+}
 
 #[derive(Fail, Debug)]
 #[fail(display = "Pool underflow.")]
 pub struct PoolUnderflow;
 
 impl Pool {
-    pub fn new() -> Self { Pool([0, 0, 0]) }
+    pub fn new() -> Self {
+        Pool {
+            count: [0, 0, 0],
+            cap: [None, None, None],
+        }
+    }
     pub fn from<T>(t: T) -> Self
         where T: IntoIterator<Item=(Resource, usize)>
     {
         let mut p = Pool::new();
         for (res, count) in t.into_iter() {
-            p.0[res as usize] = count;
+            p.set(res, count);
         }
         p
     }
-    pub fn get(&self, res: Resource) -> usize { self.0[res as usize] }
-    pub fn set(&mut self, res: Resource, count: usize) {
-        self.0[res as usize] = count
+    #[allow(unused)]
+    pub fn from_cap<R, C>(r: R, c: C) -> Self
+        where R: IntoIterator<Item=(Resource, usize)>,
+              C: IntoIterator<Item=(Resource, usize)>,
+    {
+        let mut p = Pool::new();
+        for (res, count) in c.into_iter() {
+            p.set_cap(res, Some(count))
+        }
+        for (res, count) in r.into_iter() {
+            p.set(res, count);
+        }
+        p
     }
-    pub fn inc(&mut self, res: Resource) { self.inc_by(res, 1) }
-    pub fn inc_by(&mut self, res: Resource, count: usize) {
-        self.0[res as usize] += count
+    pub fn get(&self, res: Resource) -> usize { self.count[res as usize] }
+    fn cap(&self, res: Resource, count: usize) -> (usize, Option<usize>) {
+        match self.cap[res as usize] {
+            None => (count, None),
+            Some(c) => if c < count {
+                (c, Some(count - c))
+            } else { (count, None) }
+        }
+    }
+    pub fn set(&mut self, res: Resource, count: usize) -> Option<usize> {
+        let (c, o) = self.cap(res, count);
+        self.count[res as usize] = c;
+        o
+    }
+    pub fn inc(&mut self, res: Resource) -> Option<usize> { self.inc_by(res, 1) }
+    pub fn inc_by(&mut self, res: Resource, count: usize) -> Option<usize> {
+        let new = self.get(res) + count;
+        self.set(res, new)
     }
     pub fn dec(&mut self, res: Resource) -> Result<()> {
         self.dec_by(res, 1)
     }
     pub fn dec_by(&mut self, res: Resource, count: usize) -> Result<()> {
-        if self.0[res as usize] >= count {
-            self.0[res as usize] -= count;
+        if self.count[res as usize] >= count {
+            self.count[res as usize] -= count;
             return Ok(())
         }
         Err(PoolUnderflow.into())
     }
+    #[allow(unused)]
+    pub fn set_cap(&mut self, res: Resource, cap: Option<usize>) {
+        self.cap[res as usize] = cap;
+    }
     pub fn iter<'a>(&'a self) -> impl Iterator<Item=(Resource, usize)> + 'a {
-        self.0.iter().enumerate().map(|(u, &c)| (unsafe { ::std::mem::transmute::<usize, Resource>(u) }, c))
+        self.count.iter().enumerate().map(|(u, &c)| (unsafe { ::std::mem::transmute::<usize, Resource>(u) }, c))
     }
 }
 
@@ -352,7 +389,8 @@ impl<'a> System<'a> for Reaction {
             if produce {
                 reactor.in_progress = None;
                 for (res, count) in reactor.output.iter() {
-                    source.has.inc_by(res, count)
+                    // TODO: indicator for waste
+                    let _waste = source.has.inc_by(res, count);
                 }
             }
 
