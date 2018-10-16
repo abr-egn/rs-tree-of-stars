@@ -5,6 +5,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+use hex2d;
+use rand::{self, Rng};
 use specs::{
     prelude::*,
     storage::BTreeStorage,
@@ -15,6 +17,7 @@ use error::{
     into_error,
     or_die,
 };
+use geom;
 use graph;
 use util::*;
 
@@ -167,11 +170,19 @@ impl Sink {
 
 #[derive(Debug)]
 pub struct Packet {
-    pub sink: Entity,
     pub resource: Resource,
 }
 
 impl Component for Packet {
+    type Storage = BTreeStorage<Self>;
+}
+
+#[derive(Debug)]
+pub struct Target {
+    pub node: Entity,
+}
+
+impl Component for Target {
     type Storage = BTreeStorage<Self>;
 }
 
@@ -311,10 +322,8 @@ impl<'a> System<'a> for Pull {
             let route = candidate.route.clone();
             data.lazy.exec_mut(move |world| {
                 let packet = world.create_entity()
-                    .with(Packet {
-                        sink: sink_ent,
-                        resource: pull_res,
-                    })
+                    .with(Packet { resource: pull_res })
+                    .with(Target { node: sink_ent })
                     .build();
                 graph::Traverse::start(
                     world,
@@ -336,13 +345,14 @@ impl<'a> System<'a> for Receive {
         Entities<'a>,
         ReadStorage<'a, graph::RouteDone>,
         ReadStorage<'a, Packet>,
+        ReadStorage<'a, Target>,
         WriteStorage<'a, Sink>,
     );
 
-    fn run(&mut self, (entities, route_done, packets, mut sinks): Self::SystemData) {
+    fn run(&mut self, (entities, route_done, packets, targets, mut sinks): Self::SystemData) {
         or_die(|| {
-        for (entity, _, packet) in (&*entities, &route_done, &packets).join() {
-            let sink = try_get_mut(&mut sinks, packet.sink)?;
+        for (entity, _, packet, target) in (&*entities, &route_done, &packets, &targets).join() {
+            let sink = try_get_mut(&mut sinks, target.node)?;
             sink.in_transit.dec(packet.resource)?;
             sink.has.inc(packet.resource);
             entities.delete(entity)?;
@@ -383,13 +393,15 @@ pub struct Reaction;
 
 impl<'a> System<'a> for Reaction {
     type SystemData = (
+        ReadStorage<'a, graph::Node>,
         WriteStorage<'a, Reactor>,
         WriteStorage<'a, Source>,
         WriteStorage<'a, Sink>,
+        Read<'a, LazyUpdate>,
     );
 
-    fn run(&mut self, (mut reactors, mut sources, mut sinks): Self::SystemData) {
-        for (reactor, source, sink) in (&mut reactors, &mut sources, &mut sinks).join() {
+    fn run(&mut self, (nodes, mut reactors, mut sources, mut sinks, lazy): Self::SystemData) {
+        for (node, reactor, source, sink) in (&nodes, &mut reactors, &mut sources, &mut sinks).join() {
             // Ensure sink pull of reactor need.
             for (res, count) in reactor.input.iter() {
                 if sink.want.get(res) < count {
@@ -406,7 +418,20 @@ impl<'a> System<'a> for Reaction {
                 reactor.in_progress = None;
                 for (res, count) in reactor.output.iter() {
                     // TODO: indicator for waste
-                    let _waste = source.has.inc_by(res, count);
+                    if let Some(waste) = source.has.inc_by(res, count) {
+                        let at = node.at();
+                        lazy.exec_mut(move |world| {
+                            let mut rng = rand::thread_rng();
+                            let targets = at.ring(5, hex2d::Spin::CW(hex2d::Direction::XY));
+                            for _ in 0..waste {
+                                let target = targets[rng.gen_range::<usize>(0, targets.len())];
+                                world.create_entity()
+                                    .with(Packet { resource: res })
+                                    .with(geom::Motion::new(at, target, PACKET_SPEED))
+                                    .build();
+                            }
+                        });
+                    }
                 }
             }
 

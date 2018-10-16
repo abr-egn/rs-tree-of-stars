@@ -4,6 +4,7 @@ extern crate failure_derive;
 extern crate ggez;
 extern crate hex2d;
 extern crate petgraph;
+extern crate rand;
 extern crate shred;
 #[macro_use]
 extern crate shred_derive;
@@ -52,6 +53,7 @@ fn make_world(ctx: &mut Context) -> World {
     world.register::<resource::Source>();
     world.register::<resource::Sink>();
     world.register::<resource::Packet>();
+    world.register::<resource::Target>();
     world.register::<resource::Reactor>();
     world.register::<resource::Storage>();
     world.register::<resource::Burn>();

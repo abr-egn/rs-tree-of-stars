@@ -4,15 +4,16 @@ version = "0.1.0"
 authors = ["Abe Egnor <abe.egnor@gmail.com>"]
 
 [dependencies]
-hex2d = "0.2"
 ggez = "0.4"
-specs = "0.12"
-shred = "0.7"
-shred-derive = "0.5"
-petgraph = "0.4"
-spade = "1.5"
 failure = "0.1"
 failure_derive = "0.1"
+hex2d = "0.2"
+petgraph = "0.4"
+rand = "0.5"
+shred = "0.7"
+shred-derive = "0.5"
+spade = "1.5"
+specs = "0.12"
 
 [profile.release]
 debug = true
