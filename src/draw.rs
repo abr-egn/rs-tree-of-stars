@@ -326,22 +326,36 @@ impl<'a, 'b> System<'a> for DrawReactors<'b> {
 
 struct DrawPackets<'a>(&'a mut Context);
 
+const WASTE_SCALE: f32 = 0.5;
+
 impl<'a, 'b> System<'a> for DrawPackets<'b> {
     type SystemData = (
+        Entities<'a>,
         ReadExpect<'a, PacketSprite>,
         ReadStorage<'a, geom::Motion>,
         ReadStorage<'a, resource::Packet>,
+        ReadStorage<'a, resource::Waste>,
     );
 
-    fn run(&mut self, (packet_sprite, motions, packets): Self::SystemData) {
+    fn run(&mut self, (entities, packet_sprite, motions, packets, waste): Self::SystemData) {
         let ctx = &mut self.0;
         let screen = graphics::get_screen_coordinates(ctx);
-        for (motion, packet) in (&motions, &packets).join() {
+        for (entity, motion, packet) in (&*entities, &motions, &packets).join() {
             let pos = motion.from + (motion.to - motion.from)*motion.at;
             if !screen.contains(pos) { continue }
+            let is_waste = waste.get(entity).is_some();
             or_die(|| {
                 graphics::set_color(ctx, res_color(packet.resource))?;
                 graphics::draw(ctx, &*packet_sprite, pos, 0.0)?;
+                if is_waste {
+                    graphics::set_color(ctx, Color::new(1.0, 0.0, 0.0, 1.0))?;
+                    let up_l = pos + (Vector2::new(-HEX_SIDE, -HEX_SIDE) * WASTE_SCALE);
+                    let up_r = pos + (Vector2::new(HEX_SIDE, -HEX_SIDE) * WASTE_SCALE);
+                    let dn_l = pos + (Vector2::new(-HEX_SIDE, HEX_SIDE) * WASTE_SCALE);
+                    let dn_r = pos + (Vector2::new(HEX_SIDE, HEX_SIDE) * WASTE_SCALE);
+                    graphics::line(ctx, &[up_l, dn_r], 1.0)?;
+                    graphics::line(ctx, &[up_r, dn_l], 1.0)?;
+                }
                 Ok(())
             });
         }

@@ -388,6 +388,13 @@ impl Component for Reactor {
     type Storage = BTreeStorage<Self>;
 }
 
+#[derive(Debug, Default)]
+pub struct Waste;
+
+impl Component for Waste {
+    type Storage = NullStorage<Self>;
+}
+
 #[derive(Debug)]
 pub struct Reaction;
 
@@ -428,6 +435,7 @@ impl<'a> System<'a> for Reaction {
                                 world.create_entity()
                                     .with(Packet { resource: res })
                                     .with(geom::Motion::new(at, target, PACKET_SPEED))
+                                    .with(Waste)
                                     .build();
                             }
                         });
@@ -447,6 +455,26 @@ impl<'a> System<'a> for Reaction {
             }
             reactor.in_progress = Some(Duration::new(0, 0));
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct ClearWaste;
+
+impl<'a> System<'a> for ClearWaste {
+    type SystemData = (
+        Entities<'a>,
+        ReadStorage<'a, Waste>,
+        ReadStorage<'a, geom::MotionDone>,
+    );
+
+    fn run(&mut self, (entities, wastes, arrived): Self::SystemData) {
+        or_die(|| {
+            for (entity, _, _) in (&*entities, &wastes, &arrived).join() {
+                entities.delete(entity)?;
+            }
+            Ok(())
+        });
     }
 }
 

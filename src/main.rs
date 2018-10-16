@@ -57,6 +57,7 @@ fn make_world(ctx: &mut Context) -> World {
     world.register::<resource::Reactor>();
     world.register::<resource::Storage>();
     world.register::<resource::Burn>();
+    world.register::<resource::Waste>();
 
     world.register::<draw::Shape>();
 
@@ -127,6 +128,7 @@ fn make_update() -> Dispatcher<'static, 'static> {
     const STORAGE: &str = "storage";
     const BURN: &str = "burn";
     const GROW_TEST: &str = "grow_test";
+    const CLEAR_WASTE: &str = "clear_waste";
 
     DispatcherBuilder::new()
         .with(geom::Travel, TRAVEL, &[])
@@ -136,6 +138,7 @@ fn make_update() -> Dispatcher<'static, 'static> {
         .with(resource::Receive, RECEIVE, &[PULL])
         .with(resource::Reaction, REACTION, &[])
         .with(resource::DoBurn, BURN, &[])
+        .with(resource::ClearWaste, CLEAR_WASTE, &[])
         .with(game::RunGrowTest, GROW_TEST, &[])
         .build()
 }
