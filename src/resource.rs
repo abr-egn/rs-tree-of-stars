@@ -361,6 +361,13 @@ pub struct Reactor {
 }
 
 impl Reactor {
+    pub fn progress(&self) -> Option<f32> {
+        let prog = if let Some(p) = self.in_progress { p } else { return None };
+        Some(duration_f32(prog) / duration_f32(self.delay))
+    }
+}
+
+impl Reactor {
     #[allow(unused)]
     pub fn new(input: Pool, delay: Duration, output: Pool) -> Self {
         Reactor { input, delay, output, in_progress: None }
