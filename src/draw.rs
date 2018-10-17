@@ -109,7 +109,7 @@ pub fn draw(world: &mut World, ctx: &mut Context) {
     DrawText(ctx).run_now(&mut world.res);
     world.maintain();
 
-    graphics::present(ctx);
+    //graphics::present(ctx);
 }
 
 trait ToPixelPoint {

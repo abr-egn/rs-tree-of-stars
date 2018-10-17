@@ -13,6 +13,7 @@ extern crate shred_derive;
 extern crate spade;
 extern crate specs;
 
+#[macro_use]
 extern crate imgui;
 extern crate imgui_gfx_renderer;
 
@@ -167,7 +168,7 @@ fn main() -> Result<()> {
         h: WINDOW_HEIGHT as f32,
     })?;
     let mut events = event::Events::new(&ctx)?;
-    let _ui = ui::new(&mut ctx);
+    let mut ui = ui::new(&mut ctx);
 
     let mut world = make_world(&mut ctx);
     let mut update = make_update();
@@ -196,6 +197,14 @@ fn main() -> Result<()> {
         }
 
         draw::draw(&mut world, &mut ctx);
+        ui.render(&mut ctx, |imui| {
+            imui.window(im_str!("Hello world"))
+                .size((300.0, 100.0), imgui::ImGuiCond::FirstUseEver)
+                .build(|| {
+                    imui.text(im_str!("I'm in a window"));
+                });
+        });
+        graphics::present(&mut ctx);
         /*
         let mut count: usize = 0;
         for _ in world.read_storage::<graph::Node>().join() {

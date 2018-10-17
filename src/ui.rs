@@ -64,9 +64,10 @@ impl UI<gfx_device_gl::Resources> {
 
         f(&ui);
 
-        let (factory, _device, encoder, _stencil_view, target_view) =
+        let (factory, device, encoder, _stencil_view, target_view) =
             graphics::get_gfx_objects(ctx);
         self.renderer.render(ui, factory, encoder)
             .unwrap();
+        //encoder.flush(device);
     }
 }
