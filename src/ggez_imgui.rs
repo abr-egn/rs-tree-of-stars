@@ -7,18 +7,15 @@ use ggez::{
 
 use imgui::{
     self,
-    ImGui, ImFontConfig,
+    ImGui, ImFontConfig, Ui,
 };
 use imgui_gfx_renderer::{Renderer, Shaders};
 
 use util::duration_f32;
 
-pub struct UI<R: gfx::Resources> {
-    imgui: ImGui,
-    renderer: Renderer<R>,
-}
+pub type GgezRenderer = Renderer<gfx_device_gl::Resources>;
 
-pub fn new(ctx: &mut Context) -> UI<gfx_device_gl::Resources> {
+pub fn init(ctx: &mut Context) -> (ImGui, GgezRenderer) {
     let (factory, device, _encoder, _stencil_view, target_view) =
         graphics::get_gfx_objects(ctx);
 
@@ -52,22 +49,18 @@ pub fn new(ctx: &mut Context) -> UI<gfx_device_gl::Resources> {
     let renderer = Renderer::init(&mut imgui, factory, shaders, view)
         .unwrap();
 
-    UI { imgui, renderer }
+    (imgui, renderer)
 }
 
-impl UI<gfx_device_gl::Resources> {
-    #[allow(unused)]
-    pub fn render<F: FnOnce(&imgui::Ui)>(&mut self, ctx: &mut Context, f: F) {
-        let graphics::Rect { w, h, .. } = graphics::get_screen_coordinates(ctx);
-        let fs = imgui::FrameSize { logical_size: (w.into(), h.into()), hidpi_factor: 1.0 };
-        let ui = self.imgui.frame(fs, duration_f32(timer::get_delta(ctx)));
+pub fn frame<'ui, 'a: 'ui>(ctx: &mut Context, imgui: &'a mut ImGui) -> Ui<'ui> {
+    let graphics::Rect { w, h, .. } = graphics::get_screen_coordinates(ctx);
+    let fs = imgui::FrameSize { logical_size: (w.into(), h.into()), hidpi_factor: 1.0 };
+    imgui.frame(fs, duration_f32(timer::get_delta(ctx)))
+}
 
-        f(&ui);
-
-        let (factory, device, encoder, _stencil_view, target_view) =
-            graphics::get_gfx_objects(ctx);
-        self.renderer.render(ui, factory, encoder)
-            .unwrap();
-        //encoder.flush(device);
-    }
+pub fn render<'ui>(ctx: &mut Context, renderer: &mut GgezRenderer, ui: Ui<'ui>) {
+    let (factory, _device, encoder, _stencil_view, _target_view) =
+        graphics::get_gfx_objects(ctx);
+    renderer.render(ui, factory, encoder)
+        .unwrap();
 }

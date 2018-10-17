@@ -21,10 +21,10 @@ mod draw;
 mod error;
 mod game;
 mod geom;
+mod ggez_imgui;
 mod graph;
 mod mode;
 mod resource;
-mod ui;
 mod util;
 
 use std::time::{Duration, Instant};
@@ -168,7 +168,7 @@ fn main() -> Result<()> {
         h: WINDOW_HEIGHT as f32,
     })?;
     let mut events = event::Events::new(&ctx)?;
-    let mut ui = ui::new(&mut ctx);
+    let (mut imgui, mut imgui_renderer) = ggez_imgui::init(&mut ctx);
 
     let mut world = make_world(&mut ctx);
     let mut update = make_update();
@@ -178,6 +178,7 @@ fn main() -> Result<()> {
     let mut running = true;
     while running {
         ctx.timer_context.tick();
+        let ui = ggez_imgui::frame(&mut ctx, &mut imgui);
 
         for event in events.poll() {
             ctx.process_event(&event);
@@ -197,13 +198,14 @@ fn main() -> Result<()> {
         }
 
         draw::draw(&mut world, &mut ctx);
-        ui.render(&mut ctx, |imui| {
-            imui.window(im_str!("Hello world"))
-                .size((300.0, 100.0), imgui::ImGuiCond::FirstUseEver)
-                .build(|| {
-                    imui.text(im_str!("I'm in a window"));
-                });
-        });
+
+        ui.window(im_str!("Hello world"))
+            .size((300.0, 100.0), imgui::ImGuiCond::FirstUseEver)
+            .build(|| {
+                ui.text(im_str!("I'm in a window"));
+            });
+        ggez_imgui::render(&mut ctx, &mut imgui_renderer, ui);
+
         graphics::present(&mut ctx);
         /*
         let mut count: usize = 0;
