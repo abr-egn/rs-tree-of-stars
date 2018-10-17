@@ -168,7 +168,7 @@ fn main() -> Result<()> {
         h: WINDOW_HEIGHT as f32,
     })?;
     let mut events = event::Events::new(&ctx)?;
-    let (mut imgui, mut imgui_renderer) = ggez_imgui::init(&mut ctx);
+    let mut ui_ctx = ggez_imgui::ImGuiContext::new(&mut ctx);
 
     let mut world = make_world(&mut ctx);
     let mut update = make_update();
@@ -178,17 +178,20 @@ fn main() -> Result<()> {
     let mut running = true;
     while running {
         ctx.timer_context.tick();
-        let ui = ggez_imgui::frame(&mut ctx, &mut imgui);
 
         for event in events.poll() {
             ctx.process_event(&event);
+            ui_ctx.process_event(&event);
             use event::Event;
             match event {
                 Event::Quit { .. } => { running = false; break },
-                ev => stack.handle(&mut world, &mut ctx, ev),
+                _ => (),
             }
+            stack.handle(&mut world, &mut ctx, event);
         }
         if !running { break }
+
+        let ui_frame = ui_ctx.frame(&mut ctx);
 
         while timer::check_update_time(&mut ctx, UPDATES_PER_SECOND) {
                 if world.read_resource::<Paused>().0 { continue }
@@ -199,12 +202,15 @@ fn main() -> Result<()> {
 
         draw::draw(&mut world, &mut ctx);
 
-        ui.window(im_str!("Hello world"))
-            .size((300.0, 100.0), imgui::ImGuiCond::FirstUseEver)
-            .build(|| {
-                ui.text(im_str!("I'm in a window"));
-            });
-        ggez_imgui::render(&mut ctx, &mut imgui_renderer, ui);
+        {
+            let ui = &ui_frame.ui;
+            ui.window(im_str!("Hello world"))
+                .size((300.0, 100.0), imgui::ImGuiCond::FirstUseEver)
+                .build(|| {
+                    ui.text(im_str!("I'm in a window"));
+                });
+        }
+        ui_frame.render(&mut ctx);
 
         graphics::present(&mut ctx);
         /*
