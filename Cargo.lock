@@ -603,6 +603,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "imgui"
+version = "0.0.22-pre"
+dependencies = [
+ "imgui-sys 0.0.22-pre",
+]
+
+[[package]]
+name = "imgui-gfx-renderer"
+version = "0.0.22-pre"
+dependencies = [
+ "gfx 0.17.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "imgui 0.0.22-pre",
+ "imgui-sys 0.0.22-pre",
+]
+
+[[package]]
+name = "imgui-sys"
+version = "0.0.22-pre"
+dependencies = [
+ "bitflags 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cc 1.0.25 (registry+https://github.com/rust-lang/crates.io-index)",
+ "gfx 0.17.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.43 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "inflate"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1460,8 +1486,12 @@ version = "0.1.0"
 dependencies = [
  "failure 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure_derive 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "gfx 0.17.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "gfx_device_gl 0.15.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "ggez 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex2d 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "imgui 0.0.22-pre",
+ "imgui-gfx-renderer 0.0.22-pre",
  "petgraph 0.4.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.5.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "shred 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",

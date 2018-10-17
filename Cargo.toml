@@ -7,6 +7,8 @@ authors = ["Abe Egnor <abe.egnor@gmail.com>"]
 ggez = "0.4"
 failure = "0.1"
 failure_derive = "0.1"
+gfx = "0.17"
+gfx_device_gl = "0.15"
 hex2d = "0.2"
 petgraph = "0.4"
 rand = "0.5"
@@ -14,6 +16,9 @@ shred = "0.7"
 shred-derive = "0.5"
 spade = "1.5"
 specs = "0.12"
+
+imgui = { path = "../imgui-rs" }
+imgui-gfx-renderer = { path = "../imgui-rs/imgui-gfx-renderer" }
 
 [profile.release]
 debug = true

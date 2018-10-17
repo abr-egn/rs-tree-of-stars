@@ -1,6 +1,8 @@
 extern crate failure;
 #[macro_use]
 extern crate failure_derive;
+extern crate gfx;
+extern crate gfx_device_gl;
 extern crate ggez;
 extern crate hex2d;
 extern crate petgraph;
@@ -11,6 +13,9 @@ extern crate shred_derive;
 extern crate spade;
 extern crate specs;
 
+extern crate imgui;
+extern crate imgui_gfx_renderer;
+
 mod draw;
 mod error;
 mod game;
@@ -18,6 +23,7 @@ mod geom;
 mod graph;
 mod mode;
 mod resource;
+mod ui;
 mod util;
 
 use std::time::{Duration, Instant};
@@ -161,6 +167,7 @@ fn main() -> Result<()> {
         h: WINDOW_HEIGHT as f32,
     })?;
     let mut events = event::Events::new(&ctx)?;
+    let _ui = ui::new(&mut ctx);
 
     let mut world = make_world(&mut ctx);
     let mut update = make_update();
