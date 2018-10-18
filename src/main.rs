@@ -179,19 +179,32 @@ fn main() -> Result<()> {
     while running {
         ctx.timer_context.tick();
 
+        let mut ev_buffer = vec![];
+        use event::Event;
         for event in events.poll() {
             ctx.process_event(&event);
-            let capture = ui_ctx.process_event(&event);
-            use event::Event;
+            ui_ctx.process_event(&event);
             match event {
                 Event::Quit { .. } => { running = false; break },
                 _ => (),
             }
-            if !capture { stack.handle(&mut world, &mut ctx, event); }
+            ev_buffer.push(event);
         }
         if !running { break }
 
         let ui_frame = ui_ctx.frame(&mut ctx);
+        for event in ev_buffer {
+            match event {
+                Event::MouseMotion { .. } |
+                Event::MouseButtonDown { .. } |
+                Event::MouseButtonUp { .. } |
+                Event::MouseWheel { .. } => {
+                    if ui_frame.ui.want_capture_mouse() { continue }
+                },
+                _ => (),
+            }
+            stack.handle(&mut world, &mut ctx, event);
+        }
 
         while timer::check_update_time(&mut ctx, UPDATES_PER_SECOND) {
                 if world.read_resource::<Paused>().0 { continue }
@@ -210,6 +223,8 @@ fn main() -> Result<()> {
                     ui.text(im_str!("I'm in a window"));
                     ui.button(im_str!("click"), (100.0, 20.0));
                 });
+            let mut demo_open = true;
+            ui.show_demo_window(&mut demo_open);
         }
         ui_frame.render(&mut ctx);
 
