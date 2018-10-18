@@ -25,7 +25,6 @@ mod ggez_imgui;
 mod graph;
 mod mode;
 mod resource;
-mod ui;
 mod util;
 
 use std::time::{Duration, Instant};
@@ -174,7 +173,7 @@ fn main() -> Result<()> {
     let mut world = make_world(&mut ctx);
     let mut update = make_update();
     let mut stack = mode::Stack::new();
-    stack.push(&mut world, &mut ctx, game::Play::new());
+    stack.push(&mut world, game::Play::new());
 
     let mut running = true;
     while running {
@@ -204,7 +203,7 @@ fn main() -> Result<()> {
                 },
                 _ => (),
             }
-            stack.handle(&mut world, &mut ctx, event);
+            stack.handle_event(&mut world, &mut ctx, event);
         }
 
         while timer::check_update_time(&mut ctx, UPDATES_PER_SECOND) {
@@ -215,29 +214,11 @@ fn main() -> Result<()> {
         }
 
         draw::draw(&mut world, &mut ctx);
-        ui::draw(&mut world, &ui_frame.ui);
-        /*
-        {
-            let ui = &ui_frame.ui;
-            ui.window(im_str!("Hello world"))
-                .size((300.0, 100.0), imgui::ImGuiCond::FirstUseEver)
-                .build(|| {
-                    ui.text(im_str!("I'm in a window"));
-                    ui.button(im_str!("click"), (100.0, 20.0));
-                });
-            let mut demo_open = true;
-            ui.show_demo_window(&mut demo_open);
-        }
-        */
+        stack.handle_ui(&mut world, &ui_frame.ui);
+
         ui_frame.render(&mut ctx);
         graphics::present(&mut ctx);
-        /*
-        let mut count: usize = 0;
-        for _ in world.read_storage::<graph::Node>().join() {
-            count += 1;
-        }
-        println!("Nodes: {}", count);
-        */
+
         timer::yield_now();
     }
 

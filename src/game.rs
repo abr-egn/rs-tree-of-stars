@@ -6,6 +6,7 @@ use ggez::{
     Context,
 };
 use hex2d::{self, Coordinate};
+use imgui::Ui;
 use specs::{
     prelude::*,
     storage::BTreeStorage,
@@ -66,10 +67,10 @@ struct Select;
 
 impl Mode for Select {
     fn name(&self) -> &str { "select" }
-    fn on_push(&mut self, world: &mut World, _: &mut Context) {
+    fn on_push(&mut self, world: &mut World) {
         world.write_resource::<MouseWidget>().kind = MWKind::Highlight;
     }
-    fn on_pop(&mut self, world: &mut World, _: &mut Context) {
+    fn on_pop(&mut self, world: &mut World) {
         world.write_resource::<MouseWidget>().kind = MWKind::None;
     }
     fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {
@@ -101,10 +102,10 @@ impl PlaceNode {
 
 impl Mode for PlaceNode {
     fn name(&self) -> &str { "place node" }
-    fn on_push(&mut self, world: &mut World, _: &mut Context) {
+    fn on_push(&mut self, world: &mut World) {
         world.write_resource::<MouseWidget>().kind = MWKind::PlaceNode;
     }
-    fn on_pop(&mut self, world: &mut World, _: &mut Context) {
+    fn on_pop(&mut self, world: &mut World) {
         world.write_resource::<MouseWidget>().kind = MWKind::None;
     }
     fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {
@@ -132,13 +133,13 @@ impl NodeSelected {
 
 impl Mode for NodeSelected {
     fn name(&self) -> &str { "node selected" }
-    fn on_push(&mut self, world: &mut World, _: &mut Context) {
+    fn on_push(&mut self, world: &mut World) {
         or_die(|| {
             world.write_storage::<Selected>().insert(self.0, Selected)?;
             Ok(())
         });
     }
-    fn on_pop(&mut self, world: &mut World, _: &mut Context) {
+    fn on_pop(&mut self, world: &mut World) {
         world.write_storage::<Selected>().remove(self.0);
     }
     fn on_top_event(&mut self, world: &mut World, _: &mut Context, event: Event) -> TopAction {
@@ -189,6 +190,16 @@ impl Mode for NodeSelected {
             _ => TopAction::AsEvent,
         }
     }
+    fn on_top_ui(&mut self, _: &mut World, ui: &Ui) -> TopAction {
+        let mut deselect = false;
+        ui.window(im_str!("Node Selected")).build(|| {
+            deselect = ui.small_button(im_str!("Deselect"));
+        });
+        if deselect {
+            return TopAction::Swap(Select::new())
+        }
+        TopAction::AsEvent
+    }
 }
 
 struct PlaceLink(Entity);
@@ -199,10 +210,10 @@ impl PlaceLink {
 
 impl Mode for PlaceLink {
     fn name(&self) -> &str { "place link" }
-    fn on_push(&mut self, world: &mut World, _: &mut Context) {
+    fn on_push(&mut self, world: &mut World) {
         world.write_resource::<MouseWidget>().kind = MWKind::Highlight;
     }
-    fn on_pop(&mut self, world: &mut World, _: &mut Context) {
+    fn on_pop(&mut self, world: &mut World) {
         world.write_resource::<MouseWidget>().kind = MWKind::None;
     }
     fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {
@@ -346,10 +357,10 @@ impl ToggleExclude {
 
 impl Mode for ToggleExclude {
     fn name(&self) -> &str { "toggle exclude" }
-    fn on_push(&mut self, world: &mut World, _: &mut Context) {
+    fn on_push(&mut self, world: &mut World) {
         world.write_resource::<MouseWidget>().kind = MWKind::Highlight;
     }
-    fn on_pop(&mut self, world: &mut World, _: &mut Context) {
+    fn on_pop(&mut self, world: &mut World) {
         world.write_resource::<MouseWidget>().kind = MWKind::None;
     }
     fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {
