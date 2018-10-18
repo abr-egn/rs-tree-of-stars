@@ -25,6 +25,7 @@ mod ggez_imgui;
 mod graph;
 mod mode;
 mod resource;
+mod ui;
 mod util;
 
 use std::time::{Duration, Instant};
@@ -214,7 +215,8 @@ fn main() -> Result<()> {
         }
 
         draw::draw(&mut world, &mut ctx);
-
+        ui::draw(&mut world, &ui_frame.ui);
+        /*
         {
             let ui = &ui_frame.ui;
             ui.window(im_str!("Hello world"))
@@ -226,8 +228,8 @@ fn main() -> Result<()> {
             let mut demo_open = true;
             ui.show_demo_window(&mut demo_open);
         }
+        */
         ui_frame.render(&mut ctx);
-
         graphics::present(&mut ctx);
         /*
         let mut count: usize = 0;
