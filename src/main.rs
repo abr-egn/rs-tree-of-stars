@@ -181,13 +181,13 @@ fn main() -> Result<()> {
 
         for event in events.poll() {
             ctx.process_event(&event);
-            ui_ctx.process_event(&event);
+            let capture = ui_ctx.process_event(&event);
             use event::Event;
             match event {
                 Event::Quit { .. } => { running = false; break },
                 _ => (),
             }
-            stack.handle(&mut world, &mut ctx, event);
+            if !capture { stack.handle(&mut world, &mut ctx, event); }
         }
         if !running { break }
 
@@ -208,6 +208,7 @@ fn main() -> Result<()> {
                 .size((300.0, 100.0), imgui::ImGuiCond::FirstUseEver)
                 .build(|| {
                     ui.text(im_str!("I'm in a window"));
+                    ui.button(im_str!("click"), (100.0, 20.0));
                 });
         }
         ui_frame.render(&mut ctx);

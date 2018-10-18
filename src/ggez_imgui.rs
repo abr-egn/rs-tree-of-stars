@@ -66,20 +66,30 @@ impl ImGuiContext {
             renderer: &mut self.renderer,
         }
     }
-
-    pub fn process_event(&mut self, event: &Event) {
+    
+    pub fn process_event(&mut self, event: &Event) -> bool {
+        let mut is_mouse_event = true;
+        if self.imgui.want_capture_mouse() {
+            println!("[pre] want capture");
+        }
         match event {
             Event::MouseMotion { x, y, .. } => self.imgui.set_mouse_pos(*x as f32, *y as f32),
-            _ => (),
+            _ => {
+                if let Some((ix, state)) = match event {
+                    Event::MouseButtonDown { mouse_btn, .. } => mb_ix(mouse_btn).map(|ix| (ix, true)),
+                    Event::MouseButtonUp { mouse_btn, .. } => mb_ix(mouse_btn).map(|ix| (ix, false)),
+                    _ => { is_mouse_event = false; None },
+                } {
+                    self.mouse_down[ix] = state;
+                    self.imgui.set_mouse_down(self.mouse_down);
+                }
+            }
         }
-        if let Some((ix, state)) = match event {
-            Event::MouseButtonDown { mouse_btn, .. } => mb_ix(mouse_btn).map(|ix| (ix, true)),
-            Event::MouseButtonUp { mouse_btn, .. } => mb_ix(mouse_btn).map(|ix| (ix, false)),
-            _ => None,
-        } {
-            self.mouse_down[ix] = state;
-            self.imgui.set_mouse_down(self.mouse_down);
+        if self.imgui.want_capture_mouse() {
+            println!("want capture");
+            if is_mouse_event { return true }
         }
+        return false;
     }
 }
 
