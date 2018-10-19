@@ -31,6 +31,21 @@ pub struct Play;
 
 impl Play {
     pub fn new() -> Box<Mode> { Box::new(Play) }
+    fn window<F: FnOnce(&mut World)>(&self, world: &mut World, ui: &Ui, f: F) -> Option<EventAction> {
+        let mut ret = None;
+        ui.window(im_str!("Play")).build(|| {
+            if ui.small_button(im_str!("Add Node")) {
+                ret = Some(EventAction::Push(PlaceNode::new()));
+            }
+            ui.separator();
+            if ui.small_button(im_str!("Pause")) {
+                let p = &mut *world.write_resource::<super::Paused>();
+                p.0 = !p.0;
+            }
+            f(world);
+        });
+        ret
+    }
 }
 
 impl Mode for Play {
@@ -60,6 +75,19 @@ impl Mode for Play {
             },
             _ => TopAction::AsEvent,
         }
+    }
+    fn on_ui(&mut self, world: &mut World, ui: &Ui) -> EventAction {
+        if let Some(ea) = self.window(world, ui, |_| {}) { return ea }
+        EventAction::Done
+    }
+    fn on_top_ui(&mut self, world: &mut World, ui: &Ui) -> TopAction {
+        let mut action = TopAction::done();
+        if let Some(ea) = self.window(world, ui, |_| {
+            if ui.small_button(im_str!("Select Node")) {
+                action = TopAction::push(Select::new());
+            }
+        }) { return TopAction::Do(ea) }
+        action
     }
 }
 
