@@ -142,62 +142,41 @@ impl Mode for NodeSelected {
     fn on_pop(&mut self, world: &mut World) {
         world.write_storage::<Selected>().remove(self.0);
     }
-    fn on_top_event(&mut self, world: &mut World, _: &mut Context, event: Event) -> TopAction {
+    fn on_top_event(&mut self, _: &mut World, _: &mut Context, event: Event) -> TopAction {
         match event {
-            Event::KeyDown { keycode: Some(kc), .. } => {
-                match kc {
-                    Keycode::Escape => TopAction::Swap(Select::new()),
-                    Keycode::L => TopAction::push(PlaceLink::new(self.0)),
-                    Keycode::G => {
-                        GrowTest::start(world, self.0);
-                        or_die(|| {
-                            try_get_mut(&mut world.write_storage::<GrowTest>(), self.0)?.next_growth = 0;
-                            Ok(())
-                        });
-                        TopAction::done()
-                    },
-                    Keycode::S => {
-                        if world.read_storage::<resource::Source>().get(self.0).is_some() {
-                            return TopAction::done()
-                        }
-                        resource::Source::add(
-                            world,
-                            self.0,
-                            resource::Pool::from(vec![(Resource::H2, 6)]),
-                            10,
-                        );
-                        TopAction::done()
-                    },
-                    Keycode::D => {
-                        let mut sinks = world.write_storage::<resource::Sink>();
-                        if sinks.get(self.0).is_some() { return TopAction::done() }
-                        let mut sink = resource::Sink::new();
-                        sink.want.inc_by(Resource::H2, 6);
-                        or_die(|| { sinks.insert(self.0, sink)?; Ok(()) });
-                        TopAction::done()
-                    },
-                    Keycode::R => TopAction::push(AddReactor::new(self.0)),
-                    Keycode::X => {
-                        if world.read_storage::<resource::Source>().get(self.0).is_some() {
-                            TopAction::push(ToggleExclude::new(self.0))
-                        } else {
-                            TopAction::AsEvent
-                        }
-                    },
-                    _ => TopAction::AsEvent,
-                }
-            },
+            Event::KeyDown { keycode: Some(Keycode::Escape), .. } => TopAction::Swap(Select::new()),
             _ => TopAction::AsEvent,
         }
     }
-    fn on_top_ui(&mut self, _: &mut World, ui: &Ui) -> TopAction {
+    fn on_top_ui(&mut self, world: &mut World, ui: &Ui) -> TopAction {
+        let mut link = false;
+        let mut reactor = false;
+        let mut exclude = false;
+        let mut grow = false;
         let mut deselect = false;
-        ui.window(im_str!("Node Selected")).build(|| {
+        ui.window(im_str!("Node")).build(|| {
+            link = ui.small_button(im_str!("Add Link"));
+            reactor = ui.small_button(im_str!("Add Reactor"));
+            if world.read_storage::<resource::Source>().get(self.0).is_some() {
+                exclude = ui.small_button(im_str!("Toggle Exclude"));
+            }
+            ui.separator();
+            grow = ui.small_button(im_str!("Start Growth Test"));
+            ui.separator();
             deselect = ui.small_button(im_str!("Deselect"));
         });
-        if deselect {
-            return TopAction::Swap(Select::new())
+        if link { return TopAction::push(PlaceLink::new(self.0)) }
+        if reactor { return TopAction::push(AddReactor::new(self.0)) }
+        if exclude { return TopAction::push(ToggleExclude::new(self.0)) }
+        if grow {
+            GrowTest::start(world, self.0);
+            or_die(|| {
+                try_get_mut(&mut world.write_storage::<GrowTest>(), self.0)?.next_growth = 0;
+                Ok(())
+            });
+            return TopAction::done()
         }
+        if deselect { return TopAction::Swap(Select::new()) }
         TopAction::AsEvent
     }
 }
