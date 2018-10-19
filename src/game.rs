@@ -149,7 +149,25 @@ impl NodeSelected {
             f(world);
         })
     }
+    fn add_reactor(
+        &self, world: &mut World,
+        input: resource::Pool, delay: Duration, output: resource::Pool,
+    ) {
+        resource::Source::add(world, self.0, resource::Pool::new(), /* range= */ 20);
+        or_die(|| {
+            world.write_storage().insert(self.0, resource::Sink::new())?;
+            world.write_storage().insert(self.0, resource::Reactor::new(input, delay, output))?;
+            Ok(())
+        });
+    }
+    fn is_plain(&self, world: &World) -> bool {
+        if world.read_storage::<resource::Source>().get(self.0).is_some() { return false }
+        if world.read_storage::<resource::Sink>().get(self.0).is_some() { return false }
+        true
+    }
 }
+
+const REACTION_TIME: Duration = Duration::from_millis(5000);
 
 impl Mode for NodeSelected {
     fn name(&self) -> &str { "node selected" }
@@ -181,22 +199,81 @@ impl Mode for NodeSelected {
             if ui.small_button(im_str!("Add Link")) {
                 action = TopAction::push(PlaceLink::new(self.0));
             }
-            if ui.small_button(im_str!("Add Reactor")) {
-                action = TopAction::push(AddReactor::new(self.0));
+            if self.is_plain(world) {
+                use resource::Pool;
+                ui.menu(im_str!("Make Reactor")).build(|| {
+                    if ui.menu_item(im_str!("-> H2O")).build() {
+                        self.add_reactor(world,
+                            /* input= */ Pool::new(),
+                            /* delay= */ REACTION_TIME,
+                            /* output= */ Pool::from(vec![(Resource::H2O, 1)]),
+                        );
+                    }
+                    if ui.menu_item(im_str!("-> C")).build() {
+                        self.add_reactor(world,
+                            /* input= */ Pool::new(),
+                            /* delay= */ REACTION_TIME,
+                            /* output= */ Pool::from(vec![(Resource::C, 1)]),
+                        );
+                    }
+                    if ui.menu_item(im_str!("2H2O -> O2 + 2H2")).build() {
+                        self.add_reactor(world,
+                            /* input= */ Pool::from(vec![(Resource::H2O, 2)]),
+                            /* delay= */ REACTION_TIME,
+                            /* output= */ Pool::from(vec![(Resource::O2, 1), (Resource::H2, 2)]),
+                        );
+                    }
+                    if ui.menu_item(im_str!("C + O2 => CO2")).build() {
+                        self.add_reactor(world,
+                            /* input= */ Pool::from(vec![(Resource::C, 1), (Resource::O2, 1)]),
+                            /* delay= */ REACTION_TIME,
+                            /* output= */ Pool::from(vec![(Resource::CO2, 1)]),
+                        );
+                    }
+                    if ui.menu_item(im_str!("CO2 + 4H2 => CH4 + 2H2O")).build() {
+                        self.add_reactor(world,
+                            /* input= */ Pool::from(vec![(Resource::CO2, 1), (Resource::H2, 4)]),
+                            /* delay= */ REACTION_TIME,
+                            /* output= */ Pool::from(vec![(Resource::CH4, 1), (Resource::H2O, 2)]),
+                        );
+                    }
+                });
+                if ui.small_button(im_str!("Make H2O Storage")) {
+                    let mut pool = Pool::new();
+                    for res in Resource::all() {
+                        pool.set_cap(res, 0);
+                    }
+                    pool.set_cap(Resource::H2O, 6);
+                    resource::Source::add(world, self.0, pool, /* range= */ 20);
+                    or_die(|| {
+                        world.write_storage().insert(self.0, resource::Sink::new())?;
+                        world.write_storage().insert(self.0, resource::Storage)?;
+                        Ok(())
+                    });
+                }
+                if ui.small_button(im_str!("Make CH4 Burn")) {
+                    let mut sink = resource::Sink::new();
+                    sink.want.set(Resource::CH4, 1);
+                    or_die(|| {
+                        world.write_storage().insert(self.0, sink)?;
+                        world.write_storage().insert(self.0, resource::Burn::new(REACTION_TIME))?;
+                        Ok(())
+                    });
+                }
+                ui.separator();
+                if ui.small_button(im_str!("Start Growth Test")) {
+                    GrowTest::start(world, self.0);
+                    or_die(|| {
+                        try_get_mut(&mut world.write_storage::<GrowTest>(), self.0)?.next_growth = 0;
+                        Ok(())
+                    });
+                    action = TopAction::done()
+                }
             }
             if world.read_storage::<resource::Source>().get(self.0).is_some() {
                 if ui.small_button(im_str!("Toggle Exclude")) {
                     action = TopAction::push(ToggleExclude::new(self.0));
                 }
-            }
-            ui.separator();
-            if ui.small_button(im_str!("Start Growth Test")) {
-                GrowTest::start(world, self.0);
-                or_die(|| {
-                    try_get_mut(&mut world.write_storage::<GrowTest>(), self.0)?.next_growth = 0;
-                    Ok(())
-                });
-                action = TopAction::done()
             }
             ui.separator();
             if ui.small_button(im_str!("Deselect")) {
@@ -246,110 +323,6 @@ impl Mode for PlaceLink {
             },
             Event::KeyDown { keycode: Some(Keycode::Escape), .. } => TopAction::Pop,
             _ => TopAction::AsEvent,
-        }
-    }
-}
-
-struct AddReactor(Entity);
-
-impl AddReactor {
-    fn new(ent: Entity) -> Box<Mode> { Box::new(AddReactor(ent)) }
-    fn add_reactor(
-        &self, world: &mut World,
-        input: resource::Pool, delay: Duration, output: resource::Pool,
-    ) {
-        resource::Source::add(world, self.0, resource::Pool::new(), /* range= */ 20);
-        or_die(|| {
-            world.write_storage().insert(self.0, resource::Sink::new())?;
-            world.write_storage().insert(self.0, resource::Reactor::new(input, delay, output))?;
-            Ok(())
-        });
-    }
-}
-
-const REACTION_TIME: Duration = Duration::from_millis(5000);
-
-impl Mode for AddReactor {
-    fn name(&self) -> &str { "add reactor" }
-    fn on_top_event(&mut self, world: &mut World, _: &mut Context, event: Event) -> TopAction {
-        use resource::Pool;
-        match event {
-            Event::KeyDown { keycode: Some(kc), .. } => match kc {
-                Keycode::Escape => TopAction::Pop,
-                Keycode::Num1 => {
-                    println!("-> H2O");
-                    self.add_reactor(world,
-                        /* input= */ Pool::new(),
-                        /* delay= */ REACTION_TIME,
-                        /* output= */ Pool::from(vec![(Resource::H2O, 1)]),
-                    );
-                    TopAction::Pop
-                },
-                Keycode::Num2 => {
-                    println!("-> C");
-                    self.add_reactor(world,
-                        /* input= */ Pool::new(),
-                        /* delay= */ REACTION_TIME,
-                        /* output= */ Pool::from(vec![(Resource::C, 1)]),
-                    );
-                    TopAction::Pop
-                },
-                Keycode::Num3 => {
-                    println!("2H2O -> O2 + 2H2");
-                    self.add_reactor(world,
-                        /* input= */ Pool::from(vec![(Resource::H2O, 2)]),
-                        /* delay= */ REACTION_TIME,
-                        /* output= */ Pool::from(vec![(Resource::O2, 1), (Resource::H2, 2)]),
-                    );
-                    TopAction::Pop
-                },
-                Keycode::Num4 => {
-                    println!("C + O2 => CO2");
-                    self.add_reactor(world,
-                        /* input= */ Pool::from(vec![(Resource::C, 1), (Resource::O2, 1)]),
-                        /* delay= */ REACTION_TIME,
-                        /* output= */ Pool::from(vec![(Resource::CO2, 1)]),
-                    );
-                    TopAction::Pop
-                },
-                Keycode::Num5 => {
-                    println!("CO2 + 4H2 => CH4 + 2H2O");
-                    self.add_reactor(world,
-                        /* input= */ Pool::from(vec![(Resource::CO2, 1), (Resource::H2, 4)]),
-                        /* delay= */ REACTION_TIME,
-                        /* output= */ Pool::from(vec![(Resource::CH4, 1), (Resource::H2O, 2)]),
-                    );
-                    TopAction::Pop
-                },
-                Keycode::W => {
-                    println!("H2O storage");
-                    let mut pool = Pool::new();
-                    for res in Resource::all() {
-                        pool.set_cap(res, 0);
-                    }
-                    pool.set_cap(Resource::H2O, 6);
-                    resource::Source::add(world, self.0, pool, /* range= */ 20);
-                    or_die(|| {
-                        world.write_storage().insert(self.0, resource::Sink::new())?;
-                        world.write_storage().insert(self.0, resource::Storage)?;
-                        Ok(())
-                    });
-                    TopAction::Pop
-                },
-                Keycode::M => {
-                    println!("CH4 burn");
-                    let mut sink = resource::Sink::new();
-                    sink.want.set(Resource::CH4, 1);
-                    or_die(|| {
-                        world.write_storage().insert(self.0, sink)?;
-                        world.write_storage().insert(self.0, resource::Burn::new(REACTION_TIME))?;
-                        Ok(())
-                    });
-                    TopAction::Pop
-                },
-                _ => TopAction::AsEvent,
-            },
-            _ => TopAction::AsEvent
         }
     }
 }
