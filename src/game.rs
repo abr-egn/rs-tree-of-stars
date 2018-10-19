@@ -129,6 +129,26 @@ struct NodeSelected(Entity);
 
 impl NodeSelected {
     fn new(node: Entity) -> Box<Mode> { Box::new(NodeSelected(node)) }
+    fn window<F: FnOnce(&mut World)>(&self, world: &mut World, ui: &Ui, f: F) {
+        ui.window(im_str!("Node")).build(|| {
+            let mut kinds: Vec<String> = vec![];
+            if world.read_storage::<resource::Source>().get(self.0).is_some() {
+                kinds.push("Source".into());
+            }
+            if world.read_storage::<resource::Sink>().get(self.0).is_some() {
+                kinds.push("Sink".into());
+            }
+            if world.read_storage::<resource::Reactor>().get(self.0).is_some() {
+                kinds.push("Reactor".into());
+            }
+            if kinds.is_empty() {
+                ui.text("Kind: None");
+            } else {
+                ui.text(format!("Kind: {}", kinds.join(" | ")));
+            }
+            f(world);
+        })
+    }
 }
 
 impl Mode for NodeSelected {
@@ -148,36 +168,42 @@ impl Mode for NodeSelected {
             _ => TopAction::AsEvent,
         }
     }
+    fn on_ui(&mut self, world: &mut World, ui: &Ui) -> EventAction {
+        self.window(world, ui, |_| {});
+        EventAction::Continue
+    }
     fn on_top_ui(&mut self, world: &mut World, ui: &Ui) -> TopAction {
-        let mut link = false;
-        let mut reactor = false;
-        let mut exclude = false;
-        let mut grow = false;
-        let mut deselect = false;
-        ui.window(im_str!("Node")).build(|| {
-            link = ui.small_button(im_str!("Add Link"));
-            reactor = ui.small_button(im_str!("Add Reactor"));
+        // AsEvent causes on_ui to get called, which causes the non-top widgets to be
+        // double-added.
+        let mut action = TopAction::continue_();
+        self.window(world, ui, |world| {
+            ui.separator();
+            if ui.small_button(im_str!("Add Link")) {
+                action = TopAction::push(PlaceLink::new(self.0));
+            }
+            if ui.small_button(im_str!("Add Reactor")) {
+                action = TopAction::push(AddReactor::new(self.0));
+            }
             if world.read_storage::<resource::Source>().get(self.0).is_some() {
-                exclude = ui.small_button(im_str!("Toggle Exclude"));
+                if ui.small_button(im_str!("Toggle Exclude")) {
+                    action = TopAction::push(ToggleExclude::new(self.0));
+                }
             }
             ui.separator();
-            grow = ui.small_button(im_str!("Start Growth Test"));
+            if ui.small_button(im_str!("Start Growth Test")) {
+                GrowTest::start(world, self.0);
+                or_die(|| {
+                    try_get_mut(&mut world.write_storage::<GrowTest>(), self.0)?.next_growth = 0;
+                    Ok(())
+                });
+                action = TopAction::done()
+            }
             ui.separator();
-            deselect = ui.small_button(im_str!("Deselect"));
+            if ui.small_button(im_str!("Deselect")) {
+                action = TopAction::Swap(Select::new());
+            }
         });
-        if link { return TopAction::push(PlaceLink::new(self.0)) }
-        if reactor { return TopAction::push(AddReactor::new(self.0)) }
-        if exclude { return TopAction::push(ToggleExclude::new(self.0)) }
-        if grow {
-            GrowTest::start(world, self.0);
-            or_die(|| {
-                try_get_mut(&mut world.write_storage::<GrowTest>(), self.0)?.next_growth = 0;
-                Ok(())
-            });
-            return TopAction::done()
-        }
-        if deselect { return TopAction::Swap(Select::new()) }
-        TopAction::AsEvent
+        action
     }
 }
 
