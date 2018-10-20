@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap},
     mem::swap,
     sync::mpsc::{channel, Sender},
     time::{Duration, Instant},
@@ -131,7 +131,6 @@ impl Pool {
 #[derive(Debug)]
 pub struct Source {
     pub has: Pool,
-    pub exclude: HashSet<Entity /* Sink */>,
     last_send: HashMap<Entity /* Sink */, Instant>,
 }
 
@@ -139,7 +138,7 @@ impl Source {
     pub fn add(world: &mut World, entity: Entity, has: Pool, range: i32) {
         or_die(|| {
             graph::AreaGraph::add(world, entity, range)?;
-            world.write_storage().insert(entity, Source { has, exclude: HashSet::new(), last_send: HashMap::new() })?;
+            world.write_storage().insert(entity, Source { has, last_send: HashMap::new() })?;
             Ok(())
         });
     }
@@ -226,8 +225,6 @@ fn pull_worker(
     let mut candidates: Vec<(Entity, Candidate)> = vec![];
     let (nodes_iter, mut router) = ag.nodes_route();
     for sink_ent in nodes_iter {
-        if sink_ent == source_ent { continue }
-        if source.exclude.contains(&sink_ent) { continue }
         let sink = if let Some(s) = sinks.get(sink_ent) { s } else { continue };
         let mut want = false;
         for (res, have) in source.has.iter() {

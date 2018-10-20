@@ -280,7 +280,6 @@ impl <'a, 'b> System<'a> for DrawSelectedAreas<'b> {
                 let (node_iter, mut routes) = area.nodes_route();
                 graphics::set_color(ctx, color)?;
                 for node_ent in node_iter {
-                    if node_ent == entity { continue }
                     if routes.route(&links, &nodes, entity, node_ent).is_none() { continue }
                     if let Some(shape) = shapes.get(node_ent) {
                         for coord in &shape.coords {

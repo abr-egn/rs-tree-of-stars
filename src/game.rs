@@ -372,11 +372,12 @@ impl Mode for ToggleExclude {
                 let coord = pixel_to_coord(ctx, x, y);
                 let found = if let Some(e) = world.read_resource::<geom::Map>().get(coord) { e }
                 else { return TopAction::AsEvent };
+                if found == self.0 { return TopAction::AsEvent };
                 if world.read_storage::<graph::Node>().get(found).is_none() {
                     return TopAction::AsEvent;
                 }
-                let mut sources = world.write_storage::<resource::Source>();
-                let exclude = &mut or_die(|| try_get_mut(&mut sources, self.0)).exclude;
+                let mut areas = world.write_storage::<graph::AreaGraph>();
+                let exclude = &mut or_die(|| try_get_mut(&mut areas, self.0)).exclude_mut();
                 if !exclude.remove(&found) { exclude.insert(found); }
                 TopAction::Pop
             },

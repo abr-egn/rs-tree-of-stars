@@ -31,6 +31,7 @@ type GraphData = GraphMap<Entity, Entity, petgraph::Undirected>;
 pub struct Graph {
     data: GraphData,
     route_cache: HashMap<(Entity, Entity), Option<(usize, Route)>>,
+    exclude: HashSet<Entity>,
 }
 
 pub type Route = Vec<(Entity, PathDir)>;
@@ -40,6 +41,7 @@ impl Graph {
         Graph {
             data: GraphMap::new(),
             route_cache: HashMap::new(),
+            exclude: HashSet::new(),
         }
     }
     pub fn add_link(&mut self, link: &Link, entity: Entity) {
@@ -47,10 +49,18 @@ impl Graph {
         self.route_cache.clear();
     }
     #[allow(unused)]
-    pub fn nodes<'a>(&'a self) -> impl Iterator<Item=Entity> + 'a { self.data.nodes() }
-    pub fn nodes_route<'a>(&'a mut self) -> (impl Iterator<Item=Entity> + 'a, Router<'a>) {
-        (self.data.nodes(), Router { data: &self.data, route_cache: &mut self.route_cache })
+    pub fn nodes<'a>(&'a self) -> impl Iterator<Item=Entity> + 'a {
+        let ex = &self.exclude;
+        self.data.nodes().filter(move |e| !ex.contains(e))
     }
+    pub fn nodes_route<'a>(&'a mut self) -> (impl Iterator<Item=Entity> + 'a, Router<'a>) {
+        let ex = &self.exclude;
+        (self.data.nodes().filter(move |e| !ex.contains(e)),
+        Router { data: &self.data, route_cache: &mut self.route_cache })
+    }
+    #[allow(unused)]
+    pub fn exclude(&self) -> &HashSet<Entity> { &self.exclude }
+    pub fn exclude_mut(&mut self) -> &mut HashSet<Entity> { &mut self.exclude }
 }
 
 pub struct Router<'a> {
@@ -119,6 +129,7 @@ impl AreaGraph {
     pub fn add(world: &mut World, entity: Entity, range: i32) -> Result<()> {
         let at = try_get(&world.read_storage::<Node>(), entity)?.at();
         let mut ag = AreaGraph { graph: Graph::new(), range };
+        ag.graph.exclude_mut().insert(entity.clone());
         let links = world.read_storage::<Link>();
         for found in world.read_resource::<geom::Map>().in_range(at, range) {
             if let Some(link) = links.get(found) {
@@ -132,13 +143,11 @@ impl AreaGraph {
 
     #[allow(unused)]
     pub fn graph(&self) -> &Graph { &self.graph }
-    #[allow(unused)]
     pub fn range(&self) -> i32 { self.range }
-    #[allow(unused)]
-    pub fn nodes<'a>(&'a self) -> impl Iterator<Item=Entity> + 'a { self.graph.nodes() }
     pub fn nodes_route<'a>(&'a mut self) -> (impl Iterator<Item=Entity> + 'a, Router<'a>) {
         self.graph.nodes_route()
     }
+    pub fn exclude_mut(&mut self) -> &mut HashSet<Entity> { self.graph.exclude_mut() }
 }
 
 impl Component for AreaGraph {
