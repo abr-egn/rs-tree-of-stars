@@ -33,14 +33,22 @@ impl Play {
     pub fn new() -> Box<Mode> { Box::new(Play) }
     fn window<F: FnOnce(&mut World)>(&self, world: &mut World, ui: &Ui, f: F) -> Option<EventAction> {
         let mut ret = None;
-        ui.window(im_str!("Play")).build(|| {
+        ui.window(im_str!("Play")).always_auto_resize(true).build(|| {
             if ui.small_button(im_str!("Add Node")) {
                 ret = Some(EventAction::Push(PlaceNode::new()));
             }
             ui.separator();
-            if ui.small_button(im_str!("Pause")) {
+            {
                 let p = &mut *world.write_resource::<super::Paused>();
-                p.0 = !p.0;
+                if p.0 {
+                    if ui.small_button(im_str!("Unpause")) {
+                        p.0 = false;
+                    }
+                } else {
+                    if ui.small_button(im_str!("Pause")) {
+                        p.0 = true;
+                    }
+                }
             }
             f(world);
         });
@@ -113,7 +121,6 @@ impl Mode for PlaceNode {
     }
     fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {
         match event {
-            Event::KeyDown { keycode: Some(Keycode::N), .. } |
             Event::KeyDown { keycode: Some(Keycode::Escape), .. } => TopAction::Pop,
             Event::MouseButtonDown { x, y, .. } => {
                 let coord = pixel_to_coord(ctx, x, y);
@@ -133,7 +140,7 @@ struct NodeSelected(Entity);
 impl NodeSelected {
     fn new(node: Entity) -> Box<Mode> { Box::new(NodeSelected(node)) }
     fn window<F: FnOnce(&mut World)>(&self, world: &mut World, ui: &Ui, f: F) {
-        ui.window(im_str!("Node")).build(|| {
+        ui.window(im_str!("Node")).always_auto_resize(true).build(|| {
             let mut kinds: Vec<String> = vec![];
             if world.read_storage::<resource::Source>().get(self.0).is_some() {
                 kinds.push("Source".into());
