@@ -9,7 +9,7 @@ use ggez::{
     timer::get_time_since_start,
     Context,
 };
-use hex2d::{Coordinate, Spacing};
+use hex2d::{Coordinate, Spacing, Spin, XY};
 use specs::{
     prelude::*,
 };
@@ -105,6 +105,7 @@ pub fn draw(world: &mut World, ctx: &mut Context) {
     DrawSources(ctx).run_now(&mut world.res);
     DrawSinks(ctx).run_now(&mut world.res);
     DrawReactors(ctx).run_now(&mut world.res);
+    DrawSelectedAreas(ctx).run_now(&mut world.res);
     DrawMouseWidget(ctx).run_now(&mut world.res);
     DrawText(ctx).run_now(&mut world.res);
     world.maintain();
@@ -137,6 +138,8 @@ impl<'a, 'b> System<'a> for DrawCells<'b> {
     fn run(&mut self, (cell_mesh, outline, entities, shapes, selected): Self::SystemData) {
         let ctx = &mut self.0;
         let screen = graphics::get_screen_coordinates(ctx);
+        let scale = (now_f32(ctx) * 3.0).sin() * 0.5 + 0.5;
+        let sel_color = Color::new(scale, 0.0, scale, 1.0);
         or_die(|| {
             for (entity, shape) in (&*entities, &shapes).join() {
                 graphics::set_color(ctx, shape.color)?;
@@ -146,8 +149,7 @@ impl<'a, 'b> System<'a> for DrawCells<'b> {
                     graphics::draw(ctx, &cell_mesh.0, p, 0.0)?;
                 }
                 if selected.get(entity).is_some() {
-                    let scale = (now_f32(ctx) * 3.0).sin() * 0.5 + 0.5;
-                    graphics::set_color(ctx, Color::new(scale, 0.0, scale, 1.0))?;
+                    graphics::set_color(ctx, sel_color)?;
                     for coord in &shape.coords {
                         let p = coord.to_pixel_point();
                         if !screen.contains(p) { continue }
@@ -217,32 +219,80 @@ fn source_radius() -> f32 { 3.0f32.sqrt() * HEX_SIDE * 2.0 }
 
 struct DrawSources<'a>(&'a mut Context);
 
-impl<'a, 'b> System<'a> for DrawSources<'b> {
-    type SystemData = (
-        ReadExpect<'a, PacketSprite>,
-        ReadExpect<'a, SourceOrbit>,
-        ReadStorage<'a, graph::Node>,
-        ReadStorage<'a, resource::Source>,
-    );
+#[derive(SystemData)]
+struct DrawSourcesData<'a> {
+    packet_sprite: ReadExpect<'a, PacketSprite>,
+    source_orbit: ReadExpect<'a, SourceOrbit>,
+    nodes: ReadStorage<'a, graph::Node>,
+    sources: ReadStorage<'a, resource::Source>,
+}
 
-    fn run(&mut self, (packet_sprite, source_orbit, nodes, sources): Self::SystemData) {
+impl<'a, 'b> System<'a> for DrawSources<'b> {
+    type SystemData = DrawSourcesData<'a>;
+
+    fn run(&mut self, data: Self::SystemData) {
         let ctx = &mut self.0;
         let screen = graphics::get_screen_coordinates(ctx);
-        for (node, source) in (&nodes, &sources).join() {
+        for (node, source) in (&data.nodes, &data.sources).join() {
             let pt = node.at().to_pixel_point();
             if screen.contains(pt) {
                 or_die(|| {
                     graphics::set_color(ctx, Color::new(1.0, 1.0, 1.0, 1.0))?;
-                    graphics::draw(ctx, &source_orbit.0, pt, 0.0)?;
+                    graphics::draw(ctx, &data.source_orbit.0, pt, 0.0)?;
                     Ok(())
                 });
             }
             draw_orbit(
-                ctx, screen, &*packet_sprite,
+                ctx, screen, &*data.packet_sprite,
                 /* radius= */ source_radius(), /* speed= */ 1.0,
                 node.at(), &source.has,
             );
         }
+    }
+}
+
+struct DrawSelectedAreas<'a>(&'a mut Context);
+
+impl <'a, 'b> System<'a> for DrawSelectedAreas<'b> {
+    type SystemData = (
+        Entities<'a>,
+        ReadExpect<'a, OutlineSprite>,
+        WriteStorage<'a, graph::AreaGraph>,
+        ReadStorage<'a, graph::Link>,
+        ReadStorage<'a, graph::Node>,
+        ReadStorage<'a, game::Selected>,
+        ReadStorage<'a, Shape>,
+    );
+
+    fn run(&mut self, (entities, outline, mut areas, links, nodes, selected, shapes): Self::SystemData) {
+        let ctx = &mut self.0;
+        let screen = graphics::get_screen_coordinates(ctx);
+        let scale = (now_f32(ctx) * 3.0).sin() * 0.5 + 0.5;
+        let color = Color::new(0.0, scale, 0.0, 1.0);
+        or_die(|| {
+            for (entity, node, area, _) in (&*entities, &nodes, &mut areas, &selected).join() {
+                graphics::set_color(ctx, Color::new(0.0, 1.0, 0.0, 1.0))?;
+                for coord in node.at().ring(area.range(), Spin::CW(XY)) {
+                    let p = coord.to_pixel_point();
+                    if !screen.contains(p) { continue }
+                    graphics::draw(ctx, &outline.0, p, 0.0)?;
+                }
+                let (node_iter, mut routes) = area.nodes_route();
+                graphics::set_color(ctx, color)?;
+                for node_ent in node_iter {
+                    if node_ent == entity { continue }
+                    if routes.route(&links, &nodes, entity, node_ent).is_none() { continue }
+                    if let Some(shape) = shapes.get(node_ent) {
+                        for coord in &shape.coords {
+                            let p = coord.to_pixel_point();
+                            if !screen.contains(p) { continue }
+                            graphics::draw(ctx, &outline.0, p, 0.0)?;
+                        }
+                    }
+                }
+            }
+            Ok(())
+        });
     }
 }
 

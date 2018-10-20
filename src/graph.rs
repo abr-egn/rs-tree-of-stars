@@ -46,6 +46,8 @@ impl Graph {
         self.data.add_edge(link.from, link.to, entity);
         self.route_cache.clear();
     }
+    #[allow(unused)]
+    pub fn nodes<'a>(&'a self) -> impl Iterator<Item=Entity> + 'a { self.data.nodes() }
     pub fn nodes_route<'a>(&'a mut self) -> (impl Iterator<Item=Entity> + 'a, Router<'a>) {
         (self.data.nodes(), Router { data: &self.data, route_cache: &mut self.route_cache })
     }
@@ -132,6 +134,8 @@ impl AreaGraph {
     pub fn graph(&self) -> &Graph { &self.graph }
     #[allow(unused)]
     pub fn range(&self) -> i32 { self.range }
+    #[allow(unused)]
+    pub fn nodes<'a>(&'a self) -> impl Iterator<Item=Entity> + 'a { self.graph.nodes() }
     pub fn nodes_route<'a>(&'a mut self) -> (impl Iterator<Item=Entity> + 'a, Router<'a>) {
         self.graph.nodes_route()
     }
