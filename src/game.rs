@@ -183,9 +183,24 @@ impl Mode for NodeSelected {
     fn on_pop(&mut self, world: &mut World) {
         world.write_storage::<Selected>().remove(self.0);
     }
-    fn on_top_event(&mut self, _: &mut World, _: &mut Context, event: Event) -> TopAction {
+    fn on_show(&mut self, world: &mut World) {
+        world.write_resource::<MouseWidget>().kind = MWKind::Highlight;
+    }
+    fn on_hide(&mut self, world: &mut World) {
+        world.write_resource::<MouseWidget>().kind = MWKind::None;
+    }
+    fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {
         match event {
             Event::KeyDown { keycode: Some(Keycode::Escape), .. } => TopAction::Pop,
+            Event::MouseButtonDown { x, y, .. } => {
+                let coord = pixel_to_coord(ctx, x, y);
+                match world.read_resource::<geom::Map>().get(coord) {
+                    Some(ent) if world.read_storage::<graph::Node>().get(ent).is_some() => {
+                        TopAction::Swap(NodeSelected::new(ent))
+                    },
+                    _ => TopAction::Pop,
+                }
+            },
             _ => TopAction::AsEvent,
         }
     }
@@ -295,10 +310,10 @@ impl PlaceLink {
 
 impl Mode for PlaceLink {
     fn name(&self) -> &str { "place link" }
-    fn on_push(&mut self, world: &mut World) {
+    fn on_show(&mut self, world: &mut World) {
         world.write_resource::<MouseWidget>().kind = MWKind::Highlight;
     }
-    fn on_pop(&mut self, world: &mut World) {
+    fn on_hide(&mut self, world: &mut World) {
         world.write_resource::<MouseWidget>().kind = MWKind::None;
     }
     fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {

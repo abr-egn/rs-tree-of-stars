@@ -11,7 +11,6 @@ pub enum TopAction {
     Do(EventAction),
     AsEvent,
     Pop,
-    #[allow(unused)]
     Swap(Box<Mode>),
 }
 
