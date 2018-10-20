@@ -50,6 +50,12 @@ impl Play {
 
 impl Mode for Play {
     fn name(&self) -> &str { "play" }
+    fn on_show(&mut self, world: &mut World) {
+        world.write_resource::<MouseWidget>().kind = MWKind::Highlight;
+    }
+    fn on_hide(&mut self, world: &mut World) {
+        world.write_resource::<MouseWidget>().kind = MWKind::None;
+    }
     fn on_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> EventAction {
         match event {
             Event::MouseMotion { x, y, .. } => {
@@ -64,12 +70,14 @@ impl Mode for Play {
         }
         EventAction::Done
     }
-    fn on_top_event(&mut self, _: &mut World, _: &mut Context, event: Event) -> TopAction {
+    fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {
         match event {
-            Event::KeyDown { keycode: Some(kc), .. } => {
-                match kc {
-                    Keycode::N => TopAction::push(PlaceNode::new()),
-                    Keycode::S => TopAction::push(Select::new()),
+            Event::MouseButtonDown { x, y, .. } => {
+                let coord = pixel_to_coord(ctx, x, y);
+                match world.read_resource::<geom::Map>().get(coord) {
+                    Some(ent) if world.read_storage::<graph::Node>().get(ent).is_some() => {
+                        TopAction::push(NodeSelected::new(ent))
+                    },
                     _ => TopAction::AsEvent,
                 }
             },
@@ -81,45 +89,12 @@ impl Mode for Play {
         EventAction::Done
     }
     fn on_top_ui(&mut self, world: &mut World, ui: &Ui) -> TopAction {
-        let mut action = TopAction::done();
+        let action = TopAction::done();
         if let Some(ea) = self.window(world, ui, |_| {
-            if ui.small_button(im_str!("Select Node")) {
-                action = TopAction::push(Select::new());
-            }
+            // TODO: ???
         }) { return TopAction::Do(ea) }
         action
     }
-}
-
-struct Select;
-
-impl Mode for Select {
-    fn name(&self) -> &str { "select" }
-    fn on_push(&mut self, world: &mut World) {
-        world.write_resource::<MouseWidget>().kind = MWKind::Highlight;
-    }
-    fn on_pop(&mut self, world: &mut World) {
-        world.write_resource::<MouseWidget>().kind = MWKind::None;
-    }
-    fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {
-        match event {
-            Event::MouseButtonDown { x, y, .. } => {
-                let coord = pixel_to_coord(ctx, x, y);
-                match world.read_resource::<geom::Map>().get(coord) {
-                    Some(ent) if world.read_storage::<graph::Node>().get(ent).is_some() => {
-                        TopAction::Swap(NodeSelected::new(ent))
-                    },
-                    _ => TopAction::AsEvent,
-                }
-            },
-            Event::KeyDown { keycode: Some(Keycode::Escape), .. } => TopAction::Pop,
-            _ => TopAction::AsEvent,
-        }
-    }
-}
-
-impl Select {
-    fn new() -> Box<Mode> { Box::new(Select) }
 }
 
 struct PlaceNode;
@@ -210,7 +185,7 @@ impl Mode for NodeSelected {
     }
     fn on_top_event(&mut self, _: &mut World, _: &mut Context, event: Event) -> TopAction {
         match event {
-            Event::KeyDown { keycode: Some(Keycode::Escape), .. } => TopAction::Swap(Select::new()),
+            Event::KeyDown { keycode: Some(Keycode::Escape), .. } => TopAction::Pop,
             _ => TopAction::AsEvent,
         }
     }
@@ -305,7 +280,7 @@ impl Mode for NodeSelected {
             }
             ui.separator();
             if ui.small_button(im_str!("Deselect")) {
-                action = TopAction::Swap(Select::new());
+                action = TopAction::Pop;
             }
         });
         action
