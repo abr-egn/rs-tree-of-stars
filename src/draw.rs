@@ -139,7 +139,7 @@ impl<'a, 'b> System<'a> for DrawCells<'b> {
         let ctx = &mut self.0;
         let screen = graphics::get_screen_coordinates(ctx);
         let scale = (now_f32(ctx) * 3.0).sin() * 0.5 + 0.5;
-        let sel_color = Color::new(scale, 0.0, scale, 1.0);
+        let sel_color = Color::new(scale, scale, 0.0, 1.0);
         or_die(|| {
             for (entity, shape) in (&*entities, &shapes).join() {
                 graphics::set_color(ctx, shape.color)?;
@@ -271,18 +271,35 @@ impl <'a, 'b> System<'a> for DrawSelectedAreas<'b> {
         let color = Color::new(0.0, scale, 0.0, 1.0);
         or_die(|| {
             for (entity, node, watch, _) in (&*entities, &nodes, &mut watchers, &selected).join() {
+                // Range
                 graphics::set_color(ctx, Color::new(0.0, 1.0, 0.0, 1.0))?;
                 for coord in node.at().ring(watch.range(), Spin::CW(XY)) {
                     let p = coord.to_pixel_point();
                     if !screen.contains(p) { continue }
                     graphics::draw(ctx, &outline.0, p, 0.0)?;
                 }
-                let (node_iter, mut routes) = watch.nodes_route();
-                graphics::set_color(ctx, color)?;
-                for node_ent in node_iter {
-                    if let Some(r) = &mut routes {
-                        if r.route(&links, &nodes, entity, node_ent).is_none() { continue }
+                // Nodes
+                {
+                    let (node_iter, mut routes) = watch.nodes_route();
+                    graphics::set_color(ctx, color)?;
+                    for node_ent in node_iter {
+                        if let Some(r) = &mut routes {
+                            if r.route(&links, &nodes, entity, node_ent).is_none() { continue }
+                        }
+                        if let Some(shape) = shapes.get(node_ent) {
+                            for coord in &shape.coords {
+                                let p = coord.to_pixel_point();
+                                if !screen.contains(p) { continue }
+                                graphics::draw(ctx, &outline.0, p, 0.0)?;
+                            }
+                        }
                     }
+                }
+                // Excludes
+                graphics::set_color(ctx, Color::new(1.0, 0.0, 0.0, 1.0))?;
+                for &node_ent in watch.exclude() {
+                    // Don't draw exclusion for selected node
+                    if node_ent == entity { continue }
                     if let Some(shape) = shapes.get(node_ent) {
                         for coord in &shape.coords {
                             let p = coord.to_pixel_point();

@@ -141,6 +141,7 @@ impl AreaWatch {
         Ok(())
     }
     pub fn range(&self) -> i32 { self.range }
+    pub fn exclude(&self) -> &HashSet<Entity> { &self.exclude }
     pub fn exclude_mut(&mut self) -> &mut HashSet<Entity> { &mut self.exclude }
     pub fn nodes_route<'a>(&'a mut self) -> (Box<Iterator<Item=Entity> + 'a>, Option<Router<'a>>) {
         let ex = &self.exclude;
