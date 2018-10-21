@@ -1,4 +1,8 @@
-use std::time::Duration;
+use std::{
+    cell::Cell,
+    rc::Rc,
+    time::Duration,
+};
 
 use ggez::{
     event::{Event, Keycode},
@@ -27,15 +31,19 @@ pub fn prep_world(world: &mut World) {
     });
 }
 
-pub struct Play;
+pub struct Play {
+    add_active: Rc<Cell<bool>>,
+}
 
 impl Play {
-    pub fn new() -> Box<Mode> { Box::new(Play) }
+    pub fn new() -> Box<Mode> { Box::new(Play { add_active: Rc::new(Cell::new(false)) }) }
     fn window<F: FnOnce(&mut World)>(&self, world: &mut World, ui: &Ui, f: F) -> Option<EventAction> {
         let mut ret = None;
         ui.window(im_str!("Play")).always_auto_resize(true).build(|| {
-            if ui.small_button(im_str!("Add Node")) {
-                ret = Some(EventAction::Push(PlaceNode::new()));
+            if !self.add_active.get() {
+                if ui.small_button(im_str!("Add Node")) {
+                    ret = Some(EventAction::Push(PlaceNode::new(self.add_active.clone())));
+                }
             }
             ui.separator();
             {
@@ -105,19 +113,23 @@ impl Mode for Play {
     }
 }
 
-struct PlaceNode;
+struct PlaceNode {
+    add_active: Rc<Cell<bool>>,
+}
 
 impl PlaceNode {
-    fn new() -> Box<Mode> { Box::new(PlaceNode) }
+    fn new(add_active: Rc<Cell<bool>>) -> Box<Mode> { Box::new(PlaceNode { add_active }) }
 }
 
 impl Mode for PlaceNode {
     fn name(&self) -> &str { "place node" }
     fn on_push(&mut self, world: &mut World) {
         world.write_resource::<MouseWidget>().kind = MWKind::PlaceNode;
+        self.add_active.set(true);
     }
     fn on_pop(&mut self, world: &mut World) {
         world.write_resource::<MouseWidget>().kind = MWKind::None;
+        self.add_active.set(false);
     }
     fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {
         match event {
