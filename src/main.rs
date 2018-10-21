@@ -53,7 +53,7 @@ fn make_world(ctx: &mut Context) -> World {
 
     world.register::<graph::Link>();
     world.register::<graph::Node>();
-    world.register::<graph::AreaGraph>();
+    world.register::<graph::AreaWatch>();
     world.register::<graph::FollowRoute>();
     world.register::<graph::RouteDone>();
 

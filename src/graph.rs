@@ -31,7 +31,6 @@ type GraphData = GraphMap<Entity, Entity, petgraph::Undirected>;
 pub struct Graph {
     data: GraphData,
     route_cache: HashMap<(Entity, Entity), Option<(usize, Route)>>,
-    exclude: HashSet<Entity>,
 }
 
 pub type Route = Vec<(Entity, PathDir)>;
@@ -41,26 +40,15 @@ impl Graph {
         Graph {
             data: GraphMap::new(),
             route_cache: HashMap::new(),
-            exclude: HashSet::new(),
         }
     }
     pub fn add_link(&mut self, link: &Link, entity: Entity) {
         self.data.add_edge(link.from, link.to, entity);
         self.route_cache.clear();
     }
-    #[allow(unused)]
-    pub fn nodes<'a>(&'a self) -> impl Iterator<Item=Entity> + 'a {
-        let ex = &self.exclude;
-        self.data.nodes().filter(move |e| !ex.contains(e))
-    }
     pub fn nodes_route<'a>(&'a mut self) -> (impl Iterator<Item=Entity> + 'a, Router<'a>) {
-        let ex = &self.exclude;
-        (self.data.nodes().filter(move |e| !ex.contains(e)),
-        Router { data: &self.data, route_cache: &mut self.route_cache })
+        (self.data.nodes(), Router { data: &self.data, route_cache: &mut self.route_cache })
     }
-    #[allow(unused)]
-    pub fn exclude(&self) -> &HashSet<Entity> { &self.exclude }
-    pub fn exclude_mut(&mut self) -> &mut HashSet<Entity> { &mut self.exclude }
 }
 
 pub struct Router<'a> {
@@ -120,39 +108,64 @@ fn calc_route(
 }
 
 #[derive(Debug)]
-pub struct AreaGraph {
-    graph: Graph,
+pub struct AreaWatch {
     range: i32,
+    exclude: HashSet<Entity>,
+    kind: WatchKind,
 }
 
-impl AreaGraph {
-    pub fn add(world: &mut World, entity: Entity, range: i32) -> Result<()> {
+#[derive(Debug)]
+enum WatchKind {
+    Graph(Graph),
+    #[allow(unused)]
+    Set(HashSet<Entity>),
+}
+
+impl AreaWatch {
+    pub fn add_graph(world: &mut World, entity: Entity, range: i32) -> Result<()> {
         let at = try_get(&world.read_storage::<Node>(), entity)?.at();
-        let mut ag = AreaGraph { graph: Graph::new(), range };
-        ag.graph.exclude_mut().insert(entity.clone());
+        let mut graph = Graph::new();
         let links = world.read_storage::<Link>();
         for found in world.read_resource::<geom::Map>().in_range(at, range) {
             if let Some(link) = links.get(found) {
-                ag.graph.add_link(link, found);
+                graph.add_link(link, found);
             }
         }
-        world.write_storage().insert(entity, ag)?;
+        let mut exclude = HashSet::new();
+        exclude.insert(entity.clone());
+        world.write_storage().insert(entity, AreaWatch {
+            range, exclude,
+            kind: WatchKind::Graph(graph),
+        })?;
         world.write_resource::<geom::AreaMap>().insert(at, range, entity);
         Ok(())
     }
-
-    #[allow(unused)]
-    pub fn graph(&self) -> &Graph { &self.graph }
     pub fn range(&self) -> i32 { self.range }
-    pub fn nodes_route<'a>(&'a mut self) -> (impl Iterator<Item=Entity> + 'a, Router<'a>) {
-        self.graph.nodes_route()
+    pub fn exclude_mut(&mut self) -> &mut HashSet<Entity> { &mut self.exclude }
+    pub fn nodes_route<'a>(&'a mut self) -> (Box<Iterator<Item=Entity> + 'a>, Option<Router<'a>>) {
+        let ex = &self.exclude;
+        match &mut self.kind {
+            WatchKind::Graph(graph) => {
+                let (iter, router) = graph.nodes_route();
+                (Box::new(iter.filter(move |e| !ex.contains(e))), Some(router))
+            },
+            WatchKind::Set(set) => (
+                Box::new(set.iter().filter(move |e| !ex.contains(e)).cloned()),
+                None
+            ),
+        }
     }
-    pub fn exclude_mut(&mut self) -> &mut HashSet<Entity> { self.graph.exclude_mut() }
 }
 
+impl Component for AreaWatch {
+    type Storage = DenseVecStorage<Self>;
+}
+
+/*
 impl Component for AreaGraph {
     type Storage = DenseVecStorage<Self>;
 }
+*/
 
 #[derive(Debug, Copy, Clone)]
 pub enum PathDir {
@@ -381,6 +394,16 @@ pub fn make_node(world: &mut World, center: Coordinate) -> Entity {
         &mut world.write_storage::<geom::Space>(), ent,
         geom::Space::new(node_space(center)),
     ));
+    let mut watchers = world.write_storage::<AreaWatch>();
+    let map = world.read_resource::<geom::AreaMap>();
+    for e in map.find(center) {
+        if let Some(watch) = watchers.get_mut(e) {
+            match &mut watch.kind {
+                WatchKind::Set(set) => { set.insert(ent.clone()); },
+                _ => (),
+            }
+        }
+    }
     ent
 }
 
@@ -439,10 +462,13 @@ pub fn make_link(world: &mut World, from: Entity, to: Entity) -> Entity {
     let areas = world.read_resource::<geom::AreaMap>();
     let found_from: HashSet<Entity> = areas.find(ls.from).collect();
     let found_to: HashSet<Entity> = areas.find(ls.to).collect();
-    let mut ags = world.write_storage::<AreaGraph>();
+    let mut watchers = world.write_storage::<AreaWatch>();
     for &e in found_from.intersection(&found_to) {
-        if let Some(ag) = ags.get_mut(e) {
-            ag.graph.add_link(&link, ent);
+        if let Some(watch) = watchers.get_mut(e) {
+            match &mut watch.kind {
+                WatchKind::Graph(graph) => graph.add_link(&link, ent),
+                _ => (),
+            }
         }
     }
     ent
