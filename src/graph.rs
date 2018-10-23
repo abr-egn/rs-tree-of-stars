@@ -130,7 +130,7 @@ impl<T> AreaBuilder<T> {
         world.write_storage().insert(self.entity, AreaWatch {
             range: self.range, exclude, data: self.data,
         })?;
-        world.write_resource::<geom::AreaMap>().insert(self.at, self.range, self.entity);
+        world.write_resource::<geom::AreaMap>().insert::<AreaWatch<T>>(self.at, self.range, self.entity);
         Ok(())
     }
 }

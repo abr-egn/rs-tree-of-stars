@@ -1,4 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    any::TypeId,
+    collections::{HashMap, HashSet},
+};
 
 use ggez::{
     nalgebra,
@@ -174,14 +177,15 @@ struct Area {
     radius: i32,
     bounds: BoundingRect<SC>,
     entity: Entity,
+    typ: TypeId,
 }
 
 impl Area {
-    fn new(center: Coordinate, radius: i32, entity: Entity) -> Self {
+    fn new(center: Coordinate, radius: i32, entity: Entity, typ: TypeId) -> Self {
         let lower = Coordinate { x: center.x - radius, y: center.y - radius };
         let upper = Coordinate { x: center.x + radius, y: center.y + radius };
         let bounds = BoundingRect::from_corners(&SC(lower), &SC(upper));
-        Area { center, radius, bounds, entity }
+        Area { center, radius, bounds, entity, typ }
     }
 }
 
@@ -200,12 +204,16 @@ pub struct AreaMap(RTree<Area>);
 
 impl AreaMap {
     pub fn new() -> Self { AreaMap(RTree::new()) }
-    pub fn insert(&mut self, center: Coordinate, radius: i32, entity: Entity) {
-        self.0.insert(Area::new(center, radius, entity))
+    pub fn insert<T>(&mut self, center: Coordinate, radius: i32, entity: Entity)
+        where T: 'static + ?Sized
+    {
+        self.0.insert(Area::new(center, radius, entity, TypeId::of::<T>()))
     }
     #[allow(unused)]
-    pub fn remove(&mut self, center: Coordinate, radius: i32, entity: Entity) -> bool {
-        self.0.remove(&Area::new(center, radius, entity))
+    pub fn remove<T>(&mut self, center: Coordinate, radius: i32, entity: Entity) -> bool
+        where T: 'static + ?Sized
+    {
+        self.0.remove(&Area::new(center, radius, entity, TypeId::of::<T>()))
     }
     #[allow(unused)]
     pub fn find<'a>(&'a self, at: Coordinate) -> impl Iterator<Item=Entity> + 'a {
