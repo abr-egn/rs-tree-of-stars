@@ -175,11 +175,9 @@ impl Component for AreaGraph {
     type Storage = DenseVecStorage<Self>;
 }
 
-#[allow(unused)]
 pub type AreaSet = AreaWatch<HashSet<Entity>>;
 
 impl AreaSet {
-    #[allow(unused)]
     pub fn add(world: &mut World, entity: Entity, range: i32) -> Result<()> {
         {
             let nodes = world.read_storage::<Node>();
@@ -188,6 +186,7 @@ impl AreaSet {
             })
         }?.insert(world)
     }
+    pub fn nodes<'a>(&'a self) -> impl Iterator<Item=Entity> + 'a { self.data.iter().cloned() }
 }
 
 impl Component for AreaSet {

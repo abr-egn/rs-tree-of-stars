@@ -564,11 +564,56 @@ impl<'a> System<'a> for DoBurn {
     }
 }
 
-/*
 #[derive(Debug)]
 pub struct Generator {
     input: Pool,
     output: Pool,
+    power: i32,
+    rate: i32,
     buffer: i32,
 }
-*/
+
+impl Generator {
+    #[allow(unused)]
+    pub fn add(
+        world: &mut World, entity: Entity,
+        input: Pool, output: Pool, power: i32, rate: i32,
+        source_range: i32, power_range: i32,
+    ) {
+        Source::add(world, entity, Pool::new(), source_range);
+        or_die(|| {
+            world.write_storage().insert(entity, Sink::new())?;
+            world.write_storage().insert(entity, Generator { input, output, power, rate, buffer: 0 })?;
+            graph::AreaSet::add(world, entity, power_range)?;
+            Ok(())
+        });
+    }
+}
+
+impl Component for Generator {
+    type Storage = BTreeStorage<Self>;
+}
+
+#[derive(Debug)]
+pub struct Generate;
+
+#[derive(SystemData)]
+pub struct GenerateData<'a> {
+    generators: WriteStorage<'a, Generator>,
+    sinks: WriteStorage<'a, Sink>,
+}
+
+impl<'a> System<'a> for Generate {
+    type SystemData = GenerateData<'a>;
+
+    fn run(&mut self, mut data: Self::SystemData) {
+        for (generator, mut sink) in (&data.generators, &mut data.sinks).join() {
+            // Ensure sink pull.
+            for (res, count) in generator.input.iter() {
+                if sink.want.get(res) < count {
+                    sink.want.set(res, count);
+                }
+            }
+        }
+    }
+}
