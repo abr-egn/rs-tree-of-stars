@@ -307,7 +307,7 @@ impl Mode for NodeSelected {
                     action = TopAction::done()
                 }
             }
-            if world.read_storage::<graph::AreaWatch>().get(self.0).is_some() {
+            if world.read_storage::<graph::AreaGraph>().get(self.0).is_some() {
                 if ui.small_button(im_str!("Toggle Exclude")) {
                     action = TopAction::push(ToggleExclude::new(self.0));
                 }
@@ -388,8 +388,8 @@ impl Mode for ToggleExclude {
                 if world.read_storage::<graph::Node>().get(found).is_none() {
                     return TopAction::AsEvent;
                 }
-                let mut watchers = world.write_storage::<graph::AreaWatch>();
-                let exclude = &mut or_die(|| try_get_mut(&mut watchers, self.0)).exclude_mut();
+                let mut graphs = world.write_storage::<graph::AreaGraph>();
+                let exclude = &mut or_die(|| try_get_mut(&mut graphs, self.0)).exclude_mut();
                 if !exclude.remove(&found) { exclude.insert(found); }
                 TopAction::Pop
             },

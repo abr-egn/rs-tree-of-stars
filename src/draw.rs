@@ -257,35 +257,33 @@ impl <'a, 'b> System<'a> for DrawSelectedAreas<'b> {
     type SystemData = (
         Entities<'a>,
         ReadExpect<'a, OutlineSprite>,
-        WriteStorage<'a, graph::AreaWatch>,
+        WriteStorage<'a, graph::AreaGraph>,
         ReadStorage<'a, graph::Link>,
         ReadStorage<'a, graph::Node>,
         ReadStorage<'a, game::Selected>,
         ReadStorage<'a, Shape>,
     );
 
-    fn run(&mut self, (entities, outline, mut watchers, links, nodes, selected, shapes): Self::SystemData) {
+    fn run(&mut self, (entities, outline, mut graphs, links, nodes, selected, shapes): Self::SystemData) {
         let ctx = &mut self.0;
         let screen = graphics::get_screen_coordinates(ctx);
         let scale = (now_f32(ctx) * 3.0).sin() * 0.5 + 0.5;
         let color = Color::new(0.0, scale, 0.0, 1.0);
         or_die(|| {
-            for (entity, node, watch, _) in (&*entities, &nodes, &mut watchers, &selected).join() {
+            for (entity, node, ag, _) in (&*entities, &nodes, &mut graphs, &selected).join() {
                 // Range
                 graphics::set_color(ctx, Color::new(0.0, 1.0, 0.0, 1.0))?;
-                for coord in node.at().ring(watch.range(), Spin::CW(XY)) {
+                for coord in node.at().ring(ag.range(), Spin::CW(XY)) {
                     let p = coord.to_pixel_point();
                     if !screen.contains(p) { continue }
                     graphics::draw(ctx, &outline.0, p, 0.0)?;
                 }
                 // Nodes
                 {
-                    let (node_iter, mut routes) = watch.nodes_route();
+                    let (node_iter, mut routes) = ag.nodes_route();
                     graphics::set_color(ctx, color)?;
                     for node_ent in node_iter {
-                        if let Some(r) = &mut routes {
-                            if r.route(&links, &nodes, entity, node_ent).is_none() { continue }
-                        }
+                        if routes.route(&links, &nodes, entity, node_ent).is_none() { continue }
                         if let Some(shape) = shapes.get(node_ent) {
                             for coord in &shape.coords {
                                 let p = coord.to_pixel_point();
@@ -297,7 +295,7 @@ impl <'a, 'b> System<'a> for DrawSelectedAreas<'b> {
                 }
                 // Excludes
                 graphics::set_color(ctx, Color::new(1.0, 0.0, 0.0, 1.0))?;
-                for &node_ent in watch.exclude() {
+                for &node_ent in ag.exclude() {
                     // Don't draw exclusion for selected node
                     if node_ent == entity { continue }
                     if let Some(shape) = shapes.get(node_ent) {

@@ -137,7 +137,7 @@ pub struct Source {
 impl Source {
     pub fn add(world: &mut World, entity: Entity, has: Pool, range: i32) {
         or_die(|| {
-            graph::AreaWatch::add_graph(world, entity, range)?;
+            graph::AreaGraph::add(world, entity, range)?;
             world.write_storage().insert(entity, Source { has, last_send: HashMap::new() })?;
             Ok(())
         });
@@ -197,7 +197,7 @@ pub struct PullData<'a> {
     now: ReadExpect<'a, super::Now>,
     nodes: ReadStorage<'a, graph::Node>,
     links: ReadStorage<'a, graph::Link>,
-    watchers: WriteStorage<'a, graph::AreaWatch>,
+    graphs: WriteStorage<'a, graph::AreaGraph>,
     sources: WriteStorage<'a, Source>,
     sinks: WriteStorage<'a, Sink>,
     lazy: Read<'a, LazyUpdate>,
@@ -220,17 +220,10 @@ fn pull_worker(
     sender: &mut Sender<(Entity, Candidate)>,
     source_ent: Entity,
     source: &mut Source,
-    watch: &mut graph::AreaWatch,
+    ag: &mut graph::AreaGraph,
 ) {
     let mut candidates: Vec<(Entity, Candidate)> = vec![];
-    /*
-    let (nodes_iter, mut router) = if let Some(p) = watch.nodes_route() { p }
-    else { return };
-    */
-    let (nodes_iter, mut router) = match watch.nodes_route() {
-        (i, Some(r)) => (i, r),
-        _ => return,
-    };
+    let (nodes_iter, mut router) = ag.nodes_route();
     for sink_ent in nodes_iter {
         let sink = if let Some(s) = sinks.get(sink_ent) { s } else { continue };
         let mut want = false;
@@ -283,9 +276,9 @@ impl<'a> System<'a> for Pull {
             let nodes = &data.nodes;
             let now = &data.now;
             let (sender, receiver) = channel::<(Entity, Candidate)>();
-            (&*data.entities, &mut data.sources, &mut data.watchers).par_join().for_each_with(sender,
-                |sender, (source_ent, source, watch)| {
-                pull_worker(sinks, links, nodes, now, sender, source_ent, source, watch)
+            (&*data.entities, &mut data.sources, &mut data.graphs).par_join().for_each_with(sender,
+                |sender, (source_ent, source, ag)| {
+                pull_worker(sinks, links, nodes, now, sender, source_ent, source, ag)
             });
             let mut sink_candidates = HashMap::<Entity, Vec<Candidate>>::new();
             for (sink_ent, candidate) in receiver {
@@ -570,3 +563,12 @@ impl<'a> System<'a> for DoBurn {
         }
     }
 }
+
+/*
+#[derive(Debug)]
+pub struct Generator {
+    input: Pool,
+    output: Pool,
+    buffer: i32,
+}
+*/
