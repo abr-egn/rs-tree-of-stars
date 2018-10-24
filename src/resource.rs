@@ -421,21 +421,8 @@ impl<'a> System<'a> for Reaction {
             if produce {
                 reactor.in_progress = None;
                 for (res, count) in reactor.output.iter() {
-                    // TODO: indicator for waste
                     if let Some(waste) = source.has.inc_by(res, count) {
-                        let at = node.at();
-                        lazy.exec_mut(move |world| {
-                            let mut rng = rand::thread_rng();
-                            let targets = at.ring(5, hex2d::Spin::CW(hex2d::Direction::XY));
-                            for _ in 0..waste {
-                                let target = targets[rng.gen_range::<usize>(0, targets.len())];
-                                world.create_entity()
-                                    .with(Packet { resource: res })
-                                    .with(geom::Motion::new(at, target, PACKET_SPEED))
-                                    .with(Waste)
-                                    .build();
-                            }
-                        });
+                        spawn_waste(&lazy, node.at(), res, waste);
                     }
                 }
             }
@@ -453,6 +440,21 @@ impl<'a> System<'a> for Reaction {
             reactor.in_progress = Some(Duration::new(0, 0));
         }
     }
+}
+
+fn spawn_waste(lazy: &LazyUpdate, center: ::hex2d::Coordinate, res: Resource, count: usize) {
+    lazy.exec_mut(move |world| {
+        let mut rng = rand::thread_rng();
+        let targets = center.ring(5, hex2d::Spin::CW(hex2d::Direction::XY));
+        for _ in 0..count {
+            let target = targets[rng.gen_range::<usize>(0, targets.len())];
+            world.create_entity()
+                .with(Packet { resource: res })
+                .with(geom::Motion::new(center, target, PACKET_SPEED))
+                .with(Waste)
+                .build();
+        }
+    });
 }
 
 #[derive(Debug)]
@@ -599,20 +601,38 @@ pub struct Generate;
 
 #[derive(SystemData)]
 pub struct GenerateData<'a> {
+    nodes: ReadStorage<'a, graph::Node>,
     generators: WriteStorage<'a, Generator>,
+    sources: WriteStorage<'a, Source>,
     sinks: WriteStorage<'a, Sink>,
+    lazy: Read<'a, LazyUpdate>,
 }
 
 impl<'a> System<'a> for Generate {
     type SystemData = GenerateData<'a>;
 
     fn run(&mut self, mut data: Self::SystemData) {
-        for (generator, mut sink) in (&data.generators, &mut data.sinks).join() {
-            // Ensure sink pull.
+        for (node, mut generator, mut source, mut sink) in (&data.nodes, &mut data.generators, &mut data.sources, &mut data.sinks).join() {
+            // Check input.
+            let mut has_input = false;
             for (res, count) in generator.input.iter() {
+                // Ensure sink pull.
                 if sink.want.get(res) < count {
                     sink.want.set(res, count);
                 }
+                if sink.has.get(res) < count { has_input = false }
+            }
+            // Check for buffer refresh.
+            if generator.buffer <= 0 && has_input {
+                for (res, count) in generator.input.iter() {
+                    sink.has.dec_by(res, count).unwrap();
+                }
+                for (res, count) in generator.output.iter() {
+                    if let Some(waste) = source.has.inc_by(res, count) {
+                        spawn_waste(&data.lazy, node.at(), res, waste);
+                    }
+                }
+                generator.buffer += generator.power;
             }
         }
     }

@@ -186,6 +186,7 @@ impl AreaSet {
             })
         }?.insert(world)
     }
+    #[allow(unused)]
     pub fn nodes<'a>(&'a self) -> impl Iterator<Item=Entity> + 'a { self.data.iter().cloned() }
 }
 
