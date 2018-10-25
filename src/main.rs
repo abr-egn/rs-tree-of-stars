@@ -50,11 +50,11 @@ fn make_world(ctx: &mut Context) -> World {
     world.register::<geom::Motion>();
     world.register::<geom::MotionDone>();
     world.register::<geom::Space>();
+    world.register::<geom::AreaSet>();
 
     world.register::<graph::Link>();
     world.register::<graph::Node>();
     world.register::<graph::AreaGraph>();
-    world.register::<graph::AreaSet>();
     world.register::<graph::FollowRoute>();
     world.register::<graph::RouteDone>();
 
@@ -66,7 +66,6 @@ fn make_world(ctx: &mut Context) -> World {
     world.register::<resource::Storage>();
     world.register::<resource::Burn>();
     world.register::<resource::Waste>();
-    world.register::<resource::Generator>();
 
     world.register::<draw::Shape>();
 
@@ -90,11 +89,11 @@ fn make_update() -> Dispatcher<'static, 'static> {
     const PULL: &str = "pull";
     const RECEIVE: &str = "receive";
     const REACTION: &str = "reaction";
+    const POWER: &str = "power";
     const STORAGE: &str = "storage";
     const BURN: &str = "burn";
     const GROW_TEST: &str = "grow_test";
     const CLEAR_WASTE: &str = "clear_waste";
-    const GENERATE: &str = "generate";
 
     DispatcherBuilder::new()
         .with(geom::Travel, TRAVEL, &[])
@@ -102,8 +101,8 @@ fn make_update() -> Dispatcher<'static, 'static> {
         .with(resource::DoStorage, STORAGE, &[])
         .with(resource::Pull, PULL, &[STORAGE])
         .with(resource::Receive, RECEIVE, &[PULL])
-        .with(resource::Generate, GENERATE, &[RECEIVE])
-        .with(resource::Reaction, REACTION, &[GENERATE])
+        .with(resource::RunReactors, REACTION, &[])
+        .with(resource::DistributePower, POWER, &[])
         .with(resource::DoBurn, BURN, &[])
         .with(resource::ClearWaste, CLEAR_WASTE, &[])
         .with(game::RunGrowTest, GROW_TEST, &[])
@@ -178,6 +177,14 @@ fn main() -> Result<()> {
 
         ui_frame.render(&mut ctx);
         graphics::present(&mut ctx);
+
+        /*
+        let mut count: usize = 0;
+        for _ in (&world.read_storage::<graph::Node>()).join() {
+            count += 1;
+        }
+        println!("Nodes: {}", count);
+        */
 
         timer::yield_now();
     }

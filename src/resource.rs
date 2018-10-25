@@ -363,13 +363,20 @@ impl<'a> System<'a> for Receive {
 pub struct Reactor {
     input: Pool,
     delay: Duration,
+    tick_energy: f64,
     output: Pool,
-    in_progress: Option<Duration>,
+    reaction: Option<Reaction>,
+}
+
+#[derive(Debug)]
+struct Reaction {
+    progress: Duration,
+    energy: f64,
 }
 
 impl Reactor {
     pub fn progress(&self) -> Option<f32> {
-        let prog = if let Some(p) = self.in_progress { p } else { return None };
+        let prog = if let Some(r) = &self.reaction { r.progress } else { return None };
         Some(duration_f32(prog) / duration_f32(self.delay))
     }
 }
@@ -377,7 +384,19 @@ impl Reactor {
 impl Reactor {
     #[allow(unused)]
     pub fn new(input: Pool, delay: Duration, output: Pool) -> Self {
-        Reactor { input, delay, output, in_progress: None }
+        Reactor { input, delay, tick_energy: 0.0, output, reaction: None }
+    }
+
+    fn tick(&mut self) -> bool {
+        let r = if let Some(r) = self.reaction.as_mut() { r } else { return false };
+        if r.energy + self.tick_energy < 0.0 { return false }
+        r.energy += self.tick_energy;
+        if self.tick_energy > 0.0 && r.energy > self.tick_energy {
+            // TODO: indicate energy waste
+            r.energy = self.tick_energy
+        }
+        r.progress += super::UPDATE_DURATION;
+        r.progress >= self.delay
     }
 }
 
@@ -393,9 +412,9 @@ impl Component for Waste {
 }
 
 #[derive(Debug)]
-pub struct Reaction;
+pub struct RunReactors;
 
-impl<'a> System<'a> for Reaction {
+impl<'a> System<'a> for RunReactors {
     type SystemData = (
         ReadStorage<'a, graph::Node>,
         WriteStorage<'a, Reactor>,
@@ -414,12 +433,9 @@ impl<'a> System<'a> for Reaction {
             }
 
             // Check in progress production.
-            let produce = if let Some(dur) = reactor.in_progress.as_mut() {
-                *dur += super::UPDATE_DURATION;
-                *dur >= reactor.delay
-            } else { false };
+            let produce = reactor.tick();
             if produce {
-                reactor.in_progress = None;
+                reactor.reaction = None;
                 for (res, count) in reactor.output.iter() {
                     if let Some(waste) = source.has.inc_by(res, count) {
                         spawn_waste(&lazy, node.at(), res, waste);
@@ -428,7 +444,7 @@ impl<'a> System<'a> for Reaction {
             }
 
             // If nothing's in progress (or has just finished), start.
-            if reactor.in_progress.is_some() { continue }
+            if reactor.reaction.is_some() { continue }
             let has_input = reactor.input.iter().all(|(r, c)| sink.has.get(r) >= c);
             if !has_input { continue }
             let needs_output = reactor.output.iter().any(|(r, c)| source.has.get(r) < c);
@@ -437,7 +453,7 @@ impl<'a> System<'a> for Reaction {
                 if count == 0 { continue }
                 sink.has.dec_by(res, count).unwrap();
             }
-            reactor.in_progress = Some(Duration::new(0, 0));
+            reactor.reaction = Some(Reaction { progress: Duration::new(0, 0), energy: 0.0 });
         }
     }
 }
@@ -567,73 +583,17 @@ impl<'a> System<'a> for DoBurn {
 }
 
 #[derive(Debug)]
-pub struct Generator {
-    input: Pool,
-    output: Pool,
-    power: i32,
-    rate: i32,
-    buffer: i32,
-}
-
-impl Generator {
-    #[allow(unused)]
-    pub fn add(
-        world: &mut World, entity: Entity,
-        input: Pool, output: Pool, power: i32, rate: i32,
-        source_range: i32, power_range: i32,
-    ) {
-        Source::add(world, entity, Pool::new(), source_range);
-        or_die(|| {
-            world.write_storage().insert(entity, Sink::new())?;
-            world.write_storage().insert(entity, Generator { input, output, power, rate, buffer: 0 })?;
-            graph::AreaSet::add(world, entity, power_range)?;
-            Ok(())
-        });
-    }
-}
-
-impl Component for Generator {
-    type Storage = BTreeStorage<Self>;
-}
-
-#[derive(Debug)]
-pub struct Generate;
+pub struct DistributePower;
 
 #[derive(SystemData)]
-pub struct GenerateData<'a> {
-    nodes: ReadStorage<'a, graph::Node>,
-    generators: WriteStorage<'a, Generator>,
-    sources: WriteStorage<'a, Source>,
-    sinks: WriteStorage<'a, Sink>,
-    lazy: Read<'a, LazyUpdate>,
+pub struct DistributePowerData<'a> {
+    reactors: ReadStorage<'a, Reactor>,
 }
 
-impl<'a> System<'a> for Generate {
-    type SystemData = GenerateData<'a>;
+impl<'a> System<'a> for DistributePower {
+    type SystemData = DistributePowerData<'a>;
 
     fn run(&mut self, mut data: Self::SystemData) {
-        for (node, mut generator, mut source, mut sink) in (&data.nodes, &mut data.generators, &mut data.sources, &mut data.sinks).join() {
-            // Check input.
-            let mut has_input = false;
-            for (res, count) in generator.input.iter() {
-                // Ensure sink pull.
-                if sink.want.get(res) < count {
-                    sink.want.set(res, count);
-                }
-                if sink.has.get(res) < count { has_input = false }
-            }
-            // Check for buffer refresh.
-            if generator.buffer <= 0 && has_input {
-                for (res, count) in generator.input.iter() {
-                    sink.has.dec_by(res, count).unwrap();
-                }
-                for (res, count) in generator.output.iter() {
-                    if let Some(waste) = source.has.inc_by(res, count) {
-                        spawn_waste(&data.lazy, node.at(), res, waste);
-                    }
-                }
-                generator.buffer += generator.power;
-            }
-        }
+        
     }
 }

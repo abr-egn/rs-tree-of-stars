@@ -107,51 +107,7 @@ fn calc_route(
     })
 }
 
-#[derive(Debug)]
-pub struct AreaWatch<T> {
-    range: i32,
-    exclude: HashSet<Entity>,
-    data: T,
-}
-
-struct AreaBuilder<T> {
-    entity: Entity,
-    range: i32,
-    at: Coordinate,
-    data: T,
-}
-
-impl<T> AreaBuilder<T> {
-    fn insert(self: Self, world: &mut World) -> Result<()>
-        where AreaWatch<T>: Component
-    {
-        let mut exclude = HashSet::new();
-        exclude.insert(self.entity.clone());
-        world.write_storage().insert(self.entity, AreaWatch {
-            range: self.range, exclude, data: self.data,
-        })?;
-        world.write_resource::<geom::AreaMap>().insert::<AreaWatch<T>>(self.at, self.range, self.entity);
-        Ok(())
-    }
-}
-
-impl<T> AreaWatch<T> {
-    pub fn range(&self) -> i32 { self.range }
-    pub fn exclude(&self) -> &HashSet<Entity> { &self.exclude }
-    pub fn exclude_mut(&mut self) -> &mut HashSet<Entity> { &mut self.exclude }
-
-    fn build<F: FnMut(&mut T, Entity)>(
-        world: &World, entity: Entity, range: i32, mut data: T, mut f: F,
-    ) -> Result<AreaBuilder<T>> {
-        let at = try_get(&world.read_storage::<Node>(), entity)?.at();
-        for found in world.read_resource::<geom::Map>().in_range(at, range) {
-            f(&mut data, found);
-        }
-        Ok(AreaBuilder { entity, range, at, data })
-    }
-}
-
-pub type AreaGraph = AreaWatch<Graph>;
+pub type AreaGraph = geom::AreaWatch<Graph>;
 
 impl AreaGraph {
     pub fn add(world: &mut World, entity: Entity, range: i32) -> Result<()> {
@@ -173,25 +129,6 @@ impl AreaGraph {
 
 impl Component for AreaGraph {
     type Storage = DenseVecStorage<Self>;
-}
-
-pub type AreaSet = AreaWatch<HashSet<Entity>>;
-
-impl AreaSet {
-    pub fn add(world: &mut World, entity: Entity, range: i32) -> Result<()> {
-        {
-            let nodes = world.read_storage::<Node>();
-            Self::build(world, entity, range, HashSet::new(), |set, found| {
-                if nodes.get(found).is_some() { set.insert(found); }
-            })
-        }?.insert(world)
-    }
-    #[allow(unused)]
-    pub fn nodes<'a>(&'a self) -> impl Iterator<Item=Entity> + 'a { self.data.iter().cloned() }
-}
-
-impl Component for AreaSet {
-    type Storage = BTreeStorage<Self>;
 }
 
 #[derive(Debug, Copy, Clone)]

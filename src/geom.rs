@@ -20,6 +20,7 @@ use specs::{
 };
 
 use draw;
+use graph;
 use error::{Result, or_die};
 use util::*;
 
@@ -226,4 +227,67 @@ impl AreaMap {
                 Some(area.entity)
             })
     }
+}
+
+#[derive(Debug)]
+pub struct AreaWatch<T> {
+    range: i32,
+    pub exclude: HashSet<Entity>,
+    pub data: T,
+}
+
+pub struct AreaBuilder<T> {
+    entity: Entity,
+    range: i32,
+    at: Coordinate,
+    data: T,
+}
+
+impl<T> AreaBuilder<T> {
+    pub fn insert(self: Self, world: &mut World) -> Result<()>
+        where AreaWatch<T>: Component
+    {
+        let mut exclude = HashSet::new();
+        exclude.insert(self.entity.clone());
+        world.write_storage().insert(self.entity, AreaWatch {
+            range: self.range, exclude, data: self.data,
+        })?;
+        world.write_resource::<AreaMap>().insert::<AreaWatch<T>>(self.at, self.range, self.entity);
+        Ok(())
+    }
+}
+
+impl<T> AreaWatch<T> {
+    pub fn range(&self) -> i32 { self.range }
+    pub fn exclude(&self) -> &HashSet<Entity> { &self.exclude }
+    pub fn exclude_mut(&mut self) -> &mut HashSet<Entity> { &mut self.exclude }
+
+    pub fn build<F: FnMut(&mut T, Entity)>(
+        world: &World, entity: Entity, range: i32, mut data: T, mut f: F,
+    ) -> Result<AreaBuilder<T>> {
+        let at = try_get(&world.read_storage::<graph::Node>(), entity)?.at();
+        for found in world.read_resource::<Map>().in_range(at, range) {
+            f(&mut data, found);
+        }
+        Ok(AreaBuilder { entity, range, at, data })
+    }
+}
+
+pub type AreaSet = AreaWatch<HashSet<Entity>>;
+
+impl AreaSet {
+    pub fn add(world: &mut World, entity: Entity, range: i32) -> Result<()> {
+        {
+            let nodes = world.read_storage::<graph::Node>();
+            Self::build(world, entity, range, HashSet::new(), |set, found| {
+                if nodes.get(found).is_some() { set.insert(found); }
+            })
+        }?.insert(world)
+    }
+    #[allow(unused)]
+    pub fn nodes<'a>(&'a self) -> impl Iterator<Item=Entity> + 'a { self.data.iter().cloned() }
+}
+
+impl Component for AreaSet {
+    type Storage = BTreeStorage<Self>;
 }
