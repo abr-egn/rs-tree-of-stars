@@ -66,6 +66,7 @@ fn make_world(ctx: &mut Context) -> World {
     world.register::<resource::Storage>();
     world.register::<resource::Burn>();
     world.register::<resource::Waste>();
+    world.register::<resource::Pylon>();
 
     world.register::<draw::Shape>();
 

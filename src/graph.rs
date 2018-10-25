@@ -358,18 +358,14 @@ pub fn make_node(world: &mut World, center: Coordinate) -> Entity {
         &mut world.write_storage::<geom::Space>(), ent,
         geom::Space::new(node_space(center)),
     ));
-    /* TODO: add to AreaSet
-    let mut graphs = world.write_storage::<AreaGraph>();
+    let mut areas = world.write_storage::<geom::AreaSet>();
     let map = world.read_resource::<geom::AreaMap>();
     for e in map.find(center) {
-        if let Some(graph) = graphs.get_mut(e) {
-            match &mut watch.kind {
-                WatchKind::Set(set) => { set.insert(ent.clone()); },
-                _ => (),
-            }
+        if let Some(area) = areas.get_mut(e) {
+            area.data.insert(ent.clone());
         }
     }
-    */
+
     ent
 }
 

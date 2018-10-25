@@ -276,6 +276,7 @@ impl<T> AreaWatch<T> {
 pub type AreaSet = AreaWatch<HashSet<Entity>>;
 
 impl AreaSet {
+    #[allow(unused)]
     pub fn add(world: &mut World, entity: Entity, range: i32) -> Result<()> {
         {
             let nodes = world.read_storage::<graph::Node>();

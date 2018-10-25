@@ -582,18 +582,48 @@ impl<'a> System<'a> for DoBurn {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct Pylon;
+
+impl Component for Pylon {
+    type Storage = NullStorage<Self>;
+}
+
 #[derive(Debug)]
 pub struct DistributePower;
 
 #[derive(SystemData)]
 pub struct DistributePowerData<'a> {
-    reactors: ReadStorage<'a, Reactor>,
+    reactors: WriteStorage<'a, Reactor>,
+    areas: ReadStorage<'a, geom::AreaSet>,
+    pylons: ReadStorage<'a, Pylon>,
 }
 
 impl<'a> System<'a> for DistributePower {
     type SystemData = DistributePowerData<'a>;
 
     fn run(&mut self, mut data: Self::SystemData) {
-        
+        // power sink -> [(source, power, surplus)]
+        let mut available: HashMap<Entity, Vec<(Entity, f64, f64)>> = HashMap::new();
+        for (area, _) in (&data.areas, &data.pylons).join() {
+            let mut supply = 0.0;
+            let mut demand = 0.0;
+            for entity in area.nodes() {
+                if let Some(reactor) = data.reactors.get(entity) {
+                    if let Some(reaction) = &reactor.reaction {
+                        if reactor.tick_energy > 0.0 {
+                            supply += reaction.energy;
+                        } else {
+                            demand += reaction.energy + reactor.tick_energy;
+                        }
+                    }
+                }
+            }
+            let surplus = supply - demand;
+            /*
+            if reactor.tick_energy < 0.0 { continue }
+            let energy = if let Some(r) = &reactor.reaction { r.energy } else { continue };
+            */
+        }
     }
 }
