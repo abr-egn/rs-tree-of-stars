@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap},
+    collections::{HashMap,HashSet,VecDeque},
     mem::swap,
     sync::mpsc::{channel, Sender},
     time::{Duration, Instant},
@@ -363,40 +363,26 @@ impl<'a> System<'a> for Receive {
 pub struct Reactor {
     input: Pool,
     delay: Duration,
-    tick_energy: f64,
+    tick_power_input: f32,
+    tick_power_output: f32,
     output: Pool,
-    reaction: Option<Reaction>,
-}
-
-#[derive(Debug)]
-struct Reaction {
-    progress: Duration,
-    energy: f64,
+    in_progress: Option<Duration>,
 }
 
 impl Reactor {
     pub fn progress(&self) -> Option<f32> {
-        let prog = if let Some(r) = &self.reaction { r.progress } else { return None };
-        Some(duration_f32(prog) / duration_f32(self.delay))
+        let prog = if let Some(p) = &self.in_progress { p } else { return None };
+        Some(duration_f32(*prog) / duration_f32(self.delay))
     }
 }
 
 impl Reactor {
     #[allow(unused)]
     pub fn new(input: Pool, delay: Duration, output: Pool) -> Self {
-        Reactor { input, delay, tick_energy: 0.0, output, reaction: None }
-    }
-
-    fn tick(&mut self) -> bool {
-        let r = if let Some(r) = self.reaction.as_mut() { r } else { return false };
-        if r.energy + self.tick_energy < 0.0 { return false }
-        r.energy += self.tick_energy;
-        if self.tick_energy > 0.0 && r.energy > self.tick_energy {
-            // TODO: indicate energy waste
-            r.energy = self.tick_energy
+        Reactor {
+            input, delay, output,
+            tick_power_input: 0.0, tick_power_output: 0.0, in_progress: None,
         }
-        r.progress += super::UPDATE_DURATION;
-        r.progress >= self.delay
     }
 }
 
@@ -420,22 +406,34 @@ impl<'a> System<'a> for RunReactors {
         WriteStorage<'a, Reactor>,
         WriteStorage<'a, Source>,
         WriteStorage<'a, Sink>,
+        WriteStorage<'a, Power>,
         Read<'a, LazyUpdate>,
     );
 
-    fn run(&mut self, (nodes, mut reactors, mut sources, mut sinks, lazy): Self::SystemData) {
-        for (node, reactor, source, sink) in (&nodes, &mut reactors, &mut sources, &mut sinks).join() {
+    fn run(&mut self, (nodes, mut reactors, mut sources, mut sinks, mut powers, lazy): Self::SystemData) {
+        for (node, reactor, source, sink, power) in (&nodes, &mut reactors, &mut sources, &mut sinks, &mut powers).join() {
             // Ensure sink pull of reactor need.
             for (res, count) in reactor.input.iter() {
                 if sink.want.get(res) < count {
                     sink.want.set(res, count);
                 }
             }
+            // And power draw.
+            if power.input_need < reactor.tick_power_input {
+                power.input_need = reactor.tick_power_input;
+            }
 
             // Check in progress production.
-            let produce = reactor.tick();
+            let produce = if let Some(prog) = reactor.in_progress.as_mut() {
+                if power.input >= reactor.tick_power_input {
+                    power.input -= reactor.tick_power_input;
+                    power.output = reactor.tick_power_output;
+                    *prog += super::UPDATE_DURATION;
+                }
+                *prog >= reactor.delay
+            } else { false };
             if produce {
-                reactor.reaction = None;
+                reactor.in_progress = None;
                 for (res, count) in reactor.output.iter() {
                     if let Some(waste) = source.has.inc_by(res, count) {
                         spawn_waste(&lazy, node.at(), res, waste);
@@ -444,16 +442,17 @@ impl<'a> System<'a> for RunReactors {
             }
 
             // If nothing's in progress (or has just finished), start.
-            if reactor.reaction.is_some() { continue }
+            if reactor.in_progress.is_some() { continue }
             let has_input = reactor.input.iter().all(|(r, c)| sink.has.get(r) >= c);
             if !has_input { continue }
             let needs_output = reactor.output.iter().any(|(r, c)| source.has.get(r) < c);
             if !needs_output { continue }
+            // TODO: start reaction if there's power demand
             for (res, count) in reactor.input.iter() {
                 if count == 0 { continue }
                 sink.has.dec_by(res, count).unwrap();
             }
-            reactor.reaction = Some(Reaction { progress: Duration::new(0, 0), energy: 0.0 });
+            reactor.in_progress = Some(Duration::new(0, 0));
         }
     }
 }
@@ -582,6 +581,17 @@ impl<'a> System<'a> for DoBurn {
     }
 }
 
+#[derive(Debug)]
+pub struct Power {
+    input: f32,
+    input_need: f32,
+    output: f32,
+}
+
+impl Component for Power {
+    type Storage = BTreeStorage<Self>;
+}
+
 #[derive(Debug, Default)]
 pub struct Pylon;
 
@@ -594,36 +604,52 @@ pub struct DistributePower;
 
 #[derive(SystemData)]
 pub struct DistributePowerData<'a> {
-    reactors: WriteStorage<'a, Reactor>,
+    entities: Entities<'a>,
     areas: ReadStorage<'a, geom::AreaSet>,
     pylons: ReadStorage<'a, Pylon>,
+    powers: WriteStorage<'a, Power>,
 }
 
 impl<'a> System<'a> for DistributePower {
     type SystemData = DistributePowerData<'a>;
 
     fn run(&mut self, mut data: Self::SystemData) {
-        // power sink -> [(source, power, surplus)]
-        let mut available: HashMap<Entity, Vec<(Entity, f64, f64)>> = HashMap::new();
-        for (area, _) in (&data.areas, &data.pylons).join() {
+        let mut marked = HashSet::new();
+        for (pylon_entity, _) in (&*data.entities, &data.pylons).join() {
+            if marked.contains(&pylon_entity) { continue }
+            let covered = find_covered(&data.areas, &data.pylons, pylon_entity, &mut marked);
             let mut supply = 0.0;
             let mut demand = 0.0;
-            for entity in area.nodes() {
-                if let Some(reactor) = data.reactors.get(entity) {
-                    if let Some(reaction) = &reactor.reaction {
-                        if reactor.tick_energy > 0.0 {
-                            supply += reaction.energy;
-                        } else {
-                            demand += reaction.energy + reactor.tick_energy;
-                        }
-                    }
-                }
+            for entity in covered {
+                let power = if let Some(p) = data.powers.get(entity) { p } else { continue };
+                supply += power.output;
+                demand += power.input_need - power.input;
             }
-            let surplus = supply - demand;
-            /*
-            if reactor.tick_energy < 0.0 { continue }
-            let energy = if let Some(r) = &reactor.reaction { r.energy } else { continue };
-            */
         }
     }
+}
+
+fn find_covered(
+    areas: &ReadStorage<geom::AreaSet>,
+    pylons: &ReadStorage<Pylon>,
+    start: Entity,
+    marked: &mut HashSet<Entity>,
+) -> HashSet<Entity> {
+    // TODO: rework this in terms of area overlap
+    let mut to_visit: VecDeque<Entity> = VecDeque::new();
+    let mut found = HashSet::new();
+    to_visit.push_back(start);
+    marked.insert(start);
+    while !to_visit.is_empty() {
+        let pylon = to_visit.pop_front().unwrap();
+        let area = if let Some(a) = areas.get(pylon) { a } else { continue };
+        for entity in area.nodes() {
+            if pylons.get(entity).is_some() {
+                if marked.insert(entity) {
+                    to_visit.push_back(entity);
+                }
+            } else { found.insert(entity); }
+        }
+    }
+    found
 }
