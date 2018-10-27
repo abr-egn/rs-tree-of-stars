@@ -606,7 +606,6 @@ impl PowerGrid {
             graph: GraphMap::new(),
         }
     }
-    #[allow(unused)]
     fn add_link(&mut self, from: Entity, to: Entity) {
         self.graph.add_edge(from, to, ());
     }
@@ -642,15 +641,21 @@ const PYLON_RANGE: i32 = 10;
 impl Pylon {
     #[allow(unused)]
     pub fn new(world: &mut World, at: Coordinate) -> Entity {
-        let entity = world.create_entity()
-            .with(Pylon)
-            .build();
-        /*
+        let entity = graph::make_node(world, at);
+        {
+            let map = world.read_resource::<geom::AreaMap>();
+            let pylons = world.read_storage::<Pylon>();
+            let mut grid = world.write_resource::<PowerGrid>();
+            for other in map.find_overlap(at, PYLON_RANGE) {
+                if !pylons.get(other).is_some() { continue }
+                grid.add_link(entity, other);
+            }
+        }
         or_die(|| {
-            geom::AreaSet::add(world, )
+            geom::AreaSet::add(world, entity, PYLON_RANGE)?;
+            world.write_storage().insert(entity, Pylon)?;
             Ok(())
         });
-        */
         entity
     }
 }
