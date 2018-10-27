@@ -105,6 +105,7 @@ pub fn draw(world: &mut World, ctx: &mut Context) {
     DrawSources(ctx).run_now(&mut world.res);
     DrawSinks(ctx).run_now(&mut world.res);
     DrawReactors(ctx).run_now(&mut world.res);
+    DrawPowerGrid(ctx).run_now(&mut world.res);
     DrawSelectedAreas(ctx).run_now(&mut world.res);
     DrawMouseWidget(ctx).run_now(&mut world.res);
     DrawText(ctx).run_now(&mut world.res);
@@ -387,6 +388,47 @@ impl<'a, 'b> System<'a> for DrawReactors<'b> {
                 Ok(())
             });
         }
+    }
+}
+
+struct DrawPowerGrid<'a>(&'a mut Context);
+
+impl<'a, 'b> System<'a> for DrawPowerGrid<'b> {
+    type SystemData = (
+        Entities<'a>,
+        ReadExpect<'a, resource::PowerGrid>,
+        ReadStorage<'a, graph::Node>,
+        ReadStorage<'a, resource::Pylon>,
+        ReadStorage<'a, game::Selected>,
+    );
+
+    fn run(&mut self, (entities, grid, nodes, pylons, selected): Self::SystemData) {
+        let ctx = &mut self.0;
+        let screen = graphics::get_screen_coordinates(ctx);
+        or_die(|| {
+            graphics::set_color(ctx, Color::new(1.0, 0.0, 1.0, 1.0))?;
+            for (entity, node, _) in (&*entities, &nodes, &pylons).join() {
+                for other in grid.links(entity) {
+                    let other_node = if let Some(n) = nodes.get(other) { n } else { continue };
+                    let from_pt = node.at().to_pixel_point();
+                    let to_pt = other_node.at().to_pixel_point();
+                    // TODO: check if line crosses rather than endpoint is contained?
+                    if !screen.contains(from_pt) && !screen.contains(to_pt) { continue }
+                    graphics::line(ctx, &[from_pt, to_pt], /* width= */ 1.0)?;
+                }
+                if selected.get(entity).is_some() {
+                    let mut points = vec![];
+                    let mut delta: Coordinate = Coordinate { x: 1, y: 1 };
+                    for _ in 0..7 {
+                        let corner = node.at() + delta.scale(resource::PYLON_RANGE);
+                        points.push(corner.to_pixel_point());
+                        delta = delta.rotate_around_zero(::hex2d::Right);
+                    }
+                    graphics::line(ctx, &points, /* width= */ 1.0)?;
+                }
+            }
+            Ok(())
+        });
     }
 }
 

@@ -627,6 +627,9 @@ impl PowerGrid {
         }
         covered
     }
+    pub fn links<'a>(&'a self, from: Entity) -> impl Iterator<Item=Entity> + 'a {
+        self.graph.neighbors(from)
+    }
 }
 
 #[derive(Debug, Default)]
@@ -636,7 +639,7 @@ impl Component for Pylon {
     type Storage = NullStorage<Self>;
 }
 
-const PYLON_RANGE: i32 = 10;
+pub const PYLON_RANGE: i32 = 5;
 
 impl Pylon {
     #[allow(unused)]
