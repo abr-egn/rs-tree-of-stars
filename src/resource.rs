@@ -7,6 +7,10 @@ use std::{
 
 use hex2d;
 use rand::{self, Rng};
+use petgraph::{
+    self,
+    graphmap::GraphMap,
+};
 use specs::{
     prelude::*,
     storage::BTreeStorage,
@@ -592,6 +596,40 @@ impl Component for Power {
     type Storage = BTreeStorage<Self>;
 }
 
+pub struct PowerGrid {
+    graph: GraphMap<Entity, (), petgraph::Undirected>,
+}
+
+impl PowerGrid {
+    pub fn new() -> Self {
+        PowerGrid {
+            graph: GraphMap::new(),
+        }
+    }
+    fn add_link(&mut self, from: Entity, to: Entity) {
+        self.graph.add_edge(from, to, ());
+    }
+    #[allow(unused)]
+    fn find_covered(
+        &self, areas: &ReadStorage<geom::AreaSet>,
+        start: Entity, visited: &mut HashSet<Entity>,
+    ) -> HashSet<Entity> {
+        let mut pending = VecDeque::new();
+        pending.push_back(start);
+        visited.insert(start);
+        let mut covered = HashSet::new();
+        while !pending.is_empty() {
+            let pylon = pending.pop_front().unwrap();
+            for n in self.graph.neighbors(pylon) {
+                if visited.insert(n) { pending.push_back(n) }
+            }
+            let area = if let Some(a) = areas.get(pylon) { a } else { continue };
+            for entity in area.nodes() { covered.insert(entity); }
+        }
+        covered
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct Pylon;
 
@@ -605,6 +643,7 @@ pub struct DistributePower;
 #[derive(SystemData)]
 pub struct DistributePowerData<'a> {
     entities: Entities<'a>,
+    grid: ReadExpect<'a, PowerGrid>,
     areas: ReadStorage<'a, geom::AreaSet>,
     pylons: ReadStorage<'a, Pylon>,
     powers: WriteStorage<'a, Power>,
@@ -615,9 +654,9 @@ impl<'a> System<'a> for DistributePower {
 
     fn run(&mut self, mut data: Self::SystemData) {
         let mut marked = HashSet::new();
-        for (pylon_entity, _) in (&*data.entities, &data.pylons).join() {
-            if marked.contains(&pylon_entity) { continue }
-            let covered = find_covered(&data.areas, &data.pylons, pylon_entity, &mut marked);
+        for (pylon, _) in (&*data.entities, &data.pylons).join() {
+            if marked.contains(&pylon) { continue }
+            let covered = data.grid.find_covered(&data.areas, pylon, &mut marked);
             let mut supply = 0.0;
             let mut demand = 0.0;
             for entity in covered {
@@ -627,29 +666,4 @@ impl<'a> System<'a> for DistributePower {
             }
         }
     }
-}
-
-fn find_covered(
-    areas: &ReadStorage<geom::AreaSet>,
-    pylons: &ReadStorage<Pylon>,
-    start: Entity,
-    marked: &mut HashSet<Entity>,
-) -> HashSet<Entity> {
-    // TODO: rework this in terms of area overlap
-    let mut to_visit: VecDeque<Entity> = VecDeque::new();
-    let mut found = HashSet::new();
-    to_visit.push_back(start);
-    marked.insert(start);
-    while !to_visit.is_empty() {
-        let pylon = to_visit.pop_front().unwrap();
-        let area = if let Some(a) = areas.get(pylon) { a } else { continue };
-        for entity in area.nodes() {
-            if pylons.get(entity).is_some() {
-                if marked.insert(entity) {
-                    to_visit.push_back(entity);
-                }
-            } else { found.insert(entity); }
-        }
-    }
-    found
 }

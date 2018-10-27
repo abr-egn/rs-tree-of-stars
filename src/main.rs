@@ -78,6 +78,7 @@ fn make_world(ctx: &mut Context) -> World {
     world.add_resource(Paused(false));
     world.add_resource(geom::Map::new());
     world.add_resource(geom::AreaMap::new());
+    world.add_resource(resource::PowerGrid::new());
 
     draw::build_sprites(&mut world, ctx);
     game::prep_world(&mut world);
