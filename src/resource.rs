@@ -5,7 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use hex2d;
+use hex2d::{self, Coordinate};
 use rand::{self, Rng};
 use petgraph::{
     self,
@@ -606,10 +606,10 @@ impl PowerGrid {
             graph: GraphMap::new(),
         }
     }
+    #[allow(unused)]
     fn add_link(&mut self, from: Entity, to: Entity) {
         self.graph.add_edge(from, to, ());
     }
-    #[allow(unused)]
     fn find_covered(
         &self, areas: &ReadStorage<geom::AreaSet>,
         start: Entity, visited: &mut HashSet<Entity>,
@@ -637,6 +637,24 @@ impl Component for Pylon {
     type Storage = NullStorage<Self>;
 }
 
+const PYLON_RANGE: i32 = 10;
+
+impl Pylon {
+    #[allow(unused)]
+    pub fn new(world: &mut World, at: Coordinate) -> Entity {
+        let entity = world.create_entity()
+            .with(Pylon)
+            .build();
+        /*
+        or_die(|| {
+            geom::AreaSet::add(world, )
+            Ok(())
+        });
+        */
+        entity
+    }
+}
+
 #[derive(Debug)]
 pub struct DistributePower;
 
@@ -652,17 +670,17 @@ pub struct DistributePowerData<'a> {
 impl<'a> System<'a> for DistributePower {
     type SystemData = DistributePowerData<'a>;
 
-    fn run(&mut self, mut data: Self::SystemData) {
+    fn run(&mut self, data: Self::SystemData) {
         let mut marked = HashSet::new();
         for (pylon, _) in (&*data.entities, &data.pylons).join() {
             if marked.contains(&pylon) { continue }
             let covered = data.grid.find_covered(&data.areas, pylon, &mut marked);
-            let mut supply = 0.0;
-            let mut demand = 0.0;
+            let mut _supply = 0.0;
+            let mut _demand = 0.0;
             for entity in covered {
                 let power = if let Some(p) = data.powers.get(entity) { p } else { continue };
-                supply += power.output;
-                demand += power.input_need - power.input;
+                _supply += power.output;
+                _demand += power.input_need - power.input;
             }
         }
     }

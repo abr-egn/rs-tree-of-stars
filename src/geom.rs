@@ -181,12 +181,15 @@ struct Area {
     typ: TypeId,
 }
 
+fn bounding(center: Coordinate, radius: i32) -> BoundingRect<SC> {
+    let lower = Coordinate { x: center.x - radius, y: center.y - radius };
+    let upper = Coordinate { x: center.x + radius, y: center.y + radius };
+    BoundingRect::from_corners(&SC(lower), &SC(upper))
+}
+
 impl Area {
     fn new(center: Coordinate, radius: i32, entity: Entity, typ: TypeId) -> Self {
-        let lower = Coordinate { x: center.x - radius, y: center.y - radius };
-        let upper = Coordinate { x: center.x + radius, y: center.y + radius };
-        let bounds = BoundingRect::from_corners(&SC(lower), &SC(upper));
-        Area { center, radius, bounds, entity, typ }
+        Area { center, radius, bounds: bounding(center, radius), entity, typ }
     }
 }
 
@@ -216,12 +219,21 @@ impl AreaMap {
     {
         self.0.remove(&Area::new(center, radius, entity, TypeId::of::<T>()))
     }
-    #[allow(unused)]
     pub fn find<'a>(&'a self, at: Coordinate) -> impl Iterator<Item=Entity> + 'a {
         self.0.lookup_in_rectangle(&BoundingRect::from_point(SC(at)))
             .into_iter()
             .filter_map(move |area| {
                 if area.center.distance(at) > area.radius {
+                    return None
+                }
+                Some(area.entity)
+            })
+    }
+    pub fn find_overlap<'a>(&'a self, center: Coordinate, radius: i32) -> impl Iterator<Item=Entity> + 'a {
+        self.0.lookup_in_rectangle(&bounding(center, radius))
+            .into_iter()
+            .filter_map(move |area| {
+                if area.center.distance(center) > area.radius + radius {
                     return None
                 }
                 Some(area.entity)
