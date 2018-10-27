@@ -5,7 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use hex2d::{self, Coordinate};
+use hex2d;
 use rand::{self, Rng};
 use petgraph::{
     self,
@@ -640,23 +640,22 @@ const PYLON_RANGE: i32 = 10;
 
 impl Pylon {
     #[allow(unused)]
-    pub fn new(world: &mut World, at: Coordinate) -> Entity {
-        let entity = graph::make_node(world, at);
-        {
-            let map = world.read_resource::<geom::AreaMap>();
-            let pylons = world.read_storage::<Pylon>();
-            let mut grid = world.write_resource::<PowerGrid>();
-            for other in map.find_overlap(at, PYLON_RANGE) {
-                if !pylons.get(other).is_some() { continue }
-                grid.add_link(entity, other);
-            }
-        }
+    pub fn add(world: &mut World, entity: Entity) {
         or_die(|| {
+            let at = try_get(&world.read_storage::<graph::Node>(), entity)?.at();
+            {
+                let map = world.read_resource::<geom::AreaMap>();
+                let pylons = world.read_storage::<Pylon>();
+                let mut grid = world.write_resource::<PowerGrid>();
+                for other in map.find_overlap(at, PYLON_RANGE) {
+                    if !pylons.get(other).is_some() { continue }
+                    grid.add_link(entity, other);
+                }
+            }
             geom::AreaSet::add(world, entity, PYLON_RANGE)?;
             world.write_storage().insert(entity, Pylon)?;
             Ok(())
         });
-        entity
     }
 }
 

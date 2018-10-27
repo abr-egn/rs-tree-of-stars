@@ -163,11 +163,13 @@ impl NodeSelected {
             if world.read_storage::<resource::Reactor>().get(self.0).is_some() {
                 kinds.push("Reactor".into());
             }
-            if kinds.is_empty() {
-                ui.text("Kind: None");
-            } else {
-                ui.text(format!("Kind: {}", kinds.join(" | ")));
+            if world.read_storage::<resource::Pylon>().get(self.0).is_some() {
+                kinds.push("Pylon".into());
             }
+            if kinds.is_empty() {
+                kinds = vec!["None".into()];
+            }
+            ui.text(format!("Kind: {}", kinds.join(" | ")));
             f(world);
         })
     }
@@ -185,6 +187,7 @@ impl NodeSelected {
     fn is_plain(&self, world: &World) -> bool {
         if world.read_storage::<resource::Source>().get(self.0).is_some() { return false }
         if world.read_storage::<resource::Sink>().get(self.0).is_some() { return false }
+        if world.read_storage::<resource::Pylon>().get(self.0).is_some() { return false }
         true
     }
 }
@@ -296,6 +299,9 @@ impl Mode for NodeSelected {
                         world.write_storage().insert(self.0, resource::Burn::new(REACTION_TIME))?;
                         Ok(())
                     });
+                }
+                if ui.small_button(im_str!("Make Pylon")) {
+                    resource::Pylon::add(world, self.0);
                 }
                 ui.separator();
                 if ui.small_button(im_str!("Start Growth Test")) {
