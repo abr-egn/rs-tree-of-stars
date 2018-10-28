@@ -639,7 +639,7 @@ impl Component for Pylon {
     type Storage = NullStorage<Self>;
 }
 
-pub const PYLON_RANGE: i32 = 5;
+pub const PYLON_RANGE: i32 = 10;
 
 impl Pylon {
     #[allow(unused)]
