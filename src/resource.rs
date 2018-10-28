@@ -17,8 +17,7 @@ use specs::{
 };
 
 use error::{
-    Result,
-    into_error,
+    Error, Result,
     or_die,
 };
 use geom;
@@ -60,10 +59,6 @@ pub struct Pool {
     count: [usize; 6],
     cap: [usize; 6],
 }
-
-#[derive(Fail, Debug)]
-#[fail(display = "Pool underflow.")]
-pub struct PoolUnderflow;
 
 impl Pool {
     pub fn new() -> Self {
@@ -121,7 +116,7 @@ impl Pool {
             self.count[res as usize] -= count;
             return Ok(())
         }
-        Err(PoolUnderflow.into())
+        Err(Error::PoolUnderflow)
     }
     #[allow(unused)]
     pub fn set_cap(&mut self, res: Resource, cap: usize) {
@@ -267,7 +262,7 @@ fn pull_worker(
         on_cooldown: false,
     });
     swap(&mut tmp, &mut candidates[0]);
-    or_die(|| { sender.send(tmp)?; Ok(()) });
+    or_die(|| { sender.send(tmp).map_err(|_| Error::PullChannel)?; Ok(()) });
 }
 
 impl<'a> System<'a> for Pull {
@@ -506,10 +501,6 @@ impl Component for Storage {
 #[derive(Debug)]
 pub struct DoStorage;
 
-#[derive(Fail, Debug)]
-#[fail(display = "Storage overflow.")]
-pub struct StorageOverflow;
-
 impl<'a> System<'a> for DoStorage {
     type SystemData = (
         Entities<'a>,
@@ -527,7 +518,7 @@ impl<'a> System<'a> for DoStorage {
                     sink.has.set(res, 0);
                     or_die(|| {
                         source.has.inc_by(res, has)
-                            .map_or(Ok(()), |_| Err(into_error(StorageOverflow)))
+                            .map_or(Ok(()), |_| Err(Error::StorageOverflow))
                     });
                 }
                 let pending = source.has.get(res);

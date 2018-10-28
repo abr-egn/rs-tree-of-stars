@@ -19,8 +19,8 @@ use specs::{
 
 use draw;
 use error::{
-    Result,
-    or_die, into_error,
+    Error, Result,
+    or_die,
 };
 use geom;
 use util::*;
@@ -68,10 +68,6 @@ impl<'a> Router<'a> {
     }
 }
 
-#[derive(Fail, Debug)]
-#[fail(display = "No such edge.")]
-pub struct NoSuchEdge;
-
 fn calc_route(
     data: &GraphData, links: &ReadStorage<Link>, nodes: &ReadStorage<Node>,
     from: Entity, to: Entity,
@@ -93,7 +89,7 @@ fn calc_route(
         let mut route: Vec<(Entity, PathDir)> = vec![];
         for ix in 0..nodes.len()-1 {
             let link_ent = *data.edge_weight(nodes[ix], nodes[ix+1])
-                .ok_or_else(|| into_error(NoSuchEdge))?;
+                .ok_or_else(|| Error::NoSuchEdge)?;
             let link = try_get(links, link_ent)?;
             route.push((link_ent, if link.from == nodes[ix] {
                 PathDir::Fwd
@@ -167,10 +163,6 @@ enum PathCoord {
     End,
 }
 
-#[derive(Fail, Debug)]
-#[fail(display = "Path ix past the end.")]
-pub struct PathIxOverflow;
-
 fn path_ix(
     (link_ent, path_dir): (Entity, PathDir), ix: usize,
     links: &ReadStorage<Link>,
@@ -181,7 +173,7 @@ fn path_ix(
         PathDir::Rev => link.path.len() - 1 - ix,
     };
     if ix >= link.path.len() {
-        return Err(PathIxOverflow)?
+        return Err(Error::PathIxOverflow)?
     }
     Ok((
         link.path[coord_ix], 

@@ -1,6 +1,3 @@
-extern crate failure;
-#[macro_use]
-extern crate failure_derive;
 extern crate gfx;
 extern crate gfx_device_gl;
 extern crate ggez;

@@ -5,8 +5,6 @@ authors = ["Abe Egnor <abe.egnor@gmail.com>"]
 
 [dependencies]
 ggez = "0.4"
-failure = "0.1"
-failure_derive = "0.1"
 gfx = "0.17"
 gfx_device_gl = "0.15"
 hex2d = "0.2"

@@ -21,7 +21,7 @@ use specs::{
 
 use draw;
 use graph;
-use error::{Result, or_die};
+use error::{Error, Result, or_die};
 use util::*;
 
 #[derive(Debug)]
@@ -102,10 +102,6 @@ impl Component for Space {
 #[derive(Debug)]
 pub struct Map(HashMap<Coordinate, Entity>);
 
-#[derive(Fail, Debug)]
-#[fail(display = "Occupied space.")]
-pub struct Occupied;
-
 impl Map {
     pub fn new() -> Self { Map(HashMap::new()) }
     pub fn get(&self, coord: Coordinate) -> Option<Entity> { self.0.get(&coord).cloned() }
@@ -117,7 +113,7 @@ impl Map {
         ent: Entity, space: Space,
     ) -> Result<()> {
         if self.is_occupied(&space) {
-            return Err(Occupied.into())
+            return Err(Error::Occupied)
         }
         let coords = space.0.clone();
         locs.insert(ent, space)?;
