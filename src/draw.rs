@@ -417,8 +417,15 @@ impl<'a, 'b> System<'a> for DrawPowerGrid<'b> {
                     graphics::line(ctx, &[from_pt, to_pt], /* width= */ 1.0)?;
                 }
                 if selected.get(entity).is_some() {
+                    /*
+                    for coord in node.at().ring(resource::PYLON_RANGE, Spin::CW(XY)) {
+                        let p = coord.to_pixel_point();
+                        if !screen.contains(p) { continue }
+                        graphics::draw(ctx, &outline.0, p, 0.0)?;
+                    }
+                    */
                     let mut points = vec![];
-                    let mut delta: Coordinate = Coordinate { x: 1, y: 1 };
+                    let mut delta: Coordinate = Coordinate { x: 1, y: 0 };
                     for _ in 0..7 {
                         let corner = node.at() + delta.scale(resource::PYLON_RANGE);
                         points.push(corner.to_pixel_point());
