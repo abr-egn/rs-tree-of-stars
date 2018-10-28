@@ -2,6 +2,7 @@ extern crate gfx;
 extern crate gfx_device_gl;
 extern crate ggez;
 extern crate hex2d;
+extern crate hibitset;
 extern crate petgraph;
 extern crate rand;
 extern crate shred;

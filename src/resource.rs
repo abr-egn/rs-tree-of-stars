@@ -1,11 +1,12 @@
 use std::{
-    collections::{HashMap,HashSet,VecDeque},
+    collections::{HashMap,VecDeque},
     mem::swap,
     sync::mpsc::{channel, Sender},
     time::{Duration, Instant},
 };
 
 use hex2d;
+use hibitset::BitSet;
 use rand::{self, Rng};
 use petgraph::{
     self,
@@ -602,19 +603,19 @@ impl PowerGrid {
     }
     fn find_covered(
         &self, areas: &ReadStorage<geom::AreaSet>,
-        start: Entity, visited: &mut HashSet<Entity>,
-    ) -> HashSet<Entity> {
+        start: Entity, visited: &mut BitSet,
+    ) -> BitSet {
         let mut pending = VecDeque::new();
         pending.push_back(start);
-        visited.insert(start);
-        let mut covered = HashSet::new();
+        visited.add(start.id());
+        let mut covered = BitSet::new();
         while !pending.is_empty() {
             let pylon = pending.pop_front().unwrap();
             for n in self.graph.neighbors(pylon) {
-                if visited.insert(n) { pending.push_back(n) }
+                if !visited.add(n.id()) { pending.push_back(n) }
             }
             let area = if let Some(a) = areas.get(pylon) { a } else { continue };
-            for entity in area.nodes() { covered.insert(entity); }
+            for entity in area.nodes() { covered.add(entity.id()); }
         }
         covered
     }
@@ -669,14 +670,13 @@ impl<'a> System<'a> for DistributePower {
     type SystemData = DistributePowerData<'a>;
 
     fn run(&mut self, data: Self::SystemData) {
-        let mut marked = HashSet::new();
+        let mut marked = BitSet::new();
         for (pylon, _) in (&*data.entities, &data.pylons).join() {
-            if marked.contains(&pylon) { continue }
+            if marked.contains(pylon.id()) { continue }
             let covered = data.grid.find_covered(&data.areas, pylon, &mut marked);
             let mut _supply = 0.0;
             let mut _demand = 0.0;
-            for entity in covered {
-                let power = if let Some(p) = data.powers.get(entity) { p } else { continue };
+            for (power, _) in (&data.powers, covered).join() {
                 _supply += power.output;
                 _demand += power.input_need - power.input;
             }

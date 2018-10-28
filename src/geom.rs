@@ -8,6 +8,7 @@ use ggez::{
     graphics::Point2,
 };
 use hex2d::Coordinate;
+use hibitset::BitSet;
 use spade::{
     self,
     rtree::RTree,
@@ -132,11 +133,11 @@ impl Map {
         locs.remove(ent);
         Ok(())
     }
-    pub fn in_range(&self, center: Coordinate, radius: i32) -> HashSet<Entity> {
-        let mut out = HashSet::new();
+    pub fn in_range(&self, center: Coordinate, radius: i32) -> BitSet {
+        let mut out = BitSet::new();
         center.for_each_in_range(radius, |c| {
             if let Some(&e) = self.0.get(&c) {
-                out.insert(e);
+                out.add(e.id());
             }
         });
         out
@@ -270,13 +271,12 @@ impl<T> AreaWatch<T> {
     pub fn exclude(&self) -> &HashSet<Entity> { &self.exclude }
     pub fn exclude_mut(&mut self) -> &mut HashSet<Entity> { &mut self.exclude }
 
-    pub fn build<F: FnMut(&mut T, Entity)>(
-        world: &World, entity: Entity, range: i32, mut data: T, mut f: F,
+    pub fn build<F: FnOnce(BitSet) -> T>(
+        world: &World, entity: Entity, range: i32, f: F,
     ) -> Result<AreaBuilder<T>> {
         let at = try_get(&world.read_storage::<graph::Node>(), entity)?.at();
-        for found in world.read_resource::<Map>().in_range(at, range) {
-            f(&mut data, found);
-        }
+        let found = world.read_resource::<Map>().in_range(at, range);
+        let data = f(found);
         Ok(AreaBuilder { entity, range, at, data })
     }
 }
@@ -285,11 +285,16 @@ pub type AreaSet = AreaWatch<HashSet<Entity>>;
 
 impl AreaSet {
     #[allow(unused)]
-    pub fn add(world: &mut World, entity: Entity, range: i32) -> Result<()> {
+    pub fn add(world: &mut World, parent: Entity, range: i32) -> Result<()> {
         {
             let nodes = world.read_storage::<graph::Node>();
-            Self::build(world, entity, range, HashSet::new(), |set, found| {
-                if nodes.get(found).is_some() { set.insert(found); }
+            let entities = world.entities();
+            Self::build(world, parent, range, |found| {
+                let mut set = HashSet::new();
+                for (entity, _, _) in (&entities, &nodes, found).join() {
+                    set.insert(entity);
+                }
+                set
             })
         }?.insert(world)
     }

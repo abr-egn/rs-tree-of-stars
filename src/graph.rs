@@ -106,13 +106,16 @@ fn calc_route(
 pub type AreaGraph = geom::AreaWatch<Graph>;
 
 impl AreaGraph {
-    pub fn add(world: &mut World, entity: Entity, range: i32) -> Result<()> {
+    pub fn add(world: &mut World, parent: Entity, range: i32) -> Result<()> {
         {
             let links = world.read_storage::<Link>();
-            Self::build(world, entity, range, Graph::new(), |graph, found| {
-                if let Some(link) = links.get(found) {
-                    graph.add_link(link, found);
+            let entities = world.entities();
+            Self::build(world, parent, range, |found| {
+                let mut graph = Graph::new();
+                for (entity, link, _) in (&entities, &links, found).join() {
+                    graph.add_link(link, entity);
                 }
+                graph
             })
         }?.insert(world)
     }
