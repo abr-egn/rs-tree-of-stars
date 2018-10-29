@@ -18,7 +18,7 @@ use error::{
 };
 use geom;
 use graph;
-use power;
+use power::Power;
 use util::*;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -359,26 +359,41 @@ impl<'a> System<'a> for Receive {
 pub struct Reactor {
     input: Pool,
     delay: Duration,
-    tick_power_input: f32,
-    tick_power_output: f32,
     output: Pool,
+    tick_power: f32,
     in_progress: Option<Duration>,
 }
 
 impl Reactor {
+    pub fn add(
+        world: &mut World, entity: Entity,
+        input: Pool, delay: Duration, output: Pool, total_power: f32, range: i32,
+    ) {
+        Source::add(world, entity, Pool::new(), range);
+        or_die(|| {
+            let mut sink = Sink::new();
+            sink.want = input.clone();
+            world.write_storage().insert(entity, sink)?;
+            let tick_power = {
+                let delay_ticks = duration_f32(delay) / duration_f32(super::UPDATE_DURATION);
+                total_power.abs() / delay_ticks
+            };
+            let power = if total_power >= 0.0 {
+                Power::Source { output: 0.0 }
+            } else {
+                Power::Sink { need: tick_power, input: 0.0 }
+            };
+            world.write_storage().insert(entity, power)?;
+            world.write_storage().insert(entity, Reactor {
+                input, delay, output, tick_power,
+                in_progress: None,
+            })?;
+            Ok(())
+        });
+    }
     pub fn progress(&self) -> Option<f32> {
         let prog = if let Some(p) = &self.in_progress { p } else { return None };
         Some(duration_f32(*prog) / duration_f32(self.delay))
-    }
-}
-
-impl Reactor {
-    #[allow(unused)]
-    pub fn new(input: Pool, delay: Duration, output: Pool) -> Self {
-        Reactor {
-            input, delay, output,
-            tick_power_input: 0.0, tick_power_output: 0.0, in_progress: None,
-        }
     }
 }
 
@@ -402,30 +417,22 @@ impl<'a> System<'a> for RunReactors {
         WriteStorage<'a, Reactor>,
         WriteStorage<'a, Source>,
         WriteStorage<'a, Sink>,
-        WriteStorage<'a, power::Power>,
+        WriteStorage<'a, Power>,
         Read<'a, LazyUpdate>,
     );
 
     fn run(&mut self, (nodes, mut reactors, mut sources, mut sinks, mut powers, lazy): Self::SystemData) {
         for (node, reactor, source, sink, power) in (&nodes, &mut reactors, &mut sources, &mut sinks, &mut powers).join() {
-            // Ensure sink pull of reactor need.
-            for (res, count) in reactor.input.iter() {
-                if sink.want.get(res) < count {
-                    sink.want.set(res, count);
-                }
-            }
-            // And power draw.
-            if power.input_need < reactor.tick_power_input {
-                power.input_need = reactor.tick_power_input;
-            }
-
             // Check in progress production.
             let produce = if let Some(prog) = reactor.in_progress.as_mut() {
-                if power.input >= reactor.tick_power_input {
-                    power.input -= reactor.tick_power_input;
-                    power.output = reactor.tick_power_output;
-                    *prog += super::UPDATE_DURATION;
-                }
+                let has_power = match power {
+                    Power::Source { output } => {
+                        *output = reactor.tick_power;
+                        true
+                    },
+                    Power::Sink { input, .. } => *input >= reactor.tick_power,
+                };
+                if has_power { *prog += super::UPDATE_DURATION };
                 *prog >= reactor.delay
             } else { false };
             if produce {

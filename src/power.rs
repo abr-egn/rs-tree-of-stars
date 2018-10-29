@@ -13,10 +13,9 @@ use graph;
 use util::try_get;
 
 #[derive(Debug)]
-pub struct Power {
-    pub input: f32,
-    pub input_need: f32,
-    pub output: f32,
+pub enum Power {
+    Source { output: f32 },
+    Sink { need: f32, input: f32 },
 }
 
 impl Component for Power {
@@ -69,7 +68,6 @@ impl Component for Pylon {
 pub const PYLON_RANGE: i32 = 10;
 
 impl Pylon {
-    #[allow(unused)]
     pub fn add(world: &mut World, entity: Entity) {
         or_die(|| {
             let at = try_get(&world.read_storage::<graph::Node>(), entity)?.at();
@@ -109,12 +107,18 @@ impl<'a> System<'a> for DistributePower {
         for (pylon, _) in (&*data.entities, &data.pylons).join() {
             if marked.contains(pylon.id()) { continue }
             let covered = data.grid.find_covered(&data.areas, pylon, &mut marked);
-            let mut _supply = 0.0;
-            let mut _demand = 0.0;
+            let mut supply = 0.0;
+            let mut demand = 0.0;
             for (power, _) in (&data.powers, covered).join() {
-                _supply += power.output;
-                _demand += power.input_need - power.input;
+                match power {
+                    Power::Source { output } => supply += output,
+                    Power::Sink { need, input } => demand += need - input,
+                }
             }
+            // std::cmp::min requires (total) Ord t(-_-t)
+            let will_supply = if supply > demand { demand } else { supply };
+            let supply_scale = will_supply / supply;
+            let demand_scale = will_supply / demand;
         }
     }
 }

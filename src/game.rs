@@ -178,12 +178,9 @@ impl NodeSelected {
         &self, world: &mut World,
         input: resource::Pool, delay: Duration, output: resource::Pool,
     ) {
-        resource::Source::add(world, self.0, resource::Pool::new(), /* range= */ 20);
-        or_die(|| {
-            world.write_storage().insert(self.0, resource::Sink::new())?;
-            world.write_storage().insert(self.0, resource::Reactor::new(input, delay, output))?;
-            Ok(())
-        });
+        resource::Reactor::add(
+            world, self.0, input, delay, output,
+            /* total_power= */ 0.0, /* range= */ 20);
     }
     fn is_plain(&self, world: &World) -> bool {
         if world.read_storage::<resource::Source>().get(self.0).is_some() { return false }
