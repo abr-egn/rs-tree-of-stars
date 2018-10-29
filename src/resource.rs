@@ -504,14 +504,13 @@ pub struct DoStorage;
 
 impl<'a> System<'a> for DoStorage {
     type SystemData = (
-        Entities<'a>,
         ReadStorage<'a, Storage>,
         WriteStorage<'a, Source>,
         WriteStorage<'a, Sink>,
     );
 
-    fn run(&mut self, (entities, stores, mut sources, mut sinks): Self::SystemData) {
-        for (_entity, _, source, sink) in (&*entities, &stores, &mut sources, &mut sinks).join() {
+    fn run(&mut self, (stores, mut sources, mut sinks): Self::SystemData) {
+        for (_, source, sink) in (stores.mask(), &mut sources, &mut sinks).join() {
             for res in Resource::all() {
                 let has = sink.has.get(res);
                 if has > 0 {

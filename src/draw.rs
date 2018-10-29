@@ -131,25 +131,24 @@ impl<'a, 'b> System<'a> for DrawCells<'b> {
     type SystemData = (
         ReadExpect<'a, CellMesh>,
         ReadExpect<'a, OutlineSprite>,
-        Entities<'a>,
         ReadStorage<'a, Shape>,
         ReadStorage<'a, game::Selected>,
     );
 
-    fn run(&mut self, (cell_mesh, outline, entities, shapes, selected): Self::SystemData) {
+    fn run(&mut self, (cell_mesh, outline, shapes, selected): Self::SystemData) {
         let ctx = &mut self.0;
         let screen = graphics::get_screen_coordinates(ctx);
         let scale = (now_f32(ctx) * 3.0).sin() * 0.5 + 0.5;
         let sel_color = Color::new(scale, scale, 0.0, 1.0);
         or_die(|| {
-            for (entity, shape) in (&*entities, &shapes).join() {
+            for (shape, opt_selected) in (&shapes, selected.maybe()).join() {
                 graphics::set_color(ctx, shape.color)?;
                 for coord in &shape.coords {
                     let p = coord.to_pixel_point();
                     if !screen.contains(p) { continue }
                     graphics::draw(ctx, &cell_mesh.0, p, 0.0)?;
                 }
-                if selected.get(entity).is_some() {
+                if opt_selected.is_some() {
                     graphics::set_color(ctx, sel_color)?;
                     for coord in &shape.coords {
                         let p = coord.to_pixel_point();
@@ -407,7 +406,7 @@ impl<'a, 'b> System<'a> for DrawPowerGrid<'b> {
         let screen = graphics::get_screen_coordinates(ctx);
         or_die(|| {
             graphics::set_color(ctx, Color::new(1.0, 0.0, 1.0, 1.0))?;
-            for (entity, node, _) in (&*entities, &nodes, &pylons).join() {
+            for (entity, node, opt_selected, _) in (&*entities, &nodes, selected.maybe(), pylons.mask()).join() {
                 for other in grid.links(entity) {
                     let other_node = if let Some(n) = nodes.get(other) { n } else { continue };
                     let from_pt = node.at().to_pixel_point();
@@ -416,7 +415,7 @@ impl<'a, 'b> System<'a> for DrawPowerGrid<'b> {
                     if !screen.contains(from_pt) && !screen.contains(to_pt) { continue }
                     graphics::line(ctx, &[from_pt, to_pt], /* width= */ 1.0)?;
                 }
-                if selected.get(entity).is_some() {
+                if opt_selected.is_some() {
                     /*
                     for coord in node.at().ring(resource::PYLON_RANGE, Spin::CW(XY)) {
                         let p = coord.to_pixel_point();
@@ -445,24 +444,22 @@ const WASTE_SCALE: f32 = 0.5;
 
 impl<'a, 'b> System<'a> for DrawPackets<'b> {
     type SystemData = (
-        Entities<'a>,
         ReadExpect<'a, PacketSprite>,
         ReadStorage<'a, geom::Motion>,
         ReadStorage<'a, resource::Packet>,
         ReadStorage<'a, resource::Waste>,
     );
 
-    fn run(&mut self, (entities, packet_sprite, motions, packets, waste): Self::SystemData) {
+    fn run(&mut self, (packet_sprite, motions, packets, waste): Self::SystemData) {
         let ctx = &mut self.0;
         let screen = graphics::get_screen_coordinates(ctx);
-        for (entity, motion, packet) in (&*entities, &motions, &packets).join() {
+        for (motion, packet, opt_waste) in (&motions, &packets, waste.maybe()).join() {
             let pos = motion.from + (motion.to - motion.from)*motion.at;
             if !screen.contains(pos) { continue }
-            let is_waste = waste.get(entity).is_some();
             or_die(|| {
                 graphics::set_color(ctx, res_color(packet.resource))?;
                 graphics::draw(ctx, &*packet_sprite, pos, 0.0)?;
-                if is_waste {
+                if opt_waste.is_some() {
                     graphics::set_color(ctx, Color::new(1.0, 0.0, 0.0, 1.0))?;
                     let up_l = pos + (Vector2::new(-HEX_SIDE, -HEX_SIDE) * WASTE_SCALE);
                     let up_r = pos + (Vector2::new(HEX_SIDE, -HEX_SIDE) * WASTE_SCALE);
