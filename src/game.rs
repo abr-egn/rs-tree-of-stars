@@ -171,6 +171,16 @@ impl NodeSelected {
                 kinds = vec!["None".into()];
             }
             ui.text(format!("Kind: {}", kinds.join(" | ")));
+            if let Some(power) = world.read_storage::<power::Power>().get(self.0) {
+                match power {
+                    power::Power::Source { output } => {
+                        ui.text(format!("Power Source: {}", output));
+                    },
+                    power::Power::Sink { need, input } => {
+                        ui.text(format!("Power Sink: {} / {}", input, need));
+                    },
+                }
+            }
             f(world);
         })
     }
