@@ -174,10 +174,15 @@ impl NodeSelected {
             if let Some(power) = world.read_storage::<power::Power>().get(self.0) {
                 match power {
                     power::Power::Source { output } => {
-                        ui.text(format!("Power Source: {}", output));
+                        ui.text(format!("Power Source: {}/s", output));
                     },
                     power::Power::Sink { need, input } => {
-                        ui.text(format!("Power Sink: {} / {}", input, need));
+                        if need > input {
+                            let delta = need - input;
+                            ui.text(format!("Power Sink: {}(-{})/s", input, delta));
+                        } else {
+                            ui.text(format!("Power Sink: {}/s", input));
+                        }
                     },
                 }
             }
@@ -187,10 +192,11 @@ impl NodeSelected {
     fn add_reactor(
         &self, world: &mut World,
         input: resource::Pool, delay: Duration, output: resource::Pool,
+        total_power: f32,
     ) {
         resource::Reactor::add(
             world, self.0, input, delay, output,
-            /* total_power= */ 0.0, /* range= */ 20);
+            total_power, /* range= */ 20);
     }
     fn is_plain(&self, world: &World) -> bool {
         if world.read_storage::<resource::Source>().get(self.0).is_some() { return false }
@@ -255,6 +261,7 @@ impl Mode for NodeSelected {
                             /* input= */ Pool::new(),
                             /* delay= */ REACTION_TIME,
                             /* output= */ Pool::from(vec![(Resource::H2O, 1)]),
+                            /* total_power= */ 1.0,
                         );
                     }
                     if ui.menu_item(im_str!("-> C")).build() {
@@ -262,6 +269,7 @@ impl Mode for NodeSelected {
                             /* input= */ Pool::new(),
                             /* delay= */ REACTION_TIME,
                             /* output= */ Pool::from(vec![(Resource::C, 1)]),
+                            /* total_power= */ 0.0,
                         );
                     }
                     if ui.menu_item(im_str!("2H2O -> O2 + 2H2")).build() {
@@ -269,6 +277,7 @@ impl Mode for NodeSelected {
                             /* input= */ Pool::from(vec![(Resource::H2O, 2)]),
                             /* delay= */ REACTION_TIME,
                             /* output= */ Pool::from(vec![(Resource::O2, 1), (Resource::H2, 2)]),
+                            /* total_power= */ -2.0,
                         );
                     }
                     if ui.menu_item(im_str!("C + O2 => CO2")).build() {
@@ -276,6 +285,7 @@ impl Mode for NodeSelected {
                             /* input= */ Pool::from(vec![(Resource::C, 1), (Resource::O2, 1)]),
                             /* delay= */ REACTION_TIME,
                             /* output= */ Pool::from(vec![(Resource::CO2, 1)]),
+                            /* total_power= */ 0.0,
                         );
                     }
                     if ui.menu_item(im_str!("CO2 + 4H2 => CH4 + 2H2O")).build() {
@@ -283,6 +293,7 @@ impl Mode for NodeSelected {
                             /* input= */ Pool::from(vec![(Resource::CO2, 1), (Resource::H2, 4)]),
                             /* delay= */ REACTION_TIME,
                             /* output= */ Pool::from(vec![(Resource::CH4, 1), (Resource::H2O, 2)]),
+                            /* total_power= */ 0.0,
                         );
                     }
                 });

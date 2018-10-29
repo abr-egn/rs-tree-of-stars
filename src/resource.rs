@@ -360,7 +360,7 @@ pub struct Reactor {
     input: Pool,
     delay: Duration,
     output: Pool,
-    tick_power: f32,
+    power_per_second: f32,
     in_progress: Option<Duration>,
 }
 
@@ -374,18 +374,15 @@ impl Reactor {
             let mut sink = Sink::new();
             sink.want = input.clone();
             world.write_storage().insert(entity, sink)?;
-            let tick_power = {
-                let delay_ticks = duration_f32(delay) / duration_f32(super::UPDATE_DURATION);
-                total_power.abs() / delay_ticks
-            };
+            let power_per_second = total_power.abs() / duration_f32(delay);
             let power = if total_power >= 0.0 {
                 Power::Source { output: 0.0 }
             } else {
-                Power::Sink { need: tick_power, input: 0.0 }
+                Power::Sink { need: 0.0, input: 0.0 }
             };
             world.write_storage().insert(entity, power)?;
             world.write_storage().insert(entity, Reactor {
-                input, delay, output, tick_power,
+                input, delay, output, power_per_second,
                 in_progress: None,
             })?;
             Ok(())
@@ -425,17 +422,15 @@ impl<'a> System<'a> for RunReactors {
         for (node, reactor, source, sink, power) in (&nodes, &mut reactors, &mut sources, &mut sinks, &mut powers).join() {
             // Check in progress production.
             let produce = if let Some(prog) = reactor.in_progress.as_mut() {
-                let has_power = match power {
-                    Power::Source { output } => {
-                        *output = reactor.tick_power;
-                        true
+                let inc = match power {
+                    Power::Source { .. } => super::UPDATE_DURATION,
+                    Power::Sink { input, .. } => {
+                        let ratio = *input / reactor.power_per_second;
+                        // Duration doesn't support floating point mul/div :(
+                        f32_duration(duration_f32(super::UPDATE_DURATION)*ratio)
                     },
-                    Power::Sink { input, .. } => if *input >= reactor.tick_power {
-                        *input -= reactor.tick_power;
-                        true
-                    } else { false },
                 };
-                if has_power { *prog += super::UPDATE_DURATION };
+                *prog += inc;
                 *prog >= reactor.delay
             } else { false };
             if produce {
@@ -444,6 +439,10 @@ impl<'a> System<'a> for RunReactors {
                     if let Some(waste) = source.has.inc_by(res, count) {
                         spawn_waste(&lazy, node.at(), res, waste);
                     }
+                }
+                match power {
+                    Power::Source { output } => *output = 0.0,
+                    Power::Sink { need, .. } => *need = 0.0,
                 }
             }
 
@@ -454,6 +453,17 @@ impl<'a> System<'a> for RunReactors {
             let needs_output = reactor.output.iter().any(|(r, c)| source.has.get(r) < c);
             if !needs_output { continue }
             // TODO: start reaction if there's power demand
+            let power_start = match power {
+                Power::Source { output } => {
+                    *output = reactor.power_per_second;
+                    true
+                },
+                Power::Sink { need, input } => {
+                    *need = reactor.power_per_second;
+                    *input > 0.0
+                },
+            };
+            if !power_start { continue }
             for (res, count) in reactor.input.iter() {
                 if count == 0 { continue }
                 sink.has.dec_by(res, count).unwrap();

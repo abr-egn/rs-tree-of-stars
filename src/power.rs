@@ -112,18 +112,27 @@ impl<'a> System<'a> for DistributePower {
             for (power, _) in (&data.powers, &covered).join() {
                 match power {
                     Power::Source { output } => supply += output,
-                    Power::Sink { need, input } => demand += need - input,
+                    Power::Sink { need, .. } => demand += need,
                 }
             }
-            // std::cmp::min requires (total) Ord t(-_-t)
-            let will_supply = if supply > demand { demand } else { supply };
-            let scale = will_supply / demand;
+            let will_supply = fmin(supply, demand);
+            let scale = if demand > 0.0 { will_supply / demand } else { 0.0 };
             for (power, _) in (&mut data.powers, covered).join() {
                 match power {
-                    Power::Source { output } => *output = 0.0,
-                    Power::Sink { need, input } => *input += (*need - *input) * scale,
+                    Power::Source { .. } => (),
+                    Power::Sink { need, input } => *input = *need * scale,
                 }
             }
         }
     }
+}
+
+// std::cmp::min requires (total) Ord t(-_-t)
+fn fmin(a: f32, b: f32) -> f32 {
+    if a > b { b } else { a }
+}
+
+#[allow(unused)]
+fn fmax(a: f32, b: f32) -> f32 {
+    if a > b { a } else { b }
 }
