@@ -21,6 +21,7 @@ use error::or_die;
 use geom;
 use graph;
 use mode::{Mode, EventAction, TopAction};
+use power;
 use resource::{self, Resource};
 use util::*;
 
@@ -163,7 +164,7 @@ impl NodeSelected {
             if world.read_storage::<resource::Reactor>().get(self.0).is_some() {
                 kinds.push("Reactor".into());
             }
-            if world.read_storage::<resource::Pylon>().get(self.0).is_some() {
+            if world.read_storage::<power::Pylon>().get(self.0).is_some() {
                 kinds.push("Pylon".into());
             }
             if kinds.is_empty() {
@@ -187,7 +188,7 @@ impl NodeSelected {
     fn is_plain(&self, world: &World) -> bool {
         if world.read_storage::<resource::Source>().get(self.0).is_some() { return false }
         if world.read_storage::<resource::Sink>().get(self.0).is_some() { return false }
-        if world.read_storage::<resource::Pylon>().get(self.0).is_some() { return false }
+        if world.read_storage::<power::Pylon>().get(self.0).is_some() { return false }
         true
     }
 }
@@ -301,7 +302,7 @@ impl Mode for NodeSelected {
                     });
                 }
                 if ui.small_button(im_str!("Make Pylon")) {
-                    resource::Pylon::add(world, self.0);
+                    power::Pylon::add(world, self.0);
                 }
                 ui.separator();
                 if ui.small_button(im_str!("Start Growth Test")) {

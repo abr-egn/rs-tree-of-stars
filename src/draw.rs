@@ -18,6 +18,7 @@ use error::or_die;
 use game;
 use geom;
 use graph;
+use power;
 use resource::{self, Resource};
 use util::{self, try_get};
 
@@ -395,9 +396,9 @@ struct DrawPowerGrid<'a>(&'a mut Context);
 impl<'a, 'b> System<'a> for DrawPowerGrid<'b> {
     type SystemData = (
         Entities<'a>,
-        ReadExpect<'a, resource::PowerGrid>,
+        ReadExpect<'a, power::PowerGrid>,
         ReadStorage<'a, graph::Node>,
-        ReadStorage<'a, resource::Pylon>,
+        ReadStorage<'a, power::Pylon>,
         ReadStorage<'a, game::Selected>,
     );
 
@@ -426,7 +427,7 @@ impl<'a, 'b> System<'a> for DrawPowerGrid<'b> {
                     let mut points = vec![];
                     let mut delta: Coordinate = Coordinate { x: 1, y: 0 };
                     for _ in 0..7 {
-                        let corner = node.at() + delta.scale(resource::PYLON_RANGE);
+                        let corner = node.at() + delta.scale(power::PYLON_RANGE);
                         points.push(corner.to_pixel_point());
                         delta = delta.rotate_around_zero(::hex2d::Right);
                     }

@@ -22,6 +22,7 @@ mod geom;
 mod ggez_imgui;
 mod graph;
 mod mode;
+mod power;
 mod resource;
 mod util;
 
@@ -64,8 +65,9 @@ fn make_world(ctx: &mut Context) -> World {
     world.register::<resource::Storage>();
     world.register::<resource::Burn>();
     world.register::<resource::Waste>();
-    world.register::<resource::Pylon>();
-    world.register::<resource::Power>();
+
+    world.register::<power::Power>();
+    world.register::<power::Pylon>();
 
     world.register::<draw::Shape>();
 
@@ -76,7 +78,7 @@ fn make_world(ctx: &mut Context) -> World {
     world.add_resource(Paused(false));
     world.add_resource(geom::Map::new());
     world.add_resource(geom::AreaMap::new());
-    world.add_resource(resource::PowerGrid::new());
+    world.add_resource(power::PowerGrid::new());
 
     draw::build_sprites(&mut world, ctx);
     game::prep_world(&mut world);
@@ -102,8 +104,8 @@ fn make_update() -> Dispatcher<'static, 'static> {
         .with(resource::DoStorage, STORAGE, &[])
         .with(resource::Pull, PULL, &[STORAGE])
         .with(resource::Receive, RECEIVE, &[PULL])
-        .with(resource::RunReactors, REACTION, &[])
-        .with(resource::DistributePower, POWER, &[])
+        .with(resource::RunReactors, REACTION, &[RECEIVE, POWER])
+        .with(power::DistributePower, POWER, &[])
         .with(resource::DoBurn, BURN, &[])
         .with(resource::ClearWaste, CLEAR_WASTE, &[])
         .with(game::RunGrowTest, GROW_TEST, &[])
