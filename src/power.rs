@@ -102,14 +102,14 @@ pub struct DistributePowerData<'a> {
 impl<'a> System<'a> for DistributePower {
     type SystemData = DistributePowerData<'a>;
 
-    fn run(&mut self, data: Self::SystemData) {
+    fn run(&mut self, mut data: Self::SystemData) {
         let mut marked = BitSet::new();
         for (pylon, _) in (&*data.entities, &data.pylons).join() {
             if marked.contains(pylon.id()) { continue }
             let covered = data.grid.find_covered(&data.areas, pylon, &mut marked);
             let mut supply = 0.0;
             let mut demand = 0.0;
-            for (power, _) in (&data.powers, covered).join() {
+            for (power, _) in (&data.powers, &covered).join() {
                 match power {
                     Power::Source { output } => supply += output,
                     Power::Sink { need, input } => demand += need - input,
@@ -117,8 +117,13 @@ impl<'a> System<'a> for DistributePower {
             }
             // std::cmp::min requires (total) Ord t(-_-t)
             let will_supply = if supply > demand { demand } else { supply };
-            let supply_scale = will_supply / supply;
-            let demand_scale = will_supply / demand;
+            let scale = will_supply / demand;
+            for (power, _) in (&mut data.powers, covered).join() {
+                match power {
+                    Power::Source { output } => *output = 0.0,
+                    Power::Sink { need, input } => *input += (*need - *input) * scale,
+                }
+            }
         }
     }
 }

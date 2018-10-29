@@ -430,7 +430,10 @@ impl<'a> System<'a> for RunReactors {
                         *output = reactor.tick_power;
                         true
                     },
-                    Power::Sink { input, .. } => *input >= reactor.tick_power,
+                    Power::Sink { input, .. } => if *input >= reactor.tick_power {
+                        *input -= reactor.tick_power;
+                        true
+                    } else { false },
                 };
                 if has_power { *prog += super::UPDATE_DURATION };
                 *prog >= reactor.delay
