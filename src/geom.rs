@@ -216,25 +216,21 @@ impl AreaMap {
     {
         self.0.remove(&Area::new(center, radius, entity, TypeId::of::<T>()))
     }
-    pub fn find<'a>(&'a self, at: Coordinate) -> impl Iterator<Item=Entity> + 'a {
-        self.0.lookup_in_rectangle(&BoundingRect::from_point(SC(at)))
-            .into_iter()
-            .filter_map(move |area| {
-                if area.center.distance(at) > area.radius {
-                    return None
-                }
-                Some(area.entity)
-            })
+    pub fn find(&self, at: Coordinate) -> BitSet {
+        let mut out = BitSet::new();
+        for area in self.0.lookup_in_rectangle(&BoundingRect::from_point(SC(at))) {
+            if area.center.distance(at) > area.radius { continue }
+            out.add(area.entity.id());
+        }
+        out
     }
-    pub fn find_overlap<'a>(&'a self, center: Coordinate, radius: i32) -> impl Iterator<Item=Entity> + 'a {
-        self.0.lookup_in_rectangle(&bounding(center, radius))
-            .into_iter()
-            .filter_map(move |area| {
-                if area.center.distance(center) > area.radius + radius {
-                    return None
-                }
-                Some(area.entity)
-            })
+    pub fn find_overlap(&self, center: Coordinate, radius: i32) -> BitSet {
+        let mut out = BitSet::new();
+        for area in self.0.lookup_in_rectangle(&bounding(center, radius)) {
+            if area.center.distance(center) > area.radius + radius { continue }
+            out.add(area.entity.id());
+        }
+        out
     }
 }
 
@@ -284,21 +280,19 @@ impl<T> AreaWatch<T> {
 pub type AreaSet = AreaWatch<HashSet<Entity>>;
 
 impl AreaSet {
-    #[allow(unused)]
     pub fn add(world: &mut World, parent: Entity, range: i32) -> Result<()> {
         {
             let nodes = world.read_storage::<graph::Node>();
             let entities = world.entities();
             Self::build(world, parent, range, |found| {
                 let mut set = HashSet::new();
-                for (entity, _, _) in (&entities, &nodes, found).join() {
+                for (entity, _, _) in (&entities, nodes.mask(), found).join() {
                     set.insert(entity);
                 }
                 set
             })
         }?.insert(world)
     }
-    #[allow(unused)]
     pub fn nodes<'a>(&'a self) -> impl Iterator<Item=Entity> + 'a { self.data.iter().cloned() }
 }
 

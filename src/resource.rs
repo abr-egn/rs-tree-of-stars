@@ -641,9 +641,9 @@ impl Pylon {
             {
                 let map = world.read_resource::<geom::AreaMap>();
                 let pylons = world.read_storage::<Pylon>();
+                let found = map.find_overlap(at, PYLON_RANGE) & pylons.mask();
                 let mut grid = world.write_resource::<PowerGrid>();
-                for other in map.find_overlap(at, PYLON_RANGE) {
-                    if !pylons.get(other).is_some() { continue }
+                for (other, _) in (&*world.entities(), found).join() {
                     grid.add_link(entity, other);
                 }
             }

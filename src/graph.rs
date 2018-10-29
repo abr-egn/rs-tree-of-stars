@@ -355,10 +355,8 @@ pub fn make_node(world: &mut World, center: Coordinate) -> Entity {
     ));
     let mut areas = world.write_storage::<geom::AreaSet>();
     let map = world.read_resource::<geom::AreaMap>();
-    for e in map.find(center) {
-        if let Some(area) = areas.get_mut(e) {
-            area.data.insert(ent.clone());
-        }
+    for (area, _) in (&mut areas, map.find(center)).join() {
+        area.data.insert(ent.clone());
     }
 
     ent
@@ -417,11 +415,11 @@ pub fn make_link(world: &mut World, from: Entity, to: Entity) -> Entity {
     or_die(|| world.write_resource::<geom::Map>().set(
         &mut world.write_storage::<geom::Space>(), ent, geom::Space::new(shape)));
     let areas = world.read_resource::<geom::AreaMap>();
-    let found_from: HashSet<Entity> = areas.find(ls.from).collect();
-    let found_to: HashSet<Entity> = areas.find(ls.to).collect();
+    let found_from = areas.find(ls.from);
+    let found_to = areas.find(ls.to);
     let mut graphs = world.write_storage::<AreaGraph>();
-    for &e in found_from.intersection(&found_to) {
-        if let Some(ag) = graphs.get_mut(e) { ag.data.add_link(&link, ent) }
+    for (ag, _) in (&mut graphs, found_from & found_to).join() {
+        ag.data.add_link(&link, ent);
     }
     ent
 }
