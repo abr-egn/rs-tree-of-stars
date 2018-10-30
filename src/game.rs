@@ -276,12 +276,13 @@ impl Mode for NodeSelected {
                             /* total_power= */ 0.0,
                         );
                     }
+                    // Power is in kJ/mol
                     if ui.menu_item(im_str!("2H2O -> O2 + 2H2")).build() {
                         self.add_reactor(world,
                             /* input= */ Pool::from(vec![(Resource::H2O, 2)]),
                             /* delay= */ REACTION_TIME,
                             /* output= */ Pool::from(vec![(Resource::O2, 1), (Resource::H2, 2)]),
-                            /* total_power= */ 0.0,
+                            /* total_power= */ -3242.0,
                         );
                     }
                     if ui.menu_item(im_str!("C + O2 => CO2")).build() {
@@ -289,7 +290,7 @@ impl Mode for NodeSelected {
                             /* input= */ Pool::from(vec![(Resource::C, 1), (Resource::O2, 1)]),
                             /* delay= */ REACTION_TIME,
                             /* output= */ Pool::from(vec![(Resource::CO2, 1)]),
-                            /* total_power= */ 0.0,
+                            /* total_power= */ 396.0,
                         );
                     }
                     if ui.menu_item(im_str!("CO2 + 4H2 => CH4 + 2H2O")).build() {
@@ -297,7 +298,15 @@ impl Mode for NodeSelected {
                             /* input= */ Pool::from(vec![(Resource::CO2, 1), (Resource::H2, 4)]),
                             /* delay= */ REACTION_TIME,
                             /* output= */ Pool::from(vec![(Resource::CH4, 1), (Resource::H2O, 2)]),
-                            /* total_power= */ 0.0,
+                            /* total_power= */ 165.0,
+                        );
+                    }
+                    if ui.menu_item(im_str!("CH4 + 2O2 => CO2 + 2H2O")).build() {
+                        self.add_reactor(world,
+                            /* input= */ Pool::from(vec![(Resource::CH4, 1), (Resource::O2, 2)]),
+                            /* delay= */ REACTION_TIME,
+                            /* output= */ Pool::from(vec![(Resource::CO2, 1), (Resource::H2O, 2)]),
+                            /* total_power= */ 891.0,
                         );
                     }
                 });
@@ -325,7 +334,7 @@ impl Mode for NodeSelected {
                 }
                 if ui.small_button(im_str!("Make Power Source")) {
                     world.write_storage().insert(self.0, power::Power::Source {
-                        output: 1.0,
+                        output: 100.0,
                     }).unwrap();
                 }
                 if ui.small_button(im_str!("Make Pylon")) {
