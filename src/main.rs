@@ -177,7 +177,7 @@ fn main() -> Result<()> {
 
         draw::draw(&mut world, &mut ctx);
         stack.handle_ui(&mut world, &ui_frame.ui);
-        ui_frame.ui.show_demo_window(&mut true);
+        //ui_frame.ui.show_demo_window(&mut true);
 
         ui_frame.render(&mut ctx);
         graphics::present(&mut ctx);
