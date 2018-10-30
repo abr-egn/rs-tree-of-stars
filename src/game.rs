@@ -255,13 +255,16 @@ impl Mode for NodeSelected {
             }
             if self.is_plain(world) {
                 use resource::Pool;
-                ui.menu(im_str!("Make Reactor")).build(|| {
+                if ui.small_button(im_str!("Make Reactor")) {
+                    ui.open_popup(im_str!("Make Reactor"));
+                }
+                ui.popup(im_str!("Make Reactor"), || {
                     if ui.menu_item(im_str!("-> H2O")).build() {
                         self.add_reactor(world,
                             /* input= */ Pool::new(),
                             /* delay= */ REACTION_TIME,
                             /* output= */ Pool::from(vec![(Resource::H2O, 1)]),
-                            /* total_power= */ 1.0,
+                            /* total_power= */ 0.0,
                         );
                     }
                     if ui.menu_item(im_str!("-> C")).build() {
@@ -277,7 +280,7 @@ impl Mode for NodeSelected {
                             /* input= */ Pool::from(vec![(Resource::H2O, 2)]),
                             /* delay= */ REACTION_TIME,
                             /* output= */ Pool::from(vec![(Resource::O2, 1), (Resource::H2, 2)]),
-                            /* total_power= */ -2.0,
+                            /* total_power= */ 0.0,
                         );
                     }
                     if ui.menu_item(im_str!("C + O2 => CO2")).build() {
