@@ -15,6 +15,7 @@ use specs;
 
 #[derive(Debug)]
 pub enum Error {
+    NoPath,
     NoSuchComponent,
     NoSuchEdge,
     Occupied,

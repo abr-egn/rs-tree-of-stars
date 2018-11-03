@@ -16,6 +16,7 @@ use specs::{
     storage::BTreeStorage,
 };
 
+use build;
 use draw;
 use error::or_die;
 use geom;
@@ -323,15 +324,6 @@ impl Mode for NodeSelected {
                         Ok(())
                     });
                 }
-                if ui.small_button(im_str!("Make CH4 Burn")) {
-                    let mut sink = resource::Sink::new();
-                    sink.want.set(Resource::CH4, 1);
-                    or_die(|| {
-                        world.write_storage().insert(self.0, sink)?;
-                        world.write_storage().insert(self.0, resource::Burn::new(REACTION_TIME))?;
-                        Ok(())
-                    });
-                }
                 if ui.small_button(im_str!("Make Power Source")) {
                     world.write_storage().insert(self.0, power::Power::Source {
                         output: 100.0,
@@ -350,6 +342,22 @@ impl Mode for NodeSelected {
                     action = TopAction::done()
                 }
             }
+            if ui.small_button(im_str!("Build")) {
+                ui.open_popup(im_str!("Build"));
+            }
+            ui.popup(im_str!("Build"), || {
+                let mut kind = None;
+                if ui.menu_item(im_str!("Strut")).build() {
+                    kind = Some(build::Kind::Strut);
+                }
+                if ui.menu_item(im_str!("Electrolysis")).build() {
+                    kind = Some(build::Kind::Electrolysis);
+                }
+                if let Some(k) = kind {
+                    action = TopAction::push(BuildFrom::new(self.0, k));
+                }
+            });
+            ui.separator();
             if world.read_storage::<graph::AreaGraph>().get(self.0).is_some() {
                 if ui.small_button(im_str!("Toggle Exclude")) {
                     action = TopAction::push(ToggleExclude::new(self.0));
@@ -361,6 +369,90 @@ impl Mode for NodeSelected {
             }
         });
         action
+    }
+}
+
+struct BuildFrom {
+    source: Entity,
+    kind: build::Kind,
+}
+
+impl BuildFrom {
+    fn new(source: Entity, kind: build::Kind) -> Box<Mode> { Box::new(BuildFrom { source, kind })}
+}
+
+impl Mode for BuildFrom {
+    fn name(&self) -> &str { "build from " }
+    fn on_show(&mut self, world: &mut World) {
+        world.write_resource::<MouseWidget>().kind = MWKind::Highlight;
+    }
+    fn on_hide(&mut self, world: &mut World) {
+        world.write_resource::<MouseWidget>().kind = MWKind::None;
+    }
+    fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {
+        match event {
+            Event::MouseButtonDown { x, y, .. } => {
+                let coord = pixel_to_coord(ctx, x, y);
+                let found = world.read_resource::<geom::Map>().get(coord);
+                match found {
+                    Some(ent) => {
+                        if world.read_storage::<graph::Node>().get(ent).is_some() {
+                            TopAction::push(BuildTo {
+                                source: self.source,
+                                kind: self.kind,
+                                fork: ent,
+                            }.mode())
+                        } else {
+                            TopAction::AsEvent
+                        }
+                    },
+                    _ => TopAction::AsEvent,
+                }
+            },
+            Event::KeyDown { keycode: Some(Keycode::Escape), .. } => TopAction::Pop,
+            _ => TopAction::AsEvent,
+        }
+    }
+}
+
+struct BuildTo {
+    source: Entity,
+    kind: build::Kind,
+    fork: Entity,
+}
+
+impl BuildTo {
+    fn mode(self) -> Box<Mode> { Box::new(self) }
+}
+
+impl Mode for BuildTo {
+    fn name(&self) -> &str { "build to" }
+    fn on_show(&mut self, world: &mut World) {
+        world.write_resource::<MouseWidget>().kind = MWKind::PlaceNode;
+    }
+    fn on_hide(&mut self, world: &mut World) {
+        world.write_resource::<MouseWidget>().kind = MWKind::None;
+    }
+    fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {
+        match event {
+            Event::MouseButtonDown { x, y, .. } => {
+                let fork_coord = try_get(&world.read_storage::<graph::Node>(), self.fork).unwrap().at();
+                let coord = pixel_to_coord(ctx, x, y);
+                {
+                    let map = &*world.read_resource::<geom::Map>();
+                    if !graph::space_for_node(map, coord) {
+                        return TopAction::Do(EventAction::Done)
+                    }
+                    if !graph::space_for_link(map, fork_coord, coord) {
+                        return TopAction::Do(EventAction::Done)
+                    }
+                }
+                self.kind.start(world, self.source, self.fork, coord);
+                TopAction::Pop
+            },
+            Event::KeyDown { keycode: Some(Keycode::Escape), .. } => TopAction::Pop,
+            _ => TopAction::AsEvent,
+        }
     }
 }
 

@@ -15,6 +15,7 @@ extern crate specs;
 extern crate imgui;
 extern crate imgui_gfx_renderer;
 
+mod build;
 mod draw;
 mod error;
 mod game;
@@ -63,7 +64,6 @@ fn make_world(ctx: &mut Context) -> World {
     world.register::<resource::Target>();
     world.register::<resource::Reactor>();
     world.register::<resource::Storage>();
-    world.register::<resource::Burn>();
     world.register::<resource::Waste>();
 
     world.register::<power::Power>();
@@ -73,6 +73,9 @@ fn make_world(ctx: &mut Context) -> World {
 
     world.register::<game::Selected>();
     world.register::<game::GrowTest>();
+
+    world.register::<build::Pending>();
+    world.register::<build::Packet>();
 
     world.add_resource(Now(Instant::now()));
     world.add_resource(Paused(false));
@@ -94,9 +97,9 @@ fn make_update() -> Dispatcher<'static, 'static> {
     const REACTION: &str = "reaction";
     const POWER: &str = "power";
     const STORAGE: &str = "storage";
-    const BURN: &str = "burn";
     const GROW_TEST: &str = "grow_test";
     const CLEAR_WASTE: &str = "clear_waste";
+    const BUILD: &str = "build";
 
     DispatcherBuilder::new()
         .with(geom::Travel, TRAVEL, &[])
@@ -106,8 +109,8 @@ fn make_update() -> Dispatcher<'static, 'static> {
         .with(resource::Receive, RECEIVE, &[PULL])
         .with(power::DistributePower, POWER, &[])
         .with(resource::RunReactors, REACTION, &[RECEIVE, POWER])
-        .with(resource::DoBurn, BURN, &[])
         .with(resource::ClearWaste, CLEAR_WASTE, &[])
+        .with(build::Build, BUILD, &[])
         .with(game::RunGrowTest, GROW_TEST, &[])
         .build()
 }
