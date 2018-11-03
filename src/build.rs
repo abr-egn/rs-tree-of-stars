@@ -1,4 +1,7 @@
-use std::time::Duration;
+use std::{
+    collections::{HashMap, HashSet, VecDeque},
+    time::Duration,
+};
 
 use hex2d::Coordinate;
 use specs::{
@@ -9,6 +12,7 @@ use specs::{
 use error::{Error, or_die};
 use graph;
 use resource::{
+    self,
     Pool, Reactor, Resource,
 };
 use util;
@@ -20,7 +24,7 @@ impl Component for Pending {
     type Storage = NullStorage<Self>;
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum Kind {
     // Reactors
     Electrolysis,
@@ -49,7 +53,6 @@ const REACTOR_RANGE: i32 = 20;
 const PACKET_SPEED: f32 = 2.0;
 
 impl Kind {
-    #[allow(unused)]
     fn make(&self, world: &mut World, entity: Entity) {
         use self::Kind::*;
         match self {
@@ -63,6 +66,10 @@ impl Kind {
             ),
             Strut => (),
         }
+    }
+    fn cost(&self) -> (Pool, Duration) {
+        use self::Kind::*;
+        unimplemented!()
     }
     pub fn start(&self, world: &mut World, start: Entity, fork: Entity, location: Coordinate) {
         let node = graph::make_node(world, location);
@@ -109,6 +116,60 @@ impl<'a> System<'a> for Build {
             lazy.exec_mut(move |world| {
                 packet.kind.make(world, packet.target);
             });
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Factory {
+    can_build: HashSet<Kind>,
+    built: HashMap<Kind, usize>,
+    active: Option<(Kind, Duration)>,
+    queue: VecDeque<Kind>,
+}
+
+impl Component for Factory {
+    type Storage = BTreeStorage<Self>;
+}
+
+#[derive(Debug)]
+pub struct Production;
+
+impl<'a> System<'a> for Production {
+    type SystemData = (
+        WriteStorage<'a, Factory>,
+        WriteStorage<'a, resource::Sink>,
+    );
+
+    fn run(&mut self, (mut factories, mut sinks): Self::SystemData) {
+        for (factory, sink) in (&mut factories, &mut sinks).join() {
+            // Check production state
+            let produced = if let Some((kind, time)) = &mut factory.active {
+                *time += super::UPDATE_DURATION;
+                let (_, dur) = kind.cost();
+                if *time >= dur {
+                    Some(*kind)
+                } else { None }
+            } else { None };
+            // Track if something finished
+            if let Some(kind) = produced {
+                let count = factory.built.entry(kind).or_insert(0);
+                *count += 1;
+                factory.active = None;
+            }
+            // Request the resources for the next queued item
+            let next = if let Some(f) = factory.queue.pop_front() { f } else { continue };
+            let (cost, _) = next.cost();
+            let mut has_all = true;
+            for (res, count) in cost.iter() {
+                if sink.want.get(res) < count { sink.want.set(res, count); }
+                if sink.has.get(res) < count { has_all = false }
+            }
+            if !has_all || factory.active.is_some() {
+                factory.queue.push_front(next);
+                continue;
+            }
+            factory.active = Some((next, Duration::new(0, 0)));
         }
     }
 }

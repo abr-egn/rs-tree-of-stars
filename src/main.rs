@@ -76,6 +76,7 @@ fn make_world(ctx: &mut Context) -> World {
 
     world.register::<build::Pending>();
     world.register::<build::Packet>();
+    world.register::<build::Factory>();
 
     world.add_resource(Now(Instant::now()));
     world.add_resource(Paused(false));
@@ -101,6 +102,7 @@ fn make_update() -> Dispatcher<'static, 'static> {
     const GROW_TEST: &str = "grow_test";
     const CLEAR_WASTE: &str = "clear_waste";
     const BUILD: &str = "build";
+    const PRODUCTION: &str = "production";
 
     DispatcherBuilder::new()
         .with(geom::Travel, TRAVEL, &[])
@@ -113,6 +115,7 @@ fn make_update() -> Dispatcher<'static, 'static> {
         .with(resource::RunReactors, REACTION, &[RECEIVE, POWER])
         .with(resource::ClearWaste, CLEAR_WASTE, &[])
         .with(build::Build, BUILD, &[])
+        .with(build::Production, PRODUCTION, &[])
         .with(game::RunGrowTest, GROW_TEST, &[])
         .build()
 }
