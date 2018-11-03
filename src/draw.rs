@@ -84,7 +84,7 @@ pub fn build_sprites(world: &mut World, ctx: &mut Context) {
     }).collect();
     or_die(|| {
         world.add_resource(CellMesh(Mesh::new_polygon(ctx, DrawMode::Fill, &points)?));
-        world.add_resource(OutlineSprite(Mesh::new_polygon(ctx, DrawMode::Line(1.0), &points)?));
+        world.add_resource(OutlineSprite(Mesh::new_polygon(ctx, DrawMode::Line(2.0), &points)?));
         world.add_resource(PausedText(TextCached::new("PAUSED")?));
         world.add_resource(SourceOrbit(Mesh::new_circle(ctx,
             DrawMode::Line(1.0),
@@ -152,7 +152,7 @@ impl<'a, 'b> System<'a> for DrawShapes<'b> {
         let ctx = &mut self.0;
         let screen = graphics::get_screen_coordinates(ctx);
         let scale = (now_f32(ctx) * 3.0).sin() * 0.5 + 0.5;
-        let sel_color = Color::new(scale, scale, 0.0, 1.0);
+        let sel_color = Color::new(scale, scale, scale, 1.0);
         or_die(|| {
             for (shape, opt_selected, opt_pending) in (&shapes, selected.maybe(), pending.maybe()).join() {
                 let mut color = shape.color;
@@ -284,8 +284,8 @@ impl <'a, 'b> System<'a> for DrawSelectedAreas<'b> {
     fn run(&mut self, (entities, outline, mut graphs, links, nodes, selected, shapes): Self::SystemData) {
         let ctx = &mut self.0;
         let screen = graphics::get_screen_coordinates(ctx);
-        let scale = (now_f32(ctx) * 3.0).sin() * 0.5 + 0.5;
-        let color = Color::new(0.0, scale, 0.0, 1.0);
+        //let scale = (now_f32(ctx) * 3.0).sin() * 0.5 + 0.5;
+        //let color = Color::new(scale, scale, scale, 1.0);
         or_die(|| {
             for (entity, node, ag, _) in (&*entities, &nodes, &mut graphs, &selected).join() {
                 // Range
@@ -298,7 +298,7 @@ impl <'a, 'b> System<'a> for DrawSelectedAreas<'b> {
                 // Nodes
                 {
                     let (node_iter, mut routes) = ag.nodes_route();
-                    graphics::set_color(ctx, color)?;
+                    graphics::set_color(ctx, Color::new(0.0, 1.0, 0.0, 1.0))?;
                     for node_ent in node_iter {
                         if routes.route(&links, &nodes, entity, node_ent).is_none() { continue }
                         if let Some(shape) = shapes.get(node_ent) {
@@ -537,7 +537,12 @@ impl <'a, 'b> System<'a> for DrawMouseWidget<'b> {
                     None => vec![coord],
                     Some(ent) => try_get(&spaces, ent)?.coords().iter().cloned().collect(),
                 };
-                graphics::set_color(ctx, Color::new(0.5, 0.5, 0.5, 1.0))?;
+                let color = if mw.valid {
+                    Color::new(1.0, 1.0, 1.0, 1.0)
+                } else {
+                    Color::new(0.5, 0.0, 0.0, 1.0)
+                };
+                graphics::set_color(ctx, color)?;
                 for coord in coords {
                     let (x, y) = coord.to_pixel(SPACING);
                     graphics::draw(ctx, &outline.0, Point2::new(x, y), 0.0)?;

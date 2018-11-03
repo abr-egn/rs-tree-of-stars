@@ -39,7 +39,7 @@ pub struct Play {
 }
 
 impl Play {
-    pub fn new() -> Box<Mode> { Box::new(Play { add_active: Rc::new(Cell::new(false)) }) }
+    pub fn new() -> Play { Play { add_active: Rc::new(Cell::new(false)) } }
     fn window<F: FnOnce(&mut World)>(&self, world: &mut World, ui: &Ui, f: F) -> Option<EventAction> {
         let mut ret = None;
         ui.window(im_str!("Play")).always_auto_resize(true).build(|| {
@@ -90,17 +90,10 @@ impl Mode for Play {
         EventAction::Done
     }
     fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {
-        match event {
-            Event::MouseButtonDown { x, y, .. } => {
-                let coord = pixel_to_coord(ctx, x, y);
-                match world.read_resource::<geom::Map>().get(coord) {
-                    Some(ent) if world.read_storage::<graph::Node>().get(ent).is_some() => {
-                        TopAction::push(NodeSelected(ent))
-                    },
-                    _ => TopAction::AsEvent,
-                }
-            },
-            _ => TopAction::AsEvent,
+        if let Some(ent) = handle_node_selection(world, ctx, &event) {
+            TopAction::push(NodeSelected(ent))
+        } else {
+            TopAction::AsEvent
         }
     }
     fn on_ui(&mut self, world: &mut World, ui: &Ui) -> EventAction {
@@ -155,7 +148,6 @@ impl Mode for PlaceNode {
 struct NodeSelected(Entity);
 
 impl NodeSelected {
-    fn new(node: Entity) -> Box<Mode> { Box::new(NodeSelected(node)) }
     fn window<F: FnOnce(&mut World)>(&self, world: &mut World, ui: &Ui, f: F) {
         ui.window(im_str!("Node")).always_auto_resize(true).build(|| {
             let mut kinds: Vec<String> = vec![];
@@ -231,18 +223,20 @@ impl Mode for NodeSelected {
         world.write_resource::<MouseWidget>().kind = MWKind::None;
     }
     fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {
+        let mut click = false;
         match event {
-            Event::KeyDown { keycode: Some(Keycode::Escape), .. } => TopAction::Pop,
-            Event::MouseButtonDown { x, y, .. } => {
-                let coord = pixel_to_coord(ctx, x, y);
-                match world.read_resource::<geom::Map>().get(coord) {
-                    Some(ent) if world.read_storage::<graph::Node>().get(ent).is_some() => {
-                        TopAction::Swap(NodeSelected::new(ent))
-                    },
-                    _ => TopAction::Pop,
-                }
-            },
-            _ => TopAction::AsEvent,
+            Event::KeyDown { keycode: Some(Keycode::Escape), .. } => return TopAction::Pop,
+            Event::MouseButtonDown { .. } => click = true,
+            _ => (),
+        };
+        if let Some(ent) = handle_node_selection(world, ctx, &event) {
+            TopAction::swap(NodeSelected(ent))
+        } else {
+            if click {
+                TopAction::Pop
+            } else {
+                TopAction::AsEvent
+            }
         }
     }
     fn on_ui(&mut self, world: &mut World, ui: &Ui) -> EventAction {
@@ -646,4 +640,28 @@ fn pixel_to_coord(ctx: &Context, mx: i32, my: i32) -> Coordinate {
     let scr_mx: f32 = x + (w * rel_mx);
     let scr_my: f32 = y + (h * rel_my);
     Coordinate::from_pixel(scr_mx, scr_my, draw::SPACING)
+}
+
+fn handle_node_selection(world: &mut World, ctx: &Context, event: &Event) -> Option<Entity> {
+    match *event {
+        Event::MouseMotion { x, y, .. } => {
+            let coord = pixel_to_coord(ctx, x, y);
+            let valid = match world.read_resource::<geom::Map>().get(coord) {
+                Some(ent) => world.read_storage::<graph::Node>().get(ent).is_some(),
+                _ => true,
+            };
+            world.write_resource::<MouseWidget>().valid = valid;
+            None
+        },
+        Event::MouseButtonDown { x, y, .. } => {
+            let coord = pixel_to_coord(ctx, x, y);
+            match world.read_resource::<geom::Map>().get(coord) {
+                Some(ent) if world.read_storage::<graph::Node>().get(ent).is_some() => {
+                    Some(ent)
+                },
+                _ => None,
+            }
+        },
+        _ => None
+    }
 }
