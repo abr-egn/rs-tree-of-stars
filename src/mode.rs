@@ -19,6 +19,7 @@ impl TopAction {
     pub fn continue_() -> Self { TopAction::Do(EventAction::Continue) }
     pub fn done() -> Self { TopAction::Do(EventAction::Done) }
     pub fn push<M: Mode + 'static>(m: M) -> Self { TopAction::Do(EventAction::push(m)) }
+    pub fn swap<M: Mode + 'static>(m: M) -> Self { TopAction::Swap(Box::new(m)) }
 }
 
 pub enum EventAction {

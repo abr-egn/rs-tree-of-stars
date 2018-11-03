@@ -389,7 +389,7 @@ impl Mode for BuildFrom {
                 match found {
                     Some(ent) => {
                         if world.read_storage::<graph::Node>().get(ent).is_some() {
-                            TopAction::push(BuildTo {
+                            TopAction::swap(BuildTo {
                                 source: self.source,
                                 kind: self.kind,
                                 fork: ent,
@@ -438,7 +438,9 @@ impl Mode for BuildTo {
                 self.kind.start(world, self.source, self.fork, coord);
                 TopAction::Pop
             },
-            Event::KeyDown { keycode: Some(Keycode::Escape), .. } => TopAction::Pop,
+            Event::KeyDown { keycode: Some(Keycode::Escape), .. } => TopAction::swap(BuildFrom {
+                source: self.source, kind: self.kind,
+            }),
             _ => TopAction::AsEvent,
         }
     }
