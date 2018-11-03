@@ -401,6 +401,10 @@ pub fn space_for_link(map: &geom::Map, from: Coordinate, to: Coordinate) -> bool
     true
 }
 
+pub fn link_shape(from: Coordinate, to: Coordinate) -> Vec<Coordinate> {
+    LinkSpace::new_pos(from, to).shape
+}
+
 pub fn make_link(world: &mut World, from: Entity, to: Entity) -> Entity {
     let ls = or_die(|| LinkSpace::new(&world.read_storage::<Node>(), from, to));
     let link = Link { from, to, path: ls.path };

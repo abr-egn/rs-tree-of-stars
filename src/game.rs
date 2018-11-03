@@ -30,6 +30,7 @@ pub fn prep_world(world: &mut World) {
     world.add_resource(MouseWidget {
         coord: None,
         kind: MWKind::None,
+        valid: true,
     });
 }
 
@@ -121,25 +122,31 @@ struct PlaceNode {
 
 impl Mode for PlaceNode {
     fn name(&self) -> &str { "place node" }
-    fn on_push(&mut self, world: &mut World) {
+    fn on_show(&mut self, world: &mut World) {
         world.write_resource::<MouseWidget>().kind = MWKind::PlaceNode;
         self.add_active.set(true);
     }
-    fn on_pop(&mut self, world: &mut World) {
+    fn on_hide(&mut self, world: &mut World) {
         world.write_resource::<MouseWidget>().kind = MWKind::None;
         self.add_active.set(false);
     }
     fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {
         match event {
-            Event::KeyDown { keycode: Some(Keycode::Escape), .. } => TopAction::Pop,
+            Event::MouseMotion { x, y, .. } => {
+                let coord = pixel_to_coord(ctx, x, y);
+                let valid = graph::space_for_node(&*world.read_resource::<geom::Map>(), coord);
+                world.write_resource::<MouseWidget>().valid = valid;
+                TopAction::AsEvent
+            },
             Event::MouseButtonDown { x, y, .. } => {
                 let coord = pixel_to_coord(ctx, x, y);
                 if !graph::space_for_node(&*world.read_resource::<geom::Map>(), coord) {
-                    return TopAction::Do(EventAction::Done)
+                    return TopAction::done()
                 }
                 graph::make_node(world, coord);
                 TopAction::Pop
             },
+            Event::KeyDown { keycode: Some(Keycode::Escape), .. } => TopAction::Pop,
             _ => TopAction::AsEvent,
         }
     }
@@ -413,27 +420,41 @@ struct BuildTo {
     fork: Entity,
 }
 
+impl BuildTo {
+    fn fork_coord(&self, world: &World) -> Coordinate {
+        try_get(&world.read_storage::<graph::Node>(), self.fork).unwrap().at()
+    }
+    fn valid_to(&self, world: &World, coord: Coordinate) -> bool {
+        let map = &*world.read_resource::<geom::Map>();
+        if !graph::space_for_node(map, coord) {
+            return false
+        }
+        if !graph::space_for_link(map, self.fork_coord(world), coord) {
+            return false
+        }
+        true
+    }
+}
+
 impl Mode for BuildTo {
     fn name(&self) -> &str { "build to" }
     fn on_show(&mut self, world: &mut World) {
-        world.write_resource::<MouseWidget>().kind = MWKind::PlaceNode;
+        world.write_resource::<MouseWidget>().kind = MWKind::PlaceNodeFrom(self.fork_coord(world));
     }
     fn on_hide(&mut self, world: &mut World) {
         world.write_resource::<MouseWidget>().kind = MWKind::None;
     }
     fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {
         match event {
-            Event::MouseButtonDown { x, y, .. } => {
-                let fork_coord = try_get(&world.read_storage::<graph::Node>(), self.fork).unwrap().at();
+            Event::MouseMotion { x, y, .. } => {
                 let coord = pixel_to_coord(ctx, x, y);
-                {
-                    let map = &*world.read_resource::<geom::Map>();
-                    if !graph::space_for_node(map, coord) {
-                        return TopAction::Do(EventAction::Done)
-                    }
-                    if !graph::space_for_link(map, fork_coord, coord) {
-                        return TopAction::Do(EventAction::Done)
-                    }
+                world.write_resource::<MouseWidget>().valid = self.valid_to(world, coord);
+                TopAction::AsEvent
+            },
+            Event::MouseButtonDown { x, y, .. } => {
+                let coord = pixel_to_coord(ctx, x, y);
+                if !self.valid_to(world, coord) {
+                    return TopAction::Do(EventAction::Done)
                 }
                 self.kind.start(world, self.source, self.fork, coord);
                 TopAction::Pop
@@ -489,10 +510,10 @@ struct ToggleExclude(Entity);
 
 impl Mode for ToggleExclude {
     fn name(&self) -> &str { "toggle exclude" }
-    fn on_push(&mut self, world: &mut World) {
+    fn on_show(&mut self, world: &mut World) {
         world.write_resource::<MouseWidget>().kind = MWKind::Highlight;
     }
-    fn on_pop(&mut self, world: &mut World) {
+    fn on_hide(&mut self, world: &mut World) {
         world.write_resource::<MouseWidget>().kind = MWKind::None;
     }
     fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {
@@ -520,6 +541,7 @@ impl Mode for ToggleExclude {
 pub struct MouseWidget {
     pub coord: Option<Coordinate>,
     pub kind: MWKind,
+    pub valid: bool,
 }
 
 #[derive(Debug)]
@@ -527,6 +549,7 @@ pub enum MWKind {
     None,
     Highlight,
     PlaceNode,
+    PlaceNodeFrom(Coordinate),
 }
 
 #[derive(Debug, Default)]

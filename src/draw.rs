@@ -544,13 +544,35 @@ impl <'a, 'b> System<'a> for DrawMouseWidget<'b> {
                 }
             },
             game::MWKind::PlaceNode => {
-                let color = if graph::space_for_node(&*map, coord) {
+                let color = if mw.valid {
                     Color::new(0.8, 0.8, 0.8, 0.5)
                 } else {
                     Color::new(0.8, 0.0, 0.0, 0.5)
                 };
                 graphics::set_color(ctx, color)?;
                 for c in graph::node_shape(coord) {
+                    let (x, y) = c.to_pixel(SPACING);
+                    graphics::draw(ctx, &cell.0, Point2::new(x, y), 0.0)?;
+                }
+            },
+            game::MWKind::PlaceNodeFrom(from_coord) => {
+                let color = if mw.valid {
+                    Color::new(0.8, 0.8, 0.8, 0.5)
+                } else {
+                    Color::new(0.8, 0.0, 0.0, 0.5)
+                };
+                graphics::set_color(ctx, color)?;
+                for c in graph::node_shape(coord) {
+                    let (x, y) = c.to_pixel(SPACING);
+                    graphics::draw(ctx, &cell.0, Point2::new(x, y), 0.0)?;
+                }
+                let color = if mw.valid {
+                    Color::new(0.0, 0.8, 0.0, 0.5)
+                } else {
+                    Color::new(0.8, 0.0, 0.0, 0.5)
+                };
+                graphics::set_color(ctx, color)?;
+                for c in graph::link_shape(from_coord, coord) {
                     let (x, y) = c.to_pixel(SPACING);
                     graphics::draw(ctx, &cell.0, Point2::new(x, y), 0.0)?;
                 }
