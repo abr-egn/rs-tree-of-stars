@@ -14,6 +14,7 @@ use specs::{
     prelude::*,
 };
 
+use build;
 use error::or_die;
 use game;
 use geom;
@@ -37,12 +38,12 @@ impl Component for Shape {
 
 struct CellMesh(Mesh);
 
-struct PacketSprite {
+struct Outlined {
     outline: Mesh,
     fill: Mesh,
 }
 
-impl graphics::Drawable for PacketSprite {
+impl graphics::Drawable for Outlined {
     fn draw_ex(&self, ctx: &mut Context, mut param: DrawParam) -> ggez::GameResult<()> {
         self.fill.draw_ex(ctx, param)?;
         param.color = Some(Color::new(1.0, 1.0, 1.0, 1.0));
@@ -56,11 +57,15 @@ impl graphics::Drawable for PacketSprite {
     fn get_blend_mode(&self) -> Option<BlendMode> { self.outline.get_blend_mode() }
 }
 
+struct PacketSprite(Outlined);
+
 struct OutlineSprite(Mesh);
 
 struct PausedText(TextCached);
 
 struct SourceOrbit(Mesh);
+
+struct BuildPacket(Outlined);
 
 pub struct ModeText(TextCached);
 
@@ -88,10 +93,15 @@ pub fn build_sprites(world: &mut World, ctx: &mut Context) {
             /* tolerance= */ 0.5,
         )?));
         let origin = Point2::new(0.0, 0.0);
-        world.add_resource(PacketSprite {
+        world.add_resource(PacketSprite(Outlined {
             outline: Mesh::new_circle(ctx, DrawMode::Line(0.5), origin, PACKET_RADIUS, 0.5)?,
             fill: Mesh::new_circle(ctx, DrawMode::Fill, origin, PACKET_RADIUS, 0.5)?,
-        });
+        }));
+        let smol_points: Vec<Point2> = points.iter().map(|p| p * 0.5).collect();
+        world.add_resource(BuildPacket(Outlined {
+            outline: Mesh::new_polygon(ctx, DrawMode::Line(0.5), &smol_points)?,
+            fill: Mesh::new_polygon(ctx, DrawMode::Fill, &smol_points)?
+        }));
         world.add_resource(ModeText(TextCached::new("<INVALID>")?));
         Ok(())
     })
@@ -101,8 +111,9 @@ pub fn draw(world: &mut World, ctx: &mut Context) {
     graphics::clear(ctx);
     graphics::set_background_color(ctx, graphics::Color::new(0.0, 0.0, 0.0, 1.0));
 
-    DrawCells(ctx).run_now(&mut world.res);
+    DrawShapes(ctx).run_now(&mut world.res);
     DrawPackets(ctx).run_now(&mut world.res);
+    DrawBuildPackets(ctx).run_now(&mut world.res);
     DrawSources(ctx).run_now(&mut world.res);
     DrawSinks(ctx).run_now(&mut world.res);
     DrawReactors(ctx).run_now(&mut world.res);
@@ -126,24 +137,29 @@ impl ToPixelPoint for Coordinate {
     }
 }
 
-struct DrawCells<'a>(&'a mut Context);
+struct DrawShapes<'a>(&'a mut Context);
 
-impl<'a, 'b> System<'a> for DrawCells<'b> {
+impl<'a, 'b> System<'a> for DrawShapes<'b> {
     type SystemData = (
         ReadExpect<'a, CellMesh>,
         ReadExpect<'a, OutlineSprite>,
         ReadStorage<'a, Shape>,
         ReadStorage<'a, game::Selected>,
+        ReadStorage<'a, build::Pending>,
     );
 
-    fn run(&mut self, (cell_mesh, outline, shapes, selected): Self::SystemData) {
+    fn run(&mut self, (cell_mesh, outline, shapes, selected, pending): Self::SystemData) {
         let ctx = &mut self.0;
         let screen = graphics::get_screen_coordinates(ctx);
         let scale = (now_f32(ctx) * 3.0).sin() * 0.5 + 0.5;
         let sel_color = Color::new(scale, scale, 0.0, 1.0);
         or_die(|| {
-            for (shape, opt_selected) in (&shapes, selected.maybe()).join() {
-                graphics::set_color(ctx, shape.color)?;
+            for (shape, opt_selected, opt_pending) in (&shapes, selected.maybe(), pending.maybe()).join() {
+                let mut color = shape.color;
+                if opt_pending.is_some() {
+                    color.a = 0.5;
+                }
+                graphics::set_color(ctx, color)?;
                 for coord in &shape.coords {
                     let p = coord.to_pixel_point();
                     if !screen.contains(p) { continue }
@@ -208,7 +224,7 @@ fn draw_orbit(
                 let v = Vector2::new(angle.cos(), angle.sin()) * PACKET_RADIUS * 1.5;
                 let final_point = cluster_pt + v;
                 if !screen.contains(final_point) { continue }
-                graphics::draw(ctx, sprite, final_point, 0.0)?;
+                graphics::draw(ctx, &sprite.0, final_point, 0.0)?;
             }
         }
         Ok(())
@@ -354,7 +370,7 @@ impl<'a, 'b> System<'a> for DrawSinks<'b> {
                 };
                 or_die(|| {
                     graphics::set_color(ctx, color)?;
-                    graphics::draw(ctx, &*packet_sprite, pt, 0.0)?;
+                    graphics::draw(ctx, &packet_sprite.0, pt, 0.0)?;
                     Ok(())
                 });
             }
@@ -459,7 +475,7 @@ impl<'a, 'b> System<'a> for DrawPackets<'b> {
             if !screen.contains(pos) { continue }
             or_die(|| {
                 graphics::set_color(ctx, res_color(packet.resource))?;
-                graphics::draw(ctx, &*packet_sprite, pos, 0.0)?;
+                graphics::draw(ctx, &packet_sprite.0, pos, 0.0)?;
                 if opt_waste.is_some() {
                     graphics::set_color(ctx, Color::new(1.0, 0.0, 0.0, 1.0))?;
                     let up_l = pos + (Vector2::new(-HEX_SIDE, -HEX_SIDE) * WASTE_SCALE);
@@ -469,6 +485,30 @@ impl<'a, 'b> System<'a> for DrawPackets<'b> {
                     graphics::line(ctx, &[up_l, dn_r], 1.0)?;
                     graphics::line(ctx, &[up_r, dn_l], 1.0)?;
                 }
+                Ok(())
+            });
+        }
+    }
+}
+
+struct DrawBuildPackets<'a>(&'a mut Context);
+
+impl<'a, 'b> System<'a> for DrawBuildPackets<'b> {
+    type SystemData = (
+        ReadExpect<'a, BuildPacket>,
+        ReadStorage<'a, geom::Motion>,
+        ReadStorage<'a, build::Packet>,
+    );
+
+    fn run(&mut self, (sprite, motions, packets): Self::SystemData) {
+        let ctx = &mut self.0;
+        let screen = graphics::get_screen_coordinates(ctx);
+        for (motion, _) in (&motions, packets.mask()).join() {
+            let pos = motion.from + (motion.to - motion.from)*motion.at;
+            if !screen.contains(pos) { continue }
+            or_die(|| {
+                graphics::set_color(ctx, Color::new(0.8, 0.8, 0.8, 1.0))?;
+                graphics::draw(ctx, &sprite.0, pos, 0.0)?;
                 Ok(())
             });
         }

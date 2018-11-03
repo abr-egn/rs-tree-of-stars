@@ -98,10 +98,12 @@ impl<'a> System<'a> for Build {
         Entities<'a>,
         ReadStorage<'a, graph::RouteDone>,
         ReadStorage<'a, Packet>,
+        WriteStorage<'a, Pending>,
     );
 
-    fn run(&mut self, (lazy, entities, route_done, packets): Self::SystemData) {
+    fn run(&mut self, (lazy, entities, route_done, packets, mut pending): Self::SystemData) {
         for (entity, _, packet) in (&*entities, &route_done, &packets).join() {
+            pending.remove(packet.target);
             entities.delete(entity).unwrap();
             let packet = packet.clone();
             lazy.exec_mut(move |world| {
