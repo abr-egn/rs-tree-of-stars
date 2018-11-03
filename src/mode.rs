@@ -18,13 +18,17 @@ impl TopAction {
     #[allow(unused)]
     pub fn continue_() -> Self { TopAction::Do(EventAction::Continue) }
     pub fn done() -> Self { TopAction::Do(EventAction::Done) }
-    pub fn push(m: Box<Mode>) -> Self { TopAction::Do(EventAction::Push(m)) }
+    pub fn push<M: Mode + 'static>(m: M) -> Self { TopAction::Do(EventAction::push(m)) }
 }
 
 pub enum EventAction {
     Continue,
     Done,
     Push(Box<Mode>),
+}
+
+impl EventAction {
+    pub fn push<M: Mode + 'static>(m: M) -> Self { EventAction::Push(Box::new(m)) }
 }
 
 pub trait Mode {

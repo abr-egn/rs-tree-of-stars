@@ -44,7 +44,7 @@ impl Play {
         ui.window(im_str!("Play")).always_auto_resize(true).build(|| {
             if !self.add_active.get() {
                 if ui.small_button(im_str!("Add Node")) {
-                    ret = Some(EventAction::Push(PlaceNode::new(self.add_active.clone())));
+                    ret = Some(EventAction::push(PlaceNode { add_active: self.add_active.clone() }));
                 }
             }
             ui.separator();
@@ -94,7 +94,7 @@ impl Mode for Play {
                 let coord = pixel_to_coord(ctx, x, y);
                 match world.read_resource::<geom::Map>().get(coord) {
                     Some(ent) if world.read_storage::<graph::Node>().get(ent).is_some() => {
-                        TopAction::push(NodeSelected::new(ent))
+                        TopAction::push(NodeSelected(ent))
                     },
                     _ => TopAction::AsEvent,
                 }
@@ -117,10 +117,6 @@ impl Mode for Play {
 
 struct PlaceNode {
     add_active: Rc<Cell<bool>>,
-}
-
-impl PlaceNode {
-    fn new(add_active: Rc<Cell<bool>>) -> Box<Mode> { Box::new(PlaceNode { add_active }) }
 }
 
 impl Mode for PlaceNode {
@@ -253,7 +249,7 @@ impl Mode for NodeSelected {
         self.window(world, ui, |world| {
             ui.separator();
             if ui.small_button(im_str!("Add Link")) {
-                action = TopAction::push(PlaceLink::new(self.0));
+                action = TopAction::push(PlaceLink(self.0));
             }
             if self.is_plain(world) {
                 use resource::Pool;
@@ -342,25 +338,25 @@ impl Mode for NodeSelected {
                     action = TopAction::done()
                 }
             }
-            if ui.small_button(im_str!("Build")) {
-                ui.open_popup(im_str!("Build"));
-            }
-            ui.popup(im_str!("Build"), || {
-                let mut kind = None;
-                if ui.menu_item(im_str!("Strut")).build() {
-                    kind = Some(build::Kind::Strut);
-                }
-                if ui.menu_item(im_str!("Electrolysis")).build() {
-                    kind = Some(build::Kind::Electrolysis);
-                }
-                if let Some(k) = kind {
-                    action = TopAction::push(BuildFrom::new(self.0, k));
-                }
-            });
-            ui.separator();
             if world.read_storage::<graph::AreaGraph>().get(self.0).is_some() {
+                ui.separator();
+                if ui.small_button(im_str!("Build")) {
+                    ui.open_popup(im_str!("Build"));
+                }
+                ui.popup(im_str!("Build"), || {
+                    let mut kind = None;
+                    if ui.menu_item(im_str!("Strut")).build() {
+                        kind = Some(build::Kind::Strut);
+                    }
+                    if ui.menu_item(im_str!("Electrolysis")).build() {
+                        kind = Some(build::Kind::Electrolysis);
+                    }
+                    if let Some(k) = kind {
+                        action = TopAction::push(BuildFrom { source: self.0, kind: k });
+                    }
+                });
                 if ui.small_button(im_str!("Toggle Exclude")) {
-                    action = TopAction::push(ToggleExclude::new(self.0));
+                    action = TopAction::push(ToggleExclude(self.0));
                 }
             }
             ui.separator();
@@ -375,10 +371,6 @@ impl Mode for NodeSelected {
 struct BuildFrom {
     source: Entity,
     kind: build::Kind,
-}
-
-impl BuildFrom {
-    fn new(source: Entity, kind: build::Kind) -> Box<Mode> { Box::new(BuildFrom { source, kind })}
 }
 
 impl Mode for BuildFrom {
@@ -401,7 +393,7 @@ impl Mode for BuildFrom {
                                 source: self.source,
                                 kind: self.kind,
                                 fork: ent,
-                            }.mode())
+                            })
                         } else {
                             TopAction::AsEvent
                         }
@@ -419,10 +411,6 @@ struct BuildTo {
     source: Entity,
     kind: build::Kind,
     fork: Entity,
-}
-
-impl BuildTo {
-    fn mode(self) -> Box<Mode> { Box::new(self) }
 }
 
 impl Mode for BuildTo {
@@ -457,10 +445,6 @@ impl Mode for BuildTo {
 }
 
 struct PlaceLink(Entity);
-
-impl PlaceLink {
-    fn new(from: Entity) -> Box<Mode> { Box::new(PlaceLink(from)) }
-}
 
 impl Mode for PlaceLink {
     fn name(&self) -> &str { "place link" }
@@ -500,10 +484,6 @@ impl Mode for PlaceLink {
 }
 
 struct ToggleExclude(Entity);
-
-impl ToggleExclude {
-    fn new(node: Entity) -> Box<Mode> { Box::new(ToggleExclude(node)) }
-}
 
 impl Mode for ToggleExclude {
     fn name(&self) -> &str { "toggle exclude" }
