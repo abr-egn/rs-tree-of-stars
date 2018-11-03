@@ -92,6 +92,7 @@ fn make_world(ctx: &mut Context) -> World {
 fn make_update() -> Dispatcher<'static, 'static> {
     const TRAVEL: &str = "travel";
     const TRAVERSE: &str = "traverse";
+    const SELF_PULL: &str = "self_pull";
     const PULL: &str = "pull";
     const RECEIVE: &str = "receive";
     const REACTION: &str = "reaction";
@@ -105,7 +106,8 @@ fn make_update() -> Dispatcher<'static, 'static> {
         .with(geom::Travel, TRAVEL, &[])
         .with(graph::Traverse, TRAVERSE, &[TRAVEL])
         .with(resource::DoStorage, STORAGE, &[])
-        .with(resource::Pull, PULL, &[STORAGE])
+        .with(resource::SelfPull, SELF_PULL, &[])
+        .with(resource::Pull, PULL, &[SELF_PULL, STORAGE])
         .with(resource::Receive, RECEIVE, &[PULL])
         .with(power::DistributePower, POWER, &[])
         .with(resource::RunReactors, REACTION, &[RECEIVE, POWER])

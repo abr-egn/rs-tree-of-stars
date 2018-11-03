@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    cmp::min,
     mem::swap,
     sync::mpsc::{channel, Sender},
     time::{Duration, Instant},
@@ -179,6 +180,33 @@ pub struct Target {
 
 impl Component for Target {
     type Storage = BTreeStorage<Self>;
+}
+
+#[derive(Debug)]
+pub struct SelfPull;
+
+impl<'a> System<'a> for SelfPull {
+    type SystemData = (
+        WriteStorage<'a, Source>,
+        WriteStorage<'a, Sink>,
+    );
+
+    fn run(&mut self, (mut sources, mut sinks): Self::SystemData) {
+        for (source, sink) in (&mut sources, &mut sinks).join() {
+            let mut xfer = vec![];
+            for (res, have) in source.has.iter() {
+                if have == 0 { continue }
+                if sink.want.get(res) > (sink.has.get(res) + sink.in_transit.get(res)) {
+                    let need = sink.want.get(res) - (sink.has.get(res) + sink.in_transit.get(res));
+                    xfer.push((res, min(have, need)));
+                }
+            }
+            for (res, amount) in xfer {
+                source.has.dec_by(res, amount).unwrap();
+                sink.has.inc_by(res, amount);
+            }
+        }
+    }
 }
 
 const PACKET_SPEED: f32 = 2.0;
