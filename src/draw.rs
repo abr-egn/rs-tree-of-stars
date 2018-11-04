@@ -433,7 +433,7 @@ impl<'a, 'b> System<'a> for DrawPowerGrid<'b> {
         let screen = graphics::get_screen_coordinates(ctx);
         or_die(|| {
             graphics::set_color(ctx, Color::new(1.0, 0.0, 1.0, 1.0))?;
-            for (entity, node, opt_selected, _) in (&*entities, &nodes, selected.maybe(), pylons.mask()).join() {
+            for (entity, node, opt_selected, pylon) in (&*entities, &nodes, selected.maybe(), &pylons).join() {
                 for other in grid.links(entity) {
                     let other_node = if let Some(n) = nodes.get(other) { n } else { continue };
                     let from_pt = node.at().to_pixel_point();
@@ -453,7 +453,7 @@ impl<'a, 'b> System<'a> for DrawPowerGrid<'b> {
                     let mut points = vec![];
                     let mut delta: Coordinate = Coordinate { x: 1, y: 0 };
                     for _ in 0..7 {
-                        let corner = node.at() + delta.scale(power::PYLON_RANGE);
+                        let corner = node.at() + delta.scale(pylon.range());
                         points.push(corner.to_pixel_point());
                         delta = delta.rotate_around_zero(::hex2d::Right);
                     }
@@ -556,18 +556,6 @@ impl <'a, 'b> System<'a> for DrawMouseWidget<'b> {
                 for coord in coords {
                     let (x, y) = coord.to_pixel(SPACING);
                     graphics::draw(ctx, &outline.0, Point2::new(x, y), 0.0)?;
-                }
-            },
-            game::MWKind::PlaceNode => {
-                let color = if mw.valid {
-                    Color::new(0.8, 0.8, 0.8, 0.5)
-                } else {
-                    Color::new(0.8, 0.0, 0.0, 0.5)
-                };
-                graphics::set_color(ctx, color)?;
-                for c in graph::node_shape(coord) {
-                    let (x, y) = c.to_pixel(SPACING);
-                    graphics::draw(ctx, &cell.0, Point2::new(x, y), 0.0)?;
                 }
             },
             game::MWKind::PlaceNodeFrom(from_coord) => {

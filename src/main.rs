@@ -98,7 +98,7 @@ fn make_world(ctx: &mut Context) -> World {
         /* power=  */ 0.0,
         /* range=  */ 20,
     );
-    power::Pylon::add(&mut world, seed);
+    power::Pylon::add(&mut world, seed, /* range= */ 20);
     world.write_storage().insert(seed, build::Factory::new(vec![build::Kind::Strut])).unwrap();
 
     world
@@ -157,7 +157,7 @@ fn main() -> Result<()> {
     let mut world = make_world(&mut ctx);
     let mut update = make_update();
     let mut stack = mode::Stack::new();
-    stack.push(&mut world, Box::new(game::Play::new()));
+    stack.push(&mut world, Box::new(game::Play));
 
     let mut running = true;
     while running {

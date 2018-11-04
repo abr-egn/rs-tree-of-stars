@@ -58,30 +58,34 @@ impl PowerGrid {
     }
 }
 
-#[derive(Debug, Default)]
-pub struct Pylon;
-
-impl Component for Pylon {
-    type Storage = NullStorage<Self>;
+#[derive(Debug)]
+pub struct Pylon {
+    range: i32,
 }
 
-pub const PYLON_RANGE: i32 = 10;
+impl Pylon {
+    pub fn range(&self) -> i32 { self.range }
+}
+
+impl Component for Pylon {
+    type Storage = BTreeStorage<Self>;
+}
 
 impl Pylon {
-    pub fn add(world: &mut World, entity: Entity) {
+    pub fn add(world: &mut World, entity: Entity, range: i32) {
         or_die(|| {
             let at = try_get(&world.read_storage::<graph::Node>(), entity)?.at();
             {
                 let map = world.read_resource::<geom::AreaMap>();
                 let pylons = world.read_storage::<Pylon>();
-                let found = map.find_overlap(at, PYLON_RANGE) & pylons.mask();
+                let found = map.find_overlap(at, range) & pylons.mask();
                 let mut grid = world.write_resource::<PowerGrid>();
                 for (other, _) in (&*world.entities(), found).join() {
                     grid.add_link(entity, other);
                 }
             }
-            geom::AreaSet::add(world, entity, PYLON_RANGE)?;
-            world.write_storage().insert(entity, Pylon)?;
+            geom::AreaSet::add(world, entity, range)?;
+            world.write_storage().insert(entity, Pylon { range })?;
             Ok(())
         });
     }

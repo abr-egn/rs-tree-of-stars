@@ -1,9 +1,3 @@
-use std::{
-    cell::Cell,
-    rc::Rc,
-    time::Duration,
-};
-
 use ggez::{
     event::{Event, Keycode},
     graphics,
@@ -34,24 +28,14 @@ pub fn prep_world(world: &mut World) {
     });
 }
 
-pub struct Play {
-    add_active: Rc<Cell<bool>>,
-}
+pub struct Play;
 
 impl Play {
-    pub fn new() -> Play { Play { add_active: Rc::new(Cell::new(false)) } }
     fn window<F: FnOnce(&mut World)>(&self, world: &mut World, ui: &Ui, f: F) -> Option<EventAction> {
-        let mut ret = None;
         ui.window(im_str!("Play"))
             .always_auto_resize(true)
             .position((600.0, 100.0), ImGuiCond::FirstUseEver)
             .build(|| {
-            if !self.add_active.get() {
-                if ui.small_button(im_str!("Add Node")) {
-                    ret = Some(EventAction::push(PlaceNode { add_active: self.add_active.clone() }));
-                }
-            }
-            ui.separator();
             {
                 let p = &mut *world.write_resource::<super::Paused>();
                 if p.0 {
@@ -66,7 +50,7 @@ impl Play {
             }
             f(world);
         });
-        ret
+        None
     }
 }
 
@@ -109,42 +93,6 @@ impl Mode for Play {
             // TODO: ???
         }) { return TopAction::Do(ea) }
         action
-    }
-}
-
-struct PlaceNode {
-    add_active: Rc<Cell<bool>>,
-}
-
-impl Mode for PlaceNode {
-    fn name(&self) -> &str { "place node" }
-    fn on_show(&mut self, world: &mut World) {
-        world.write_resource::<MouseWidget>().kind = MWKind::PlaceNode;
-        self.add_active.set(true);
-    }
-    fn on_hide(&mut self, world: &mut World) {
-        world.write_resource::<MouseWidget>().kind = MWKind::None;
-        self.add_active.set(false);
-    }
-    fn on_top_event(&mut self, world: &mut World, ctx: &mut Context, event: Event) -> TopAction {
-        match event {
-            Event::MouseMotion { x, y, .. } => {
-                let coord = pixel_to_coord(ctx, x, y);
-                let valid = graph::space_for_node(&*world.read_resource::<geom::Map>(), coord);
-                world.write_resource::<MouseWidget>().valid = valid;
-                TopAction::AsEvent
-            },
-            Event::MouseButtonDown { x, y, .. } => {
-                let coord = pixel_to_coord(ctx, x, y);
-                if !graph::space_for_node(&*world.read_resource::<geom::Map>(), coord) {
-                    return TopAction::done()
-                }
-                graph::make_node(world, coord);
-                TopAction::Pop
-            },
-            Event::KeyDown { keycode: Some(Keycode::Escape), .. } => TopAction::Pop,
-            _ => TopAction::AsEvent,
-        }
     }
 }
 
@@ -192,6 +140,7 @@ impl NodeSelected {
             f(world);
         })
     }
+    /*
     fn add_reactor(
         &self, world: &mut World,
         input: resource::Pool, delay: Duration, output: resource::Pool,
@@ -208,10 +157,13 @@ impl NodeSelected {
         if world.read_storage::<power::Pylon>().get(self.0).is_some() { return false }
         true
     }
+    */
 }
 
+/*
 const REACTION_TIME: Duration = Duration::from_millis(5000);
 const FACTORY_RANGE: i32 = 20;
+*/
 
 impl Mode for NodeSelected {
     fn name(&self) -> &str { "node selected" }
@@ -260,6 +212,7 @@ impl Mode for NodeSelected {
             if ui.small_button(im_str!("Add Link")) {
                 action = TopAction::push(PlaceLink(self.0));
             }
+            /*
             if self.is_plain(world) {
                 use resource::Pool;
                 if ui.small_button(im_str!("Make Reactor")) {
@@ -357,6 +310,7 @@ impl Mode for NodeSelected {
                     action = TopAction::done()
                 }
             }
+            */
             if world.read_storage::<graph::AreaGraph>().get(self.0).is_some() {
                 ui.separator();
                 if ui.small_button(im_str!("Toggle Exclude")) {
@@ -584,7 +538,6 @@ pub struct MouseWidget {
 pub enum MWKind {
     None,
     Highlight,
-    PlaceNode,
     PlaceNodeFrom(Coordinate),
 }
 
