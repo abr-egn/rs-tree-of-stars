@@ -406,7 +406,7 @@ impl<'a, 'b> System<'a> for DrawReactors<'b> {
             });
         }
         for (node, factory) in (&nodes, &factories).join() {
-            let progress = if let Some(p) = factory.progress() { p } else { continue };
+            let (_, progress) = if let Some(p) = factory.progress() { p } else { continue };
             let pt = node.at().to_pixel_point();
             if !screen.contains(pt) { continue }
             or_die(|| {

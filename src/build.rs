@@ -24,7 +24,7 @@ impl Component for Pending {
     type Storage = NullStorage<Self>;
 }
 
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Kind {
     // Reactors
     Electrolysis,
@@ -146,11 +146,15 @@ impl Factory {
             queue: VecDeque::new(),
         }
     }
-    pub fn progress(&self) -> Option<f32> {
+    pub fn can_build(&self) -> &HashSet<Kind> { &self.can_build }
+    pub fn built(&self, kind: Kind) -> usize { *self.built.get(&kind).unwrap_or(&0) }
+    pub fn progress(&self) -> Option<(Kind, f32)> {
         let (kind, prog) = if let Some(p) = &self.active { p } else { return None };
         let (_, delay) = kind.cost();
-        Some(util::duration_f32(*prog) / util::duration_f32(delay))
+        Some((*kind, util::duration_f32(*prog) / util::duration_f32(delay)))
     }
+    pub fn queue(&self) -> &VecDeque<Kind> { &self.queue }
+    pub fn queue_push(&mut self, kind: Kind) { self.queue.push_back(kind) }
 }
 
 impl Component for Factory {
@@ -187,12 +191,17 @@ impl<'a> System<'a> for Production {
             let (cost, _) = next.cost();
             let mut has_all = true;
             for (res, count) in cost.iter() {
-                if sink.want.get(res) < count { sink.want.set(res, count); }
+                if sink.want.get(res) != count { sink.want.set(res, count); }
                 if sink.has.get(res) < count { has_all = false }
             }
             if !has_all || factory.active.is_some() {
                 factory.queue.push_front(next);
                 continue;
+            }
+            // Clear sink requests and start production.
+            for (res, count) in cost.iter() {
+                sink.want.set(res, 0);
+                sink.has.dec_by(res, count).unwrap();
             }
             factory.active = Some((next, Duration::new(0, 0)));
         }
