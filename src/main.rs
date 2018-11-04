@@ -99,7 +99,9 @@ fn make_world(ctx: &mut Context) -> World {
         /* range=  */ 20,
     );
     power::Pylon::add(&mut world, seed, /* range= */ 20);
-    world.write_storage().insert(seed, build::Factory::new(vec![build::Kind::Strut])).unwrap();
+    world.write_storage().insert(seed, build::Factory::new(
+        vec![build::Kind::Strut, build::Kind::CarbonSource]
+    )).unwrap();
 
     world
 }

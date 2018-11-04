@@ -26,7 +26,11 @@ impl Component for Pending {
 
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Kind {
+    // Structure
+    Strut,
     // Reactors
+    CarbonSource,
+    #[allow(unused)]
     Electrolysis,
     /*
     // Power
@@ -35,7 +39,6 @@ pub enum Kind {
     // Other
     Storage,
     */
-    Strut,
 }
 
 #[derive(Debug, Clone)]
@@ -56,6 +59,15 @@ impl Kind {
     fn make(&self, world: &mut World, entity: Entity) {
         use self::Kind::*;
         match self {
+            Strut => (),
+            CarbonSource => Reactor::add(
+                world, entity,
+                /* input=  */ Pool::from(vec![]),
+                /* delay=  */ REACTION_TIME,
+                /* output= */ Pool::from(vec![(Resource::C, 1)]),
+                /* power=  */ 0.0,  // kJ/mol
+                /* range=  */ REACTOR_RANGE,
+            ),
             Electrolysis => Reactor::add(
                 world, entity,
                 /* input=  */ Pool::from(vec![(Resource::H2O, 2)]),
@@ -64,19 +76,22 @@ impl Kind {
                 /* power=  */ -3242.0,  // kJ/mol
                 /* range=  */ REACTOR_RANGE,
             ),
-            Strut => (),
         }
     }
     fn cost(&self) -> (Pool, Duration) {
         use self::Kind::*;
         match self {
-            Electrolysis => (
-                Pool::from(vec![(Resource::C, 2)]),
-                Duration::from_millis(5000),
-            ),
             Strut => (
                 Pool::from(vec![(Resource::C, 2)]),
-                Duration::from_millis(5000),
+                Duration::from_millis(10000),
+            ),
+            CarbonSource => (
+                Pool::from(vec![(Resource::C, 2)]),
+                Duration::from_millis(10000),
+            ),
+            Electrolysis => (
+                Pool::from(vec![(Resource::C, 2)]),
+                Duration::from_millis(10000),
             ),
         }
     }
