@@ -211,6 +211,7 @@ impl NodeSelected {
 }
 
 const REACTION_TIME: Duration = Duration::from_millis(5000);
+const FACTORY_RANGE: i32 = 20;
 
 impl Mode for NodeSelected {
     fn name(&self) -> &str { "node selected" }
@@ -342,6 +343,7 @@ impl Mode for NodeSelected {
                             vec![build::Kind::Electrolysis, build::Kind::Strut]
                         ))?;
                         world.write_storage().insert(self.0, resource::Sink::new())?;
+                        graph::AreaGraph::add(world, self.0, FACTORY_RANGE)?;
                         Ok(())
                     });
                 }
@@ -357,21 +359,6 @@ impl Mode for NodeSelected {
             }
             if world.read_storage::<graph::AreaGraph>().get(self.0).is_some() {
                 ui.separator();
-                if ui.small_button(im_str!("Build")) {
-                    ui.open_popup(im_str!("Build"));
-                }
-                ui.popup(im_str!("Build"), || {
-                    let mut kind = None;
-                    if ui.menu_item(im_str!("Strut")).build() {
-                        kind = Some(build::Kind::Strut);
-                    }
-                    if ui.menu_item(im_str!("Electrolysis")).build() {
-                        kind = Some(build::Kind::Electrolysis);
-                    }
-                    if let Some(k) = kind {
-                        action = TopAction::push(BuildFrom { source: self.0, kind: k });
-                    }
-                });
                 if ui.small_button(im_str!("Toggle Exclude")) {
                     action = TopAction::push(ToggleExclude(self.0));
                 }
@@ -383,17 +370,24 @@ impl Mode for NodeSelected {
                 for kind in kinds {
                     let name = format!("{:?}", kind);
                     ui.text(&name);
-                    ui.same_line(0.0);
-                    ui.text(format!("{}", factory.built(kind)));
-                    ui.same_line(0.0);
+                    ui.same_line(100.0);
+                    let built = factory.built(kind);
+                    ui.text(format!("{}", built));
+                    ui.same_line(115.0);
                     ui.push_id(&name);
                     if ui.small_button(im_str!("+")) {
                         factory.queue_push(kind);
                     }
+                    if built > 0 {
+                        ui.same_line(0.0);
+                        if ui.small_button(im_str!("->")) {
+                            action = TopAction::push(BuildFrom { source: self.0, kind });
+                        }
+                    }
                     ui.pop_id();
                 }
                 if let Some((kind, p)) = factory.progress() {
-                    ui.text(format!("{:?} : {:.0}%", kind, p*100.0));
+                    ui.text(format!("Building {:?} : {:.0}%", kind, p*100.0));
                 }
                 let queue = factory.queue();
                 if !queue.is_empty() {
@@ -493,6 +487,11 @@ impl Mode for BuildTo {
                 if !self.valid_to(world, coord) {
                     return TopAction::Do(EventAction::Done)
                 }
+                or_die(|| {
+                    try_get_mut(&mut world.write_storage::<build::Factory>(), self.source)?
+                        .dec_built(self.kind)?;
+                    Ok(())
+                });
                 self.kind.start(world, self.source, self.fork, coord);
                 TopAction::Pop
             },

@@ -9,7 +9,7 @@ use specs::{
     storage::BTreeStorage,
 };
 
-use error::{Error, or_die};
+use error::{Error, Result, or_die};
 use graph;
 use resource::{
     self,
@@ -148,6 +148,14 @@ impl Factory {
     }
     pub fn can_build(&self) -> &HashSet<Kind> { &self.can_build }
     pub fn built(&self, kind: Kind) -> usize { *self.built.get(&kind).unwrap_or(&0) }
+    pub fn dec_built(&mut self, kind: Kind) -> Result<()> {
+        let has = self.built(kind);
+        if has == 0 {
+            return Err(Error::PoolUnderflow)
+        }
+        self.built.insert(kind, has-1);
+        Ok(())
+    }
     pub fn progress(&self) -> Option<(Kind, f32)> {
         let (kind, prog) = if let Some(p) = &self.active { p } else { return None };
         let (_, delay) = kind.cost();
