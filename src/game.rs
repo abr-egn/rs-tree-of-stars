@@ -10,7 +10,7 @@ use ggez::{
     Context,
 };
 use hex2d::{self, Coordinate};
-use imgui::Ui;
+use imgui::{ImGuiCond, Ui};
 use specs::{
     prelude::*,
     storage::BTreeStorage,
@@ -42,7 +42,10 @@ impl Play {
     pub fn new() -> Play { Play { add_active: Rc::new(Cell::new(false)) } }
     fn window<F: FnOnce(&mut World)>(&self, world: &mut World, ui: &Ui, f: F) -> Option<EventAction> {
         let mut ret = None;
-        ui.window(im_str!("Play")).always_auto_resize(true).build(|| {
+        ui.window(im_str!("Play"))
+            .always_auto_resize(true)
+            .position((600.0, 100.0), ImGuiCond::FirstUseEver)
+            .build(|| {
             if !self.add_active.get() {
                 if ui.small_button(im_str!("Add Node")) {
                     ret = Some(EventAction::push(PlaceNode { add_active: self.add_active.clone() }));
@@ -151,17 +154,21 @@ impl NodeSelected {
     fn window<F: FnOnce(&mut World)>(&self, world: &mut World, ui: &Ui, f: F) {
         ui.window(im_str!("Node")).always_auto_resize(true).build(|| {
             let mut kinds: Vec<String> = vec![];
-            if world.read_storage::<resource::Source>().get(self.0).is_some() {
-                kinds.push("Source".into());
-            }
-            if world.read_storage::<resource::Sink>().get(self.0).is_some() {
-                kinds.push("Sink".into());
-            }
             if world.read_storage::<resource::Reactor>().get(self.0).is_some() {
                 kinds.push("Reactor".into());
             }
             if world.read_storage::<power::Pylon>().get(self.0).is_some() {
                 kinds.push("Pylon".into());
+            }
+            if let Some(p) = world.read_storage::<power::Power>().get(self.0) {
+                let name = match p {
+                    power::Power::Source { .. } => "Power Source",
+                    power::Power::Sink { .. } => "Power Sink",
+                };
+                kinds.push(name.into());
+            }
+            if world.read_storage::<build::Factory>().get(self.0).is_some() {
+                kinds.push("Factory".into());
             }
             if kinds.is_empty() {
                 kinds = vec!["None".into()];
@@ -328,6 +335,15 @@ impl Mode for NodeSelected {
                 }
                 if ui.small_button(im_str!("Make Pylon")) {
                     power::Pylon::add(world, self.0);
+                }
+                if ui.small_button(im_str!("Make Factory")) {
+                    or_die(|| {
+                        world.write_storage().insert(self.0, build::Factory::new(
+                            vec![build::Kind::Electrolysis, build::Kind::Strut]
+                        ))?;
+                        world.write_storage().insert(self.0, resource::Sink::new())?;
+                        Ok(())
+                    });
                 }
                 ui.separator();
                 if ui.small_button(im_str!("Start Growth Test")) {

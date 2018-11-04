@@ -69,7 +69,16 @@ impl Kind {
     }
     fn cost(&self) -> (Pool, Duration) {
         use self::Kind::*;
-        unimplemented!()
+        match self {
+            Electrolysis => (
+                Pool::from(vec![(Resource::C, 2)]),
+                Duration::from_millis(5000),
+            ),
+            Strut => (
+                Pool::from(vec![(Resource::C, 2)]),
+                Duration::from_millis(5000),
+            ),
+        }
     }
     pub fn start(&self, world: &mut World, start: Entity, fork: Entity, location: Coordinate) {
         let node = graph::make_node(world, location);
@@ -126,6 +135,22 @@ pub struct Factory {
     built: HashMap<Kind, usize>,
     active: Option<(Kind, Duration)>,
     queue: VecDeque<Kind>,
+}
+
+impl Factory {
+    pub fn new<T: IntoIterator<Item=Kind>>(can_build: T) -> Self {
+        Factory {
+            can_build: can_build.into_iter().collect(),
+            built: HashMap::new(),
+            active: None,
+            queue: VecDeque::new(),
+        }
+    }
+    pub fn progress(&self) -> Option<f32> {
+        let (kind, prog) = if let Some(p) = &self.active { p } else { return None };
+        let (_, delay) = kind.cost();
+        Some(util::duration_f32(*prog) / util::duration_f32(delay))
+    }
 }
 
 impl Component for Factory {
