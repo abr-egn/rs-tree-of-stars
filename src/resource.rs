@@ -480,7 +480,7 @@ impl<'a> System<'a> for RunReactors {
             if !has_input { continue }
             let needs_output = reactor.output.iter().any(|(r, c)| source.has.get(r) < c);
             if !needs_output { continue }
-            // TODO: start reaction if there's power demand
+            // TODO?: start reaction if there's power demand
             let power_start = match power {
                 Power::Source { output } => {
                     *output = reactor.power_per_second;

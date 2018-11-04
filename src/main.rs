@@ -33,9 +33,11 @@ use ggez::{
     conf, event, graphics, timer,
     Context,
 };
+use hex2d::Coordinate;
 use specs::prelude::*;
 
 use error::Result;
+use resource::{Pool, Resource};
 
 pub const UPDATES_PER_SECOND: u32 = 60;
 pub const UPDATE_DELTA: f32 = 1.0 / (UPDATES_PER_SECOND as f32);
@@ -86,6 +88,18 @@ fn make_world(ctx: &mut Context) -> World {
 
     draw::build_sprites(&mut world, ctx);
     game::prep_world(&mut world);
+
+    let seed = graph::make_node(&mut world, Coordinate { x: 0, y: 0});
+    resource::Reactor::add(
+        &mut world, seed,
+        /* input=  */ Pool::new(),
+        /* delay=  */ Duration::from_millis(5000),
+        /* output= */ Pool::from(vec![(Resource::C, 1)]),
+        /* power=  */ 0.0,
+        /* range=  */ 20,
+    );
+    power::Pylon::add(&mut world, seed);
+    world.write_storage().insert(seed, build::Factory::new(vec![build::Kind::Strut])).unwrap();
 
     world
 }
