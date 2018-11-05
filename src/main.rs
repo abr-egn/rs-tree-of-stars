@@ -24,6 +24,7 @@ mod ggez_imgui;
 mod graph;
 mod mode;
 mod power;
+mod reactor;
 mod resource;
 mod util;
 
@@ -64,9 +65,10 @@ fn make_world(ctx: &mut Context) -> World {
     world.register::<resource::Sink>();
     world.register::<resource::Packet>();
     world.register::<resource::Target>();
-    world.register::<resource::Reactor>();
     world.register::<resource::Storage>();
-    world.register::<resource::Waste>();
+
+    world.register::<reactor::Reactor>();
+    world.register::<reactor::Waste>();
 
     world.register::<power::Power>();
     world.register::<power::Pylon>();
@@ -90,7 +92,7 @@ fn make_world(ctx: &mut Context) -> World {
     game::prep_world(&mut world);
 
     let seed = graph::make_node(&mut world, Coordinate { x: 0, y: 0});
-    resource::Reactor::add(
+    reactor::Reactor::add(
         &mut world, seed,
         /* input=  */ Pool::new(),
         /* delay=  */ Duration::from_millis(5000),
@@ -128,8 +130,8 @@ fn make_update() -> Dispatcher<'static, 'static> {
         .with(resource::Pull, PULL, &[SELF_PULL, STORAGE])
         .with(resource::Receive, RECEIVE, &[PULL])
         .with(power::DistributePower, POWER, &[])
-        .with(resource::RunReactors, REACTION, &[RECEIVE, POWER])
-        .with(resource::ClearWaste, CLEAR_WASTE, &[])
+        .with(reactor::RunReactors, REACTION, &[RECEIVE, POWER])
+        .with(reactor::ClearWaste, CLEAR_WASTE, &[])
         .with(build::Build, BUILD, &[])
         .with(build::Production, PRODUCTION, &[])
         .with(game::RunGrowTest, GROW_TEST, &[])

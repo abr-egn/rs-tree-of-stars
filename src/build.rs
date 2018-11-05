@@ -11,9 +11,10 @@ use specs::{
 
 use error::{Error, Result, or_die};
 use graph;
+use reactor::Reactor;
 use resource::{
     self,
-    Pool, Reactor, Resource,
+    Pool, Resource,
 };
 use util;
 

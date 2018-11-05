@@ -20,6 +20,7 @@ use game;
 use geom;
 use graph;
 use power;
+use reactor;
 use resource::{self, Resource};
 use util::{self, try_get};
 
@@ -388,7 +389,7 @@ struct DrawReactors<'a>(&'a mut Context);
 impl<'a, 'b> System<'a> for DrawReactors<'b> {
     type SystemData = (
         ReadStorage<'a, graph::Node>,
-        ReadStorage<'a, resource::Reactor>,
+        ReadStorage<'a, reactor::Reactor>,
         ReadStorage<'a, build::Factory>,
     );
 
@@ -474,7 +475,7 @@ impl<'a, 'b> System<'a> for DrawPackets<'b> {
         ReadExpect<'a, PacketSprite>,
         ReadStorage<'a, geom::Motion>,
         ReadStorage<'a, resource::Packet>,
-        ReadStorage<'a, resource::Waste>,
+        ReadStorage<'a, reactor::Waste>,
     );
 
     fn run(&mut self, (packet_sprite, motions, packets, waste): Self::SystemData) {

@@ -17,6 +17,7 @@ use geom;
 use graph;
 use mode::{Mode, EventAction, TopAction};
 use power;
+use reactor;
 use resource::{self, Resource};
 use util::*;
 
@@ -102,7 +103,7 @@ impl NodeSelected {
     fn window<F: FnOnce(&mut World)>(&self, world: &mut World, ui: &Ui, f: F) {
         ui.window(im_str!("Node")).always_auto_resize(true).build(|| {
             let mut kinds: Vec<String> = vec![];
-            if world.read_storage::<resource::Reactor>().get(self.0).is_some() {
+            if world.read_storage::<reactor::Reactor>().get(self.0).is_some() {
                 kinds.push("Reactor".into());
             }
             if world.read_storage::<power::Pylon>().get(self.0).is_some() {
