@@ -285,12 +285,10 @@ impl <'a, 'b> System<'a> for DrawSelectedAreas<'b> {
     fn run(&mut self, (entities, outline, mut graphs, links, nodes, selected, shapes): Self::SystemData) {
         let ctx = &mut self.0;
         let screen = graphics::get_screen_coordinates(ctx);
-        //let scale = (now_f32(ctx) * 3.0).sin() * 0.5 + 0.5;
-        //let color = Color::new(scale, scale, scale, 1.0);
         or_die(|| {
             for (entity, node, ag, _) in (&*entities, &nodes, &mut graphs, &selected).join() {
                 // Range
-                graphics::set_color(ctx, Color::new(0.0, 1.0, 0.0, 1.0))?;
+                graphics::set_color(ctx, Color::new(0.0, 1.0, 0.0, 0.5))?;
                 for coord in node.at().ring(ag.range(), Spin::CW(XY)) {
                     let p = coord.to_pixel_point();
                     if !screen.contains(p) { continue }
@@ -299,7 +297,7 @@ impl <'a, 'b> System<'a> for DrawSelectedAreas<'b> {
                 // Nodes
                 {
                     let (node_iter, mut routes) = ag.nodes_route();
-                    graphics::set_color(ctx, Color::new(0.0, 1.0, 0.0, 1.0))?;
+                    graphics::set_color(ctx, Color::new(0.0, 1.0, 0.0, 0.5))?;
                     for node_ent in node_iter {
                         if routes.route(&links, &nodes, entity, node_ent).is_none() { continue }
                         if let Some(shape) = shapes.get(node_ent) {
@@ -312,7 +310,7 @@ impl <'a, 'b> System<'a> for DrawSelectedAreas<'b> {
                     }
                 }
                 // Excludes
-                graphics::set_color(ctx, Color::new(1.0, 0.0, 0.0, 1.0))?;
+                graphics::set_color(ctx, Color::new(1.0, 0.0, 0.0, 0.5))?;
                 for &node_ent in ag.exclude() {
                     // Don't draw exclusion for selected node
                     if node_ent == entity { continue }
@@ -433,7 +431,7 @@ impl<'a, 'b> System<'a> for DrawPowerGrid<'b> {
         let ctx = &mut self.0;
         let screen = graphics::get_screen_coordinates(ctx);
         or_die(|| {
-            graphics::set_color(ctx, Color::new(1.0, 0.0, 1.0, 1.0))?;
+            graphics::set_color(ctx, Color::new(1.0, 0.0, 1.0, 0.5))?;
             for (entity, node, opt_selected, pylon) in (&*entities, &nodes, selected.maybe(), &pylons).join() {
                 for other in grid.links(entity) {
                     let other_node = if let Some(n) = nodes.get(other) { n } else { continue };
