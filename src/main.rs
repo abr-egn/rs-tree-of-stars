@@ -67,6 +67,7 @@ fn make_world(ctx: &mut Context) -> World {
     world.register::<resource::Target>();
     world.register::<resource::Storage>();
 
+    world.register::<reactor::Progress>();
     world.register::<reactor::Reactor>();
     world.register::<reactor::Waste>();
 
@@ -114,6 +115,7 @@ fn make_update() -> Dispatcher<'static, 'static> {
     const SELF_PULL: &str = "self_pull";
     const PULL: &str = "pull";
     const RECEIVE: &str = "receive";
+    const PROGRESS: &str = "progress";
     const REACTION: &str = "reaction";
     const POWER: &str = "power";
     const STORAGE: &str = "storage";
@@ -130,7 +132,8 @@ fn make_update() -> Dispatcher<'static, 'static> {
         .with(resource::Pull, PULL, &[SELF_PULL, STORAGE])
         .with(resource::Receive, RECEIVE, &[PULL])
         .with(power::DistributePower, POWER, &[])
-        .with(reactor::RunReactors, REACTION, &[RECEIVE, POWER])
+        .with(reactor::MakeProgress, PROGRESS, &[POWER])
+        .with(reactor::RunReactors, REACTION, &[RECEIVE, PROGRESS])
         .with(reactor::ClearWaste, CLEAR_WASTE, &[])
         .with(build::Build, BUILD, &[])
         .with(build::Production, PRODUCTION, &[])

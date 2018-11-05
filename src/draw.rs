@@ -389,16 +389,16 @@ struct DrawReactors<'a>(&'a mut Context);
 impl<'a, 'b> System<'a> for DrawReactors<'b> {
     type SystemData = (
         ReadStorage<'a, graph::Node>,
-        ReadStorage<'a, reactor::Reactor>,
+        ReadStorage<'a, reactor::Progress>,
         ReadStorage<'a, build::Factory>,
     );
 
-    fn run(&mut self, (nodes, reactors, factories): Self::SystemData) {
+    fn run(&mut self, (nodes, progs, factories): Self::SystemData) {
         let ctx = &mut self.0;
         let screen = graphics::get_screen_coordinates(ctx);
         or_die(|| { graphics::set_color(ctx, Color::new(1.0, 0.0, 1.0, 1.0))?; Ok(()) });
-        for (node, reactor) in (&nodes, &reactors).join() {
-            let progress = if let Some(p) = reactor.progress() { p } else { continue };
+        for (node, progress) in (&nodes, &progs).join() {
+            let progress = if let Some(p) = progress.at() { p } else { continue };
             let pt = node.at().to_pixel_point();
             if !screen.contains(pt) { continue }
             or_die(|| {
