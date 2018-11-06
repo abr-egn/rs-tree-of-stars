@@ -109,12 +109,8 @@ impl NodeSelected {
             if world.read_storage::<power::Pylon>().get(self.0).is_some() {
                 kinds.push("Pylon".into());
             }
-            if let Some(p) = world.read_storage::<power::Power>().get(self.0) {
-                let name = match p {
-                    power::Power::Source { .. } => "Power Source",
-                    power::Power::Sink { .. } => "Power Sink",
-                };
-                kinds.push(name.into());
+            if world.read_storage::<power::Power>().get(self.0).is_some() {
+                kinds.push("Power".into());
             }
             if world.read_storage::<build::Factory>().get(self.0).is_some() {
                 kinds.push("Factory".into());
@@ -124,18 +120,11 @@ impl NodeSelected {
             }
             ui.text(format!("Kind: {}", kinds.join(" | ")));
             if let Some(power) = world.read_storage::<power::Power>().get(self.0) {
-                match power {
-                    power::Power::Source { output } => {
-                        ui.text(format!("Power Source: {}/s", output));
-                    },
-                    power::Power::Sink { need, input } => {
-                        if need > input {
-                            let delta = need - input;
-                            ui.text(format!("Power Sink: {}(-{})/s", input, delta));
-                        } else {
-                            ui.text(format!("Power Sink: {}/s", input));
-                        }
-                    },
+                let total = power.total();
+                if total >= 0.0 {
+                    ui.text(format!("Power Source: {}/s", total));
+                } else {
+                    ui.text(format!("Power Sink: {}/s ({:.0}%)", total, 100.0*power.ratio()))
                 }
             }
             f(world);

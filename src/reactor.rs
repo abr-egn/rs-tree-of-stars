@@ -17,7 +17,6 @@ use util::{duration_f32, f32_duration};
 pub struct Progress {
     made: Option<Duration>,
     target: Duration,
-    power_per_second: f32,
 }
 
 impl Progress {
@@ -37,21 +36,16 @@ pub struct MakeProgress;
 impl<'a> System<'a> for MakeProgress {
     type SystemData = (
         WriteStorage<'a, Progress>,
-        WriteStorage<'a, Power>,
+        ReadStorage<'a, Power>,
     );
 
-    fn run(&mut self, (mut progs, mut powers): Self::SystemData) {
-        for (prog, power) in (&mut progs, &mut powers).join() {
+    fn run(&mut self, (mut progs, powers): Self::SystemData) {
+        for (prog, opt_power) in (&mut progs, powers.maybe()).join() {
             let made = if let Some(m) = &mut prog.made { m } else { continue };
             if *made >= prog.target { continue }
-            let inc = match power {
-                Power::Source { .. } => super::UPDATE_DURATION,
-                Power::Sink { input, .. } => {
-                    let ratio = *input / prog.power_per_second;
-                    // Duration doesn't support floating point mul/div :(
-                    f32_duration(duration_f32(super::UPDATE_DURATION)*ratio)
-                },
-            };
+            let ratio = opt_power.map_or(1.0, |power| power.ratio());
+            // Duration doesn't support floating point mul/div :(
+            let inc = f32_duration(duration_f32(super::UPDATE_DURATION)*ratio); 
             *made += inc;
         }
     }
@@ -75,18 +69,13 @@ impl Reactor {
             let mut sink = Sink::new();
             sink.want = input.clone();
             world.write_storage().insert(entity, sink)?;
-            let power_per_second = total_power.abs() / duration_f32(delay);
-            let power = if total_power >= 0.0 {
-                Power::Source { output: 0.0 }
-            } else {
-                Power::Sink { need: 0.0, input: 0.0 }
-            };
-            world.write_storage().insert(entity, power)?;
+            
+            world.write_storage().insert(entity, Power::new())?;
             world.write_storage().insert(entity, Progress {
-                made: None, target: delay, power_per_second,
+                made: None, target: delay,
             })?;
             world.write_storage().insert(entity, Reactor {
-                input, delay, output, power_per_second,
+                input, delay, output, power_per_second: total_power / duration_f32(delay),
             })?;
             Ok(())
         });
@@ -121,38 +110,26 @@ impl<'a> System<'a> for RunReactors {
     fn run(&mut self, (nodes, mut reactors, mut progs, mut sources, mut sinks, mut powers, lazy): Self::SystemData) {
         for (node, reactor, progress, source, sink, power) in (&nodes, &mut reactors, &mut progs, &mut sources, &mut sinks, &mut powers).join() {
             // Check in progress production.
-            let produce = if let Some(p) = progress.at() { p >= 1.0 } else { false };
-            if produce {
+            if progress.at().map_or(false, |p| p > 1.0) {
                 progress.made = None;
                 for (res, count) in reactor.output.iter() {
                     if let Some(waste) = source.has.inc_by(res, count) {
                         spawn_waste(&lazy, node.at(), res, waste);
                     }
                 }
-                match power {
-                    Power::Source { output } => *output = 0.0,
-                    Power::Sink { need, .. } => *need = 0.0,
-                }
+                power.clear::<Self>();
             }
 
             // If nothing's in progress (or has just finished), start.
             if progress.made.is_some() { continue }
             let has_input = reactor.input.iter().all(|(r, c)| sink.has.get(r) >= c);
             if !has_input { continue }
+            // TODO: make output gating controllable
             let needs_output = reactor.output.iter().any(|(r, c)| source.has.get(r) < c);
             if !needs_output { continue }
-            // TODO?: start reaction if there's power demand
-            let power_start = match power {
-                Power::Source { output } => {
-                    *output = reactor.power_per_second;
-                    true
-                },
-                Power::Sink { need, input } => {
-                    *need = reactor.power_per_second;
-                    *input > 0.0
-                },
-            };
-            if !power_start { continue }
+            // Start requesting power, and only continue if we're getting any.
+            power.set::<Self>(reactor.power_per_second);
+            if power.ratio() == 0.0 { continue }
             for (res, count) in reactor.input.iter() {
                 if count == 0 { continue }
                 sink.has.dec_by(res, count).unwrap();

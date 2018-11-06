@@ -1,4 +1,7 @@
-use std::collections::VecDeque;
+use std::{
+    any::TypeId,
+    collections::{HashMap, VecDeque},
+};
 
 use hibitset::BitSet;
 use petgraph::{self, graphmap::GraphMap};
@@ -13,9 +16,32 @@ use graph;
 use util::try_get;
 
 #[derive(Debug)]
-pub enum Power {
-    Source { output: f32 },
-    Sink { need: f32, input: f32 },
+pub struct Power {
+    has: HashMap<TypeId, f32>,
+    input: f32,
+}
+
+impl Power {
+    pub fn new() -> Self { Power { has: HashMap::new(), input: 0.0 } }
+    pub fn set<T: 'static>(&mut self, amount: f32) -> Option<f32> {
+        self.has.insert(TypeId::of::<T>(), amount)
+    }
+    pub fn clear<T: 'static>(&mut self) -> Option<f32> {
+        self.has.remove(&TypeId::of::<T>())
+    }
+    pub fn total(&self) -> f32 {
+        self.has.values().sum()
+    }
+    pub fn ratio(&self) -> f32 {
+        let total = self.total();
+        if total == 0.0 {
+            0.0
+        } else if total >= 0.0 {
+            1.0
+        } else {
+            self.input / total.abs()
+        }
+    }
 }
 
 impl Component for Power {
@@ -114,17 +140,19 @@ impl<'a> System<'a> for DistributePower {
             let mut supply = 0.0;
             let mut demand = 0.0;
             for (power, _) in (&data.powers, &covered).join() {
-                match power {
-                    Power::Source { output } => supply += output,
-                    Power::Sink { need, .. } => demand += need,
+                let total = power.total();
+                if total >= 0.0 {
+                    supply += total
+                } else {
+                    demand += total.abs()
                 }
             }
             let will_supply = fmin(supply, demand);
             let scale = if demand > 0.0 { will_supply / demand } else { 0.0 };
             for (power, _) in (&mut data.powers, covered).join() {
-                match power {
-                    Power::Source { .. } => (),
-                    Power::Sink { need, input } => *input = *need * scale,
+                let total = power.total();
+                if total < 0.0 {
+                    power.input = total.abs() * scale
                 }
             }
         }
