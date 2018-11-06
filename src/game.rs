@@ -121,10 +121,16 @@ impl NodeSelected {
             ui.text(format!("Kind: {}", kinds.join(" | ")));
             if let Some(power) = world.read_storage::<power::Power>().get(self.0) {
                 let total = power.total();
-                if total >= 0.0 {
-                    ui.text(format!("Power Source: {}/s", total));
+                let uses: Vec<String> = power.uses().map(|f| format!("{:+}", f)).collect();
+                let uses_str = if uses.is_empty() { "None".into() } else { uses.join(" ") };
+                ui.text(format!("Node Power: {}", uses_str));
+                if total == 0.0 {
+                    ui.text("Power Neutral");
                 } else {
-                    ui.text(format!("Power Sink: {}/s ({:.0}%)", total, 100.0*power.ratio()))
+                    let dir = if total >= 0.0 { "Output" } else { "Input" };
+                    ui.text(format!(
+                        "Power {}: {:.0}% ({:+}/s of {:+}/s)", dir,
+                        100.0*power.ratio(), power.grid(), power.total()));
                 }
             }
             if let Some(prog) = world.read_storage::<reactor::Progress>().get(self.0) {

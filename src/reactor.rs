@@ -48,7 +48,9 @@ impl<'a> System<'a> for MakeProgress {
         for (prog, opt_power) in (&mut progs, powers.maybe()).join() {
             let (at, target) = if let Some(p) = &mut prog.made { p } else { continue };
             if *at >= *target { continue }
-            let ratio = opt_power.map_or(1.0, |power| power.ratio());
+            let ratio = opt_power.map_or(1.0, |power| {
+                if power.total() >= 0.0 { 1.0 } else { power.ratio() }
+            });
             // Duration doesn't support floating point mul/div :(
             let inc = f32_duration(duration_f32(super::UPDATE_DURATION)*ratio); 
             *at += inc;
