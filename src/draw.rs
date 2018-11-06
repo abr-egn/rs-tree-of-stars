@@ -388,24 +388,14 @@ impl<'a, 'b> System<'a> for DrawReactors<'b> {
     type SystemData = (
         ReadStorage<'a, graph::Node>,
         ReadStorage<'a, reactor::Progress>,
-        ReadStorage<'a, build::Factory>,
     );
 
-    fn run(&mut self, (nodes, progs, factories): Self::SystemData) {
+    fn run(&mut self, (nodes, progs): Self::SystemData) {
         let ctx = &mut self.0;
         let screen = graphics::get_screen_coordinates(ctx);
         or_die(|| { graphics::set_color(ctx, Color::new(1.0, 0.0, 1.0, 1.0))?; Ok(()) });
         for (node, progress) in (&nodes, &progs).join() {
             let progress = if let Some(p) = progress.at() { p } else { continue };
-            let pt = node.at().to_pixel_point();
-            if !screen.contains(pt) { continue }
-            or_die(|| {
-                graphics::circle(ctx, DrawMode::Line(3.0), pt, source_radius() * progress, 0.5)?;
-                Ok(())
-            });
-        }
-        for (node, factory) in (&nodes, &factories).join() {
-            let (_, progress) = if let Some(p) = factory.progress() { p } else { continue };
             let pt = node.at().to_pixel_point();
             if !screen.contains(pt) { continue }
             or_die(|| {

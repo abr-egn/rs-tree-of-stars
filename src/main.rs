@@ -38,7 +38,6 @@ use hex2d::Coordinate;
 use specs::prelude::*;
 
 use error::Result;
-use resource::{Pool, Resource};
 
 pub const UPDATES_PER_SECOND: u32 = 60;
 pub const UPDATE_DELTA: f32 = 1.0 / (UPDATES_PER_SECOND as f32);
@@ -93,18 +92,14 @@ fn make_world(ctx: &mut Context) -> World {
     game::prep_world(&mut world);
 
     let seed = graph::make_node(&mut world, Coordinate { x: 0, y: 0});
-    reactor::Reactor::add(
-        &mut world, seed,
-        /* input=  */ Pool::new(),
-        /* delay=  */ Duration::from_millis(5000),
-        /* output= */ Pool::from(vec![(Resource::C, 1)]),
-        /* power=  */ 0.0,
-        /* range=  */ 20,
-    );
     power::Pylon::add(&mut world, seed, /* range= */ 20);
-    world.write_storage().insert(seed, build::Factory::new(
-        vec![build::Kind::Strut, build::Kind::CarbonSource]
-    )).unwrap();
+    build::Factory::add(&mut world, seed,
+        vec![build::Kind::Strut, build::Kind::CarbonSource],
+        /* range= */ 20);
+    world.write_storage::<power::Power>().get_mut(seed).unwrap()
+        .set::<()>(100.0);
+    world.write_storage::<build::Factory>().get_mut(seed).unwrap()
+        .inc_built(build::Kind::CarbonSource);
 
     world
 }

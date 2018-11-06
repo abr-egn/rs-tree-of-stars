@@ -127,6 +127,11 @@ impl NodeSelected {
                     ui.text(format!("Power Sink: {}/s ({:.0}%)", total, 100.0*power.ratio()))
                 }
             }
+            if let Some(prog) = world.read_storage::<reactor::Progress>().get(self.0) {
+                if let Some(p) = prog.at() {
+                    ui.text(format!("Progress: {:.0}%", 100.0*p));
+                }
+            }
             f(world);
         })
     }
@@ -329,9 +334,6 @@ impl Mode for NodeSelected {
                         }
                     }
                     ui.pop_id();
-                }
-                if let Some((kind, p)) = factory.progress() {
-                    ui.text(format!("Building {:?} : {:.0}%", kind, p*100.0));
                 }
                 let queue = factory.queue();
                 if !queue.is_empty() {

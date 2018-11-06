@@ -15,15 +15,20 @@ use util::{duration_f32, f32_duration};
 
 #[derive(Debug)]
 pub struct Progress {
-    made: Option<Duration>,
-    target: Duration,
+    made: Option<(/* at= */ Duration, /* target= */ Duration)>,
 }
 
 impl Progress {
+    pub fn new() -> Self { Progress { made: None} }
     pub fn at(&self) -> Option<f32> {
-        let prog = if let Some(p) = &self.made { p } else { return None };
-        Some(duration_f32(*prog) / duration_f32(self.target))
+        if let Some((at, target)) = &self.made {
+            Some(duration_f32(*at) / duration_f32(*target))
+        } else { None }
     }
+    pub fn start(&mut self, target: Duration) {
+        self.made = Some((Duration::new(0, 0), target))
+    }
+    pub fn clear(&mut self) { self.made = None }
 }
 
 impl Component for Progress {
@@ -41,12 +46,12 @@ impl<'a> System<'a> for MakeProgress {
 
     fn run(&mut self, (mut progs, powers): Self::SystemData) {
         for (prog, opt_power) in (&mut progs, powers.maybe()).join() {
-            let made = if let Some(m) = &mut prog.made { m } else { continue };
-            if *made >= prog.target { continue }
+            let (at, target) = if let Some(p) = &mut prog.made { p } else { continue };
+            if *at >= *target { continue }
             let ratio = opt_power.map_or(1.0, |power| power.ratio());
             // Duration doesn't support floating point mul/div :(
             let inc = f32_duration(duration_f32(super::UPDATE_DURATION)*ratio); 
-            *made += inc;
+            *at += inc;
         }
     }
 }
@@ -71,9 +76,7 @@ impl Reactor {
             world.write_storage().insert(entity, sink)?;
             
             world.write_storage().insert(entity, Power::new())?;
-            world.write_storage().insert(entity, Progress {
-                made: None, target: delay,
-            })?;
+            world.write_storage().insert(entity, Progress::new())?;
             world.write_storage().insert(entity, Reactor {
                 input, delay, output, power_per_second: total_power / duration_f32(delay),
             })?;
@@ -111,13 +114,13 @@ impl<'a> System<'a> for RunReactors {
         for (node, reactor, progress, source, sink, power) in (&nodes, &mut reactors, &mut progs, &mut sources, &mut sinks, &mut powers).join() {
             // Check in progress production.
             if progress.at().map_or(false, |p| p > 1.0) {
-                progress.made = None;
+                progress.clear();
+                power.clear::<Self>();
                 for (res, count) in reactor.output.iter() {
                     if let Some(waste) = source.has.inc_by(res, count) {
                         spawn_waste(&lazy, node.at(), res, waste);
                     }
                 }
-                power.clear::<Self>();
             }
 
             // If nothing's in progress (or has just finished), start.
@@ -134,7 +137,7 @@ impl<'a> System<'a> for RunReactors {
                 if count == 0 { continue }
                 sink.has.dec_by(res, count).unwrap();
             }
-            progress.made = Some(Duration::new(0, 0));
+            progress.start(reactor.delay);
         }
     }
 }

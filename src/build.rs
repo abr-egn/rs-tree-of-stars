@@ -11,7 +11,8 @@ use specs::{
 
 use error::{Error, Result, or_die};
 use graph;
-use reactor::Reactor;
+use power::Power;
+use reactor::{Progress, Reactor};
 use resource::{
     self,
     Pool, Resource,
@@ -79,19 +80,19 @@ impl Kind {
             ),
         }
     }
-    fn cost(&self) -> (Pool, Duration) {
+    fn cost(&self) -> (Pool, /*power=*/ f32, Duration) {
         use self::Kind::*;
         match self {
             Strut => (
-                Pool::from(vec![(Resource::C, 2)]),
+                Pool::from(vec![(Resource::C, 2)]), -100.0,
                 Duration::from_millis(10000),
             ),
             CarbonSource => (
-                Pool::from(vec![(Resource::C, 2)]),
+                Pool::from(vec![(Resource::C, 2)]), -100.0,
                 Duration::from_millis(10000),
             ),
             Electrolysis => (
-                Pool::from(vec![(Resource::C, 2)]),
+                Pool::from(vec![(Resource::C, 2)]), -100.0,
                 Duration::from_millis(10000),
             ),
         }
@@ -149,21 +150,33 @@ impl<'a> System<'a> for Build {
 pub struct Factory {
     can_build: HashSet<Kind>,
     built: HashMap<Kind, usize>,
-    active: Option<(Kind, Duration)>,
     queue: VecDeque<Kind>,
 }
 
 impl Factory {
-    pub fn new<T: IntoIterator<Item=Kind>>(can_build: T) -> Self {
-        Factory {
-            can_build: can_build.into_iter().collect(),
-            built: HashMap::new(),
-            active: None,
-            queue: VecDeque::new(),
-        }
+    pub fn add<T: IntoIterator<Item=Kind>>(
+        world: &mut World, entity: Entity,
+        can_build: T, range: i32,
+    ) {
+        or_die(|| {
+            graph::AreaGraph::add(world, entity, range)?;
+            world.write_storage().insert(entity, resource::Sink::new())?;
+            world.write_storage().insert(entity, Power::new())?;
+            world.write_storage().insert(entity, Progress::new())?;
+            world.write_storage().insert(entity, Factory {
+                can_build: can_build.into_iter().collect(),
+                built: HashMap::new(),
+                queue: VecDeque::new(),
+            })?;
+            Ok(())
+        });
     }
     pub fn can_build(&self) -> &HashSet<Kind> { &self.can_build }
     pub fn built(&self, kind: Kind) -> usize { *self.built.get(&kind).unwrap_or(&0) }
+    pub fn inc_built(&mut self, kind: Kind) {
+         let count = self.built.entry(kind).or_insert(0);
+        *count += 1;
+    }
     pub fn dec_built(&mut self, kind: Kind) -> Result<()> {
         let has = self.built(kind);
         if has == 0 {
@@ -171,11 +184,6 @@ impl Factory {
         }
         self.built.insert(kind, has-1);
         Ok(())
-    }
-    pub fn progress(&self) -> Option<(Kind, f32)> {
-        let (kind, prog) = if let Some(p) = &self.active { p } else { return None };
-        let (_, delay) = kind.cost();
-        Some((*kind, util::duration_f32(*prog) / util::duration_f32(delay)))
     }
     pub fn queue(&self) -> &VecDeque<Kind> { &self.queue }
     pub fn queue_push(&mut self, kind: Kind) { self.queue.push_back(kind) }
@@ -192,42 +200,40 @@ impl<'a> System<'a> for Production {
     type SystemData = (
         WriteStorage<'a, Factory>,
         WriteStorage<'a, resource::Sink>,
+        WriteStorage<'a, Progress>,
+        WriteStorage<'a, Power>,
     );
 
-    fn run(&mut self, (mut factories, mut sinks): Self::SystemData) {
-        for (factory, sink) in (&mut factories, &mut sinks).join() {
+    fn run(&mut self, (mut factories, mut sinks, mut progs, mut powers): Self::SystemData) {
+        for (factory, sink, progress, power) in (&mut factories, &mut sinks, &mut progs, &mut powers).join() {
             // Check production state
-            let produced = if let Some((kind, time)) = &mut factory.active {
-                *time += super::UPDATE_DURATION;
-                let (_, dur) = kind.cost();
-                if *time >= dur {
-                    Some(*kind)
-                } else { None }
-            } else { None };
-            // Track if something finished
-            if let Some(kind) = produced {
-                let count = factory.built.entry(kind).or_insert(0);
-                *count += 1;
-                factory.active = None;
+            if progress.at().map_or(false, |p| p > 1.0) {
+                progress.clear();
+                power.clear::<Self>();
+                let kind = factory.queue.pop_front().unwrap();
+                factory.inc_built(kind);
             }
+            
             // Request the resources for the next queued item
-            let next = if let Some(f) = factory.queue.pop_front() { f } else { continue };
-            let (cost, _) = next.cost();
+            let next = if let Some(f) = factory.queue.front() { f } else { continue };
+            let (cost, build_power, time) = next.cost();
             let mut has_all = true;
             for (res, count) in cost.iter() {
                 if sink.want.get(res) != count { sink.want.set(res, count); }
                 if sink.has.get(res) < count { has_all = false }
             }
-            if !has_all || factory.active.is_some() {
-                factory.queue.push_front(next);
+            if !has_all || progress.at().is_some() {
                 continue;
             }
+            // Start requesting power, and only continue if we're getting any.
+            power.set::<Self>(build_power);
+            if power.ratio() == 0.0 { continue }
             // Clear sink requests and start production.
             for (res, count) in cost.iter() {
                 sink.want.set(res, 0);
                 sink.has.dec_by(res, count).unwrap();
             }
-            factory.active = Some((next, Duration::new(0, 0)));
+            progress.start(time);
         }
     }
 }
