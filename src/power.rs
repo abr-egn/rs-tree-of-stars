@@ -34,9 +34,7 @@ impl Power {
     }
     pub fn ratio(&self) -> f32 {
         let total = self.total();
-        if total == 0.0 {
-            0.0
-        } else if total >= 0.0 {
+        if total >= 0.0 {
             1.0
         } else {
             self.input / total.abs()

@@ -67,7 +67,7 @@ impl Kind {
                 /* input=  */ Pool::from(vec![]),
                 /* delay=  */ REACTION_TIME,
                 /* output= */ Pool::from(vec![(Resource::C, 1)]),
-                /* power=  */ 0.0,  // kJ/mol
+                /* power=  */ -100.0,  // kJ/mol
                 /* range=  */ REACTOR_RANGE,
             ),
             Electrolysis => Reactor::add(
@@ -151,6 +151,7 @@ pub struct Factory {
     can_build: HashSet<Kind>,
     built: HashMap<Kind, usize>,
     queue: VecDeque<Kind>,
+    building: Option<Kind>,
 }
 
 impl Factory {
@@ -167,6 +168,7 @@ impl Factory {
                 can_build: can_build.into_iter().collect(),
                 built: HashMap::new(),
                 queue: VecDeque::new(),
+                building: None,
             })?;
             Ok(())
         });
@@ -207,16 +209,19 @@ impl<'a> System<'a> for Production {
     fn run(&mut self, (mut factories, mut sinks, mut progs, mut powers): Self::SystemData) {
         for (factory, sink, progress, power) in (&mut factories, &mut sinks, &mut progs, &mut powers).join() {
             // Check production state
-            if progress.at().map_or(false, |p| p > 1.0) {
+            if progress.at().map_or(false, |p| p >= 1.0) {
                 progress.clear();
                 power.clear::<Self>();
-                let kind = factory.queue.pop_front().unwrap();
+                let kind = factory.building.unwrap();
                 factory.inc_built(kind);
+                factory.building = None;
             }
             
             // Request the resources for the next queued item
-            let next = if let Some(f) = factory.queue.front() { f } else { continue };
-            let (cost, build_power, time) = next.cost();
+            let (cost, build_power, time) = {
+                let next = if let Some(f) = factory.queue.front() { f } else { continue };
+                next.cost()
+            };
             let mut has_all = true;
             for (res, count) in cost.iter() {
                 if sink.want.get(res) != count { sink.want.set(res, count); }
@@ -233,6 +238,7 @@ impl<'a> System<'a> for Production {
                 sink.want.set(res, 0);
                 sink.has.dec_by(res, count).unwrap();
             }
+            factory.building = Some(factory.queue.pop_front().unwrap());
             progress.start(time);
         }
     }

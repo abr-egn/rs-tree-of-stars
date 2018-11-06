@@ -113,7 +113,7 @@ impl<'a> System<'a> for RunReactors {
     fn run(&mut self, (nodes, mut reactors, mut progs, mut sources, mut sinks, mut powers, lazy): Self::SystemData) {
         for (node, reactor, progress, source, sink, power) in (&nodes, &mut reactors, &mut progs, &mut sources, &mut sinks, &mut powers).join() {
             // Check in progress production.
-            if progress.at().map_or(false, |p| p > 1.0) {
+            if progress.at().map_or(false, |p| p >= 1.0) {
                 progress.clear();
                 power.clear::<Self>();
                 for (res, count) in reactor.output.iter() {
