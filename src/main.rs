@@ -94,7 +94,7 @@ fn make_world(ctx: &mut Context) -> World {
     let seed = graph::make_node(&mut world, Coordinate { x: 0, y: 0});
     power::Pylon::add(&mut world, seed, /* range= */ 20);
     build::Factory::add(&mut world, seed,
-        vec![build::Kind::Strut, build::Kind::CarbonSource],
+        vec![build::Kind::Strut, build::Kind::CarbonSource, build::Kind::WaterSource],
         /* range= */ 20);
     world.write_storage::<power::Power>().get_mut(seed).unwrap()
         .set::<()>(100.0);

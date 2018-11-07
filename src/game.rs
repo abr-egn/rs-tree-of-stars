@@ -141,24 +141,6 @@ impl NodeSelected {
             f(world);
         })
     }
-    /*
-    fn add_reactor(
-        &self, world: &mut World,
-        input: resource::Pool, delay: Duration, output: resource::Pool,
-        total_power: f32,
-    ) {
-        resource::Reactor::add(
-            world, self.0, input, delay, output,
-            total_power, /* range= */ 20);
-    }
-    fn is_plain(&self, world: &World) -> bool {
-        if world.read_storage::<resource::Source>().get(self.0).is_some() { return false }
-        if world.read_storage::<resource::Sink>().get(self.0).is_some() { return false }
-        if world.read_storage::<power::Power>().get(self.0).is_some() { return false }
-        if world.read_storage::<power::Pylon>().get(self.0).is_some() { return false }
-        true
-    }
-    */
 }
 
 /*
@@ -220,22 +202,6 @@ impl Mode for NodeSelected {
                     ui.open_popup(im_str!("Make Reactor"));
                 }
                 ui.popup(im_str!("Make Reactor"), || {
-                    if ui.menu_item(im_str!("-> H2O")).build() {
-                        self.add_reactor(world,
-                            /* input= */ Pool::new(),
-                            /* delay= */ REACTION_TIME,
-                            /* output= */ Pool::from(vec![(Resource::H2O, 1)]),
-                            /* total_power= */ 0.0,
-                        );
-                    }
-                    if ui.menu_item(im_str!("-> C")).build() {
-                        self.add_reactor(world,
-                            /* input= */ Pool::new(),
-                            /* delay= */ REACTION_TIME,
-                            /* output= */ Pool::from(vec![(Resource::C, 1)]),
-                            /* total_power= */ 0.0,
-                        );
-                    }
                     // Power is in kJ/mol
                     if ui.menu_item(im_str!("2H2O -> O2 + 2H2")).build() {
                         self.add_reactor(world,

@@ -32,6 +32,7 @@ pub enum Kind {
     Strut,
     // Reactors
     CarbonSource,
+    WaterSource,
     #[allow(unused)]
     Electrolysis,
     /*
@@ -70,6 +71,14 @@ impl Kind {
                 /* power=  */ -100.0,  // kJ/mol
                 /* range=  */ REACTOR_RANGE,
             ),
+            WaterSource => Reactor::add(
+                world, entity,
+                /* input=  */ Pool::from(vec![]),
+                /* delay=  */ REACTION_TIME,
+                /* output= */ Pool::from(vec![(Resource::H2O, 1)]),
+                /* power=  */ -100.0,  // kJ/mol
+                /* range=  */ REACTOR_RANGE,
+            ),
             Electrolysis => Reactor::add(
                 world, entity,
                 /* input=  */ Pool::from(vec![(Resource::H2O, 2)]),
@@ -88,6 +97,10 @@ impl Kind {
                 Duration::from_millis(10000),
             ),
             CarbonSource => (
+                Pool::from(vec![(Resource::C, 2)]), -100.0,
+                Duration::from_millis(10000),
+            ),
+            WaterSource => (
                 Pool::from(vec![(Resource::C, 2)]), -100.0,
                 Duration::from_millis(10000),
             ),
