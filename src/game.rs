@@ -344,14 +344,18 @@ impl Mode for BuildFrom {
                 let found = world.read_resource::<geom::Map>().get(coord);
                 match found {
                     Some(ent) => {
-                        if world.read_storage::<graph::Node>().get(ent).is_some() {
-                            TopAction::swap(BuildTo {
-                                source: self.source,
-                                kind: self.kind,
-                                fork: ent,
-                            })
-                        } else {
-                            TopAction::AsEvent
+                        match (world.read_storage::<graph::Node>().get(ent),
+                               world.read_storage::<graph::LinkRange>().get(ent)) {
+                            (Some(node), Some(lr)) => {
+                                TopAction::swap(BuildTo {
+                                    source: self.source,
+                                    kind: self.kind,
+                                    fork: ent,
+                                    fork_coord: node.at(),
+                                    fork_range: lr.get(),
+                                })
+                            },
+                            _ => TopAction::AsEvent,
                         }
                     },
                     _ => TopAction::AsEvent,
@@ -367,18 +371,20 @@ struct BuildTo {
     source: Entity,
     kind: build::Kind,
     fork: Entity,
+    fork_coord: Coordinate,
+    fork_range: i32,
 }
 
 impl BuildTo {
-    fn fork_coord(&self, world: &World) -> Coordinate {
-        try_get(&world.read_storage::<graph::Node>(), self.fork).unwrap().at()
-    }
     fn valid_to(&self, world: &World, coord: Coordinate) -> bool {
         let map = &*world.read_resource::<geom::Map>();
         if !graph::space_for_node(map, coord) {
             return false
         }
-        if !graph::space_for_link(map, self.fork_coord(world), coord) {
+        if !graph::space_for_link(map, self.fork_coord, coord) {
+            return false
+        }
+        if self.fork_coord.distance(coord) > self.fork_range {
             return false
         }
         true
@@ -388,7 +394,7 @@ impl BuildTo {
 impl Mode for BuildTo {
     fn name(&self) -> &str { "build to" }
     fn on_show(&mut self, world: &mut World) {
-        world.write_resource::<MouseWidget>().kind = MWKind::PlaceNodeFrom(self.fork_coord(world));
+        world.write_resource::<MouseWidget>().kind = MWKind::PlaceNodeFrom(self.fork_coord);
     }
     fn on_hide(&mut self, world: &mut World) {
         world.write_resource::<MouseWidget>().kind = MWKind::None;
@@ -438,14 +444,7 @@ impl Mode for PlaceLink {
                 let found = world.read_resource::<geom::Map>().get(coord);
                 match found {
                     Some(ent) if ent != self.0 => {
-                        let dest_at = if let Some(dest_node) = world.read_storage::<graph::Node>().get(ent) {
-                            dest_node.at()
-                        } else { return TopAction::AsEvent };
-                        let self_at = {
-                            let nodes = world.read_storage::<graph::Node>();
-                            or_die(|| try_get(&nodes, self.0)).at()
-                        };
-                        if !graph::space_for_link(&*world.read_resource(), self_at, dest_at) {
+                        if !graph::can_link(world, self.0, ent) {
                             return TopAction::AsEvent
                         }
                         graph::make_link(world, self.0, ent);

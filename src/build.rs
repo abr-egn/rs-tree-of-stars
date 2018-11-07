@@ -11,7 +11,7 @@ use specs::{
 
 use error::{Error, Result, or_die};
 use graph;
-use power::Power;
+use power::{self, Power};
 use reactor::{Progress, Reactor};
 use resource::{
     self,
@@ -42,6 +42,7 @@ pub enum Kind {
     // Other
     Storage,
     */
+    Seed,
 }
 
 #[derive(Debug, Clone)]
@@ -57,10 +58,12 @@ impl Component for Packet {
 const REACTION_TIME: Duration = Duration::from_millis(5000);
 const REACTOR_RANGE: i32 = 20;
 const PACKET_SPEED: f32 = 2.0;
+const LINK_RANGE: i32 = 6;
 
 impl Kind {
-    fn make(&self, world: &mut World, entity: Entity) {
+    pub fn make(&self, world: &mut World, entity: Entity) {
         use self::Kind::*;
+        // Function
         match self {
             Strut => (),
             CarbonSource => Reactor::add(
@@ -87,7 +90,23 @@ impl Kind {
                 /* power=  */ -3242.0,  // kJ/mol
                 /* range=  */ REACTOR_RANGE,
             ),
+            Seed => {
+                power::Pylon::add(world, entity, /* range= */ 20);
+                Factory::add(world, entity,
+                    vec![Strut, CarbonSource, WaterSource],
+                    /* range= */ 20);
+                world.write_storage::<Power>().get_mut(entity).unwrap()
+                    .set::<()>(100.0);
+                world.write_storage::<Factory>().get_mut(entity).unwrap()
+                    .inc_built(CarbonSource);
+            }
         }
+        // Link range
+        let lr = match self {
+            Strut => LINK_RANGE*2,
+            _ => LINK_RANGE,
+        };
+        world.write_storage().insert(entity, graph::LinkRange::new(lr)).unwrap();
     }
     fn cost(&self) -> (Pool, /*power=*/ f32, Duration) {
         use self::Kind::*;
@@ -108,6 +127,7 @@ impl Kind {
                 Pool::from(vec![(Resource::C, 2)]), -100.0,
                 Duration::from_millis(10000),
             ),
+            Seed => panic!("Seed is pre-built"),
         }
     }
     pub fn start(&self, world: &mut World, start: Entity, fork: Entity, location: Coordinate) {

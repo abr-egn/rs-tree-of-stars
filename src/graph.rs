@@ -362,6 +362,17 @@ pub fn make_node(world: &mut World, center: Coordinate) -> Entity {
     ent
 }
 
+pub struct LinkRange(i32);
+
+impl LinkRange {
+    pub fn new(range: i32) -> Self { LinkRange(range) }
+    pub fn get(&self) -> i32 { self.0 }
+}
+
+impl Component for LinkRange {
+    type Storage = BTreeStorage<Self>;
+}
+
 struct LinkSpace {
     from: Coordinate,
     to: Coordinate,
@@ -403,6 +414,20 @@ pub fn space_for_link(map: &geom::Map, from: Coordinate, to: Coordinate) -> bool
 
 pub fn link_shape(from: Coordinate, to: Coordinate) -> Vec<Coordinate> {
     LinkSpace::new_pos(from, to).shape
+}
+
+pub fn can_link(world: &World, from: Entity, to: Entity) -> bool {
+    let nodes = world.read_storage::<Node>();
+    let from_coord = if let Some(n) = nodes.get(from) { n.at() } else { return false };
+    let to_coord = if let Some(n) = nodes.get(to) { n.at() } else { return false };
+    if !space_for_link(&world.read_resource(), from_coord, to_coord) { return false };
+
+    let ranges = world.read_storage::<LinkRange>();
+    let from_range = if let Some(r) = ranges.get(from) { r.get() } else { return false };
+    let to_range = if let Some(r) = ranges.get(to) { r.get() } else { return false };
+    if max(from_range, to_range) < from_coord.distance(to_coord) { return false };
+
+    true
 }
 
 pub fn make_link(world: &mut World, from: Entity, to: Entity) -> Entity {

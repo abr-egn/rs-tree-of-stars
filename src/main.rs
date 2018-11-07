@@ -59,6 +59,7 @@ fn make_world(ctx: &mut Context) -> World {
     world.register::<graph::AreaGraph>();
     world.register::<graph::FollowRoute>();
     world.register::<graph::RouteDone>();
+    world.register::<graph::LinkRange>();
 
     world.register::<resource::Source>();
     world.register::<resource::Sink>();
@@ -92,14 +93,7 @@ fn make_world(ctx: &mut Context) -> World {
     game::prep_world(&mut world);
 
     let seed = graph::make_node(&mut world, Coordinate { x: 0, y: 0});
-    power::Pylon::add(&mut world, seed, /* range= */ 20);
-    build::Factory::add(&mut world, seed,
-        vec![build::Kind::Strut, build::Kind::CarbonSource, build::Kind::WaterSource],
-        /* range= */ 20);
-    world.write_storage::<power::Power>().get_mut(seed).unwrap()
-        .set::<()>(100.0);
-    world.write_storage::<build::Factory>().get_mut(seed).unwrap()
-        .inc_built(build::Kind::CarbonSource);
+    build::Kind::Seed.make(&mut world, seed);
 
     world
 }
