@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    cmp::min,
     mem::swap,
     sync::mpsc::{channel, Sender},
     time::{Duration, Instant},
@@ -178,6 +177,7 @@ impl Component for Target {
     type Storage = BTreeStorage<Self>;
 }
 
+/*
 #[derive(Debug)]
 pub struct SelfPull;
 
@@ -204,6 +204,7 @@ impl<'a> System<'a> for SelfPull {
         }
     }
 }
+*/
 
 const PACKET_SPEED: f32 = 2.0;
 const SEND_COOLDOWN: Duration = Duration::from_millis(500);
