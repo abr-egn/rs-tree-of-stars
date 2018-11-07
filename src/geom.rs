@@ -134,9 +134,11 @@ impl Map {
         Ok(())
     }
     pub fn in_range(&self, center: Coordinate, radius: i32) -> BitSet {
+        println!("Map::in_range");
         let mut out = BitSet::new();
         center.for_each_in_range(radius, |c| {
             if let Some(&e) = self.0.get(&c) {
+                println!("  => found {:?}", e);
                 out.add(e.id());
             }
         });

@@ -107,9 +107,15 @@ pub type AreaGraph = geom::AreaWatch<Graph>;
 
 impl AreaGraph {
     pub fn add(world: &mut World, parent: Entity, range: i32) -> Result<()> {
-        {
+        println!("AreaGraph start");
+        let res = {
             let links = world.read_storage::<Link>();
             let entities = world.entities();
+            // The bug: links of zero length (i.e. immediately adjacent nodes) do not
+            // exist on the hex map, so are not found.
+            //
+            // Possible secondary (un-observed) bug: this would find links reaching outside
+            // of the graph's range.
             Self::build(world, parent, range, |found| {
                 let mut graph = Graph::new();
                 for (entity, link, _) in (&entities, &links, found).join() {
@@ -117,7 +123,9 @@ impl AreaGraph {
                 }
                 graph
             })
-        }?.insert(world)
+        }?.insert(world);
+        println!("AreaGraph end");
+        res
     }
     pub fn nodes_route<'a>(&'a mut self) -> (impl Iterator<Item=Entity> + 'a, Router<'a>) {
         let ex = &self.exclude;
