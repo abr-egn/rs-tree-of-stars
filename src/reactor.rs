@@ -16,18 +16,29 @@ use util::{duration_f32, f32_duration};
 
 #[derive(Debug)]
 pub struct Progress {
-    made: Option<(/* at= */ Duration, /* target= */ Duration)>,
+    made: Option<ActiveProgress>,
+}
+
+#[derive(Debug)]
+struct ActiveProgress {
+    at: Duration,
+    target: Duration,
+    label: String,
 }
 
 impl Progress {
     pub fn new() -> Self { Progress { made: None} }
-    pub fn at(&self) -> Option<f32> {
-        if let Some((at, target)) = &self.made {
-            Some(duration_f32(*at) / duration_f32(*target))
+    pub fn at(&self) -> Option<f32> { self.at_label().map(|(p, _)| p) }
+    pub fn at_label(&self) -> Option<(f32, &str)> {
+        if let Some(active) = &self.made {
+            Some((duration_f32(active.at) / duration_f32(active.target), &active.label))
         } else { None }
     }
-    pub fn start(&mut self, target: Duration) {
-        self.made = Some((Duration::new(0, 0), target))
+    pub fn start(&mut self, target: Duration, label: String) {
+        self.made = Some(ActiveProgress {
+            at: Duration::new(0, 0),
+            target, label,
+        });
     }
     pub fn clear(&mut self) { self.made = None }
 }
@@ -47,7 +58,7 @@ impl<'a> System<'a> for MakeProgress {
 
     fn run(&mut self, (mut progs, powers): Self::SystemData) {
         for (prog, opt_power) in (&mut progs, powers.maybe()).join() {
-            let (at, target) = if let Some(p) = &mut prog.made { p } else { continue };
+            let ActiveProgress { at, target, .. } = if let Some(p) = &mut prog.made { p } else { continue };
             if *at >= *target { continue }
             let ratio = opt_power.map_or(1.0, |power| {
                 if power.total() >= 0.0 { 1.0 } else { power.ratio() }
@@ -92,6 +103,7 @@ impl Reactor {
     }
     pub fn input(&self) -> &Pool { &self.input }
     pub fn output(&self) -> &Pool { &self.output }
+    #[allow(unused)]
     pub fn targets(&self) -> &BitSet { &self.targets }
     pub fn targets_mut(&mut self) -> &mut BitSet { &mut self.targets }
 }
@@ -153,7 +165,7 @@ impl<'a> System<'a> for RunReactors {
                 if count == 0 { continue }
                 sink.has.dec_by(res, count).unwrap();
             }
-            progress.start(reactor.delay);
+            progress.start(reactor.delay, "Reaction".into());
         }
     }
 }

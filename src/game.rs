@@ -4,7 +4,7 @@ use ggez::{
     Context,
 };
 use hex2d::{self, Coordinate};
-use imgui::{ImGuiCond, Ui};
+use imgui::{ImGuiCond, ImString, Ui};
 use specs::{
     prelude::*,
     storage::BTreeStorage,
@@ -134,17 +134,9 @@ impl NodeSelected {
                 }
             }
             if let Some(prog) = world.read_storage::<reactor::Progress>().get(self.0) {
-                if let Some(p) = prog.at() {
-                    ui.text(format!("Progress: {:.0}%", 100.0*p));
+                if let Some((p, l)) = prog.at_label() {
+                    ui.text(format!("Progress ({}): {:.0}%", l, 100.0*p));
                 }
-            }
-            if let Some(r) = world.read_storage::<reactor::Reactor>().get(self.0) {
-                ui.separator();
-                let mut parts = vec![];
-                if !r.input().is_empty() { parts.push(r.input().str()); }
-                parts.push("->".into());
-                if !r.output().is_empty() { parts.push(r.output().str()); }
-                ui.text(parts.join(" "));
             }
             f(world);
         })
@@ -199,10 +191,6 @@ impl Mode for NodeSelected {
         // double-added.
         let mut action = TopAction::continue_();
         self.window(world, ui, |world| {
-            ui.separator();
-            if ui.small_button(im_str!("Add Link")) {
-                action = TopAction::push(PlaceLink(self.0));
-            }
             /*
             if self.is_plain(world) {
                 use resource::Pool;
@@ -257,35 +245,11 @@ impl Mode for NodeSelected {
                         Ok(())
                     });
                 }
-                if ui.small_button(im_str!("Make Power Source")) {
-                    world.write_storage().insert(self.0, power::Power::Source {
-                        output: 100.0,
-                    }).unwrap();
-                }
-                if ui.small_button(im_str!("Make Pylon")) {
-                    power::Pylon::add(world, self.0);
-                }
-                if ui.small_button(im_str!("Make Factory")) {
-                    or_die(|| {
-                        world.write_storage().insert(self.0, build::Factory::new(
-                            vec![build::Kind::Electrolysis, build::Kind::Strut]
-                        ))?;
-                        world.write_storage().insert(self.0, resource::Sink::new())?;
-                        graph::AreaGraph::add(world, self.0, FACTORY_RANGE)?;
-                        Ok(())
-                    });
-                }
-                ui.separator();
-                if ui.small_button(im_str!("Start Growth Test")) {
-                    GrowTest::start(world, self.0);
-                    or_die(|| {
-                        try_get_mut(&mut world.write_storage::<GrowTest>(), self.0)?.next_growth = 0;
-                        Ok(())
-                    });
-                    action = TopAction::done()
-                }
-            }
             */
+            ui.separator();
+            if ui.small_button(im_str!("Add Link")) {
+                action = TopAction::push(PlaceLink(self.0));
+            }
             if world.read_storage::<graph::AreaGraph>().get(self.0).is_some() {
                 ui.separator();
                 if ui.small_button(im_str!("Toggle Exclude")) {
@@ -323,9 +287,26 @@ impl Mode for NodeSelected {
                     }
                 }
             }
-            ui.separator();
-            if ui.small_button(im_str!("Deselect")) {
-                action = TopAction::Pop;
+            if let Some(r) = world.write_storage::<reactor::Reactor>().get_mut(self.0) {
+                ui.separator();
+                let mut parts = vec![];
+                parts.push(
+                    if r.input().is_empty() { "*".into() } else { r.input().str() }
+                );
+                parts.push("->".into());
+                parts.push(
+                    if r.output().is_empty() { "*".into() } else { r.output().str() }
+                );
+                ui.text(parts.join(" "));
+                ui.text("Build Targets:");
+                let output: Vec<_> = r.output().iter().collect();
+                let targets = r.targets_mut();
+                for (r, c) in output {
+                    if c == 0 { continue }
+                    let mut has = targets.contains(r as u32);
+                    ui.checkbox(&ImString::new(format!("{:?}", r)), &mut has);
+                    if has { targets.add(r as u32); } else { targets.remove(r as u32); }
+                }
             }
         });
         action

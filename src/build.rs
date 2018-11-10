@@ -271,8 +271,9 @@ impl<'a> System<'a> for Production {
                 sink.want.set(res, 0);
                 sink.has.dec_by(res, count).unwrap();
             }
-            factory.building = Some(factory.queue.pop_front().unwrap());
-            progress.start(time);
+            let to_build = factory.queue.pop_front().unwrap();
+            factory.building = Some(to_build);
+            progress.start(time, format!("{:?}", to_build));
         }
     }
 }
