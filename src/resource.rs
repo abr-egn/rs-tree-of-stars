@@ -118,6 +118,20 @@ impl Pool {
     pub fn iter<'a>(&'a self) -> impl Iterator<Item=(Resource, usize)> + 'a {
         self.count.iter().enumerate().map(|(u, &c)| (unsafe { ::std::mem::transmute::<usize, Resource>(u) }, c))
     }
+    pub fn str(&self) -> String {
+        let mut parts = vec![];
+        for (r, c) in self.iter() {
+            if c == 0 { continue }
+            parts.push(
+                if c == 1 { format!("{:?}", r) }
+                else { format!("{}{:?}", c, r) }
+            );
+        }
+        parts.join("+")
+    }
+    pub fn is_empty(&self) -> bool {
+        self.iter().all(|(_, c)| c > 0)
+    }
 }
 
 #[derive(Debug)]

@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use hibitset::BitSet;
 use rand::{self, Rng};
 use specs::{
     prelude::*,
@@ -64,6 +65,7 @@ pub struct Reactor {
     delay: Duration,
     output: Pool,
     power_per_second: f32,
+    targets: BitSet,
 }
 
 impl Reactor {
@@ -79,12 +81,19 @@ impl Reactor {
             
             world.write_storage().insert(entity, Power::new())?;
             world.write_storage().insert(entity, Progress::new())?;
+            let power_per_second = total_power / duration_f32(delay);
+            let mut targets = BitSet::new();
+            for (r, _) in output.iter() { targets.add(r as u32); }
             world.write_storage().insert(entity, Reactor {
-                input, delay, output, power_per_second: total_power / duration_f32(delay),
+                input, delay, output, power_per_second, targets,
             })?;
             Ok(())
         });
     }
+    pub fn input(&self) -> &Pool { &self.input }
+    pub fn output(&self) -> &Pool { &self.output }
+    pub fn targets(&self) -> &BitSet { &self.targets }
+    pub fn targets_mut(&mut self) -> &mut BitSet { &mut self.targets }
 }
 
 impl Component for Reactor {
@@ -130,7 +139,12 @@ impl<'a> System<'a> for RunReactors {
             let has_input = reactor.input.iter().all(|(r, c)| sink.has.get(r) >= c);
             if !has_input { continue }
             // TODO: make output gating controllable
-            let needs_output = reactor.output.iter().any(|(r, c)| source.has.get(r) < c);
+            let needs_output = {
+                let targets = &reactor.targets;
+                reactor.output.iter().any(|(r, c)| {
+                    targets.contains(r as u32) && source.has.get(r) < c
+                })
+            };
             if !needs_output { continue }
             // Start requesting power, and only continue if we're getting any.
             power.set::<Self>(reactor.power_per_second);

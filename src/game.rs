@@ -138,6 +138,14 @@ impl NodeSelected {
                     ui.text(format!("Progress: {:.0}%", 100.0*p));
                 }
             }
+            if let Some(r) = world.read_storage::<reactor::Reactor>().get(self.0) {
+                ui.separator();
+                let mut parts = vec![];
+                if !r.input().is_empty() { parts.push(r.input().str()); }
+                parts.push("->".into());
+                if !r.output().is_empty() { parts.push(r.output().str()); }
+                ui.text(parts.join(" "));
+            }
             f(world);
         })
     }
