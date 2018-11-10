@@ -36,14 +36,18 @@ pub struct Graph {
 pub type Route = Vec<(Entity, PathDir)>;
 
 impl Graph {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Graph {
             data: GraphMap::new(),
             route_cache: HashMap::new(),
         }
     }
-    pub fn add_link(&mut self, link: &Link, entity: Entity) {
+    fn add_link(&mut self, link: &Link, entity: Entity) {
         self.data.add_edge(link.from, link.to, entity);
+        self.route_cache.clear();
+    }
+    fn add_link_to(&mut self, from: Entity, to: Entity, link_ent: Entity) {
+        self.data.add_edge(from, to, link_ent);
         self.route_cache.clear();
     }
     pub fn nodes_route<'a>(&'a mut self) -> (impl Iterator<Item=Entity> + 'a, Router<'a>) {
@@ -107,24 +111,24 @@ pub type AreaGraph = geom::AreaWatch<Graph>;
 
 impl AreaGraph {
     pub fn add(world: &mut World, parent: Entity, range: i32) -> Result<()> {
-        println!("AreaGraph start");
         let res = {
-            let links = world.read_storage::<Link>();
+            let nodes = world.read_storage::<Node>();
             let entities = world.entities();
-            // The bug: links of zero length (i.e. immediately adjacent nodes) do not
-            // exist on the hex map, so are not found.
-            //
-            // Possible secondary (un-observed) bug: this would find links reaching outside
-            // of the graph's range.
             Self::build(world, parent, range, |found| {
                 let mut graph = Graph::new();
-                for (entity, link, _) in (&entities, &links, found).join() {
-                    graph.add_link(link, entity);
+                for (entity, node, _) in (&*entities, &nodes, &found).join() {
+                    for (&to, &link_ent) in &node.links {
+                        if graph.data.contains_edge(entity, to) || graph.data.contains_edge(to, entity) {
+                            continue
+                        }
+                        if found.contains(to.id()) {
+                            graph.add_link_to(entity, to, link_ent);
+                        }
+                    }
                 }
                 graph
             })
         }?.insert(world);
-        println!("AreaGraph end");
         res
     }
     pub fn nodes_route<'a>(&'a mut self) -> (impl Iterator<Item=Entity> + 'a, Router<'a>) {
@@ -147,6 +151,7 @@ pub enum PathDir {
 #[derive(Debug)]
 pub struct Node {
     at: Coordinate,
+    links: HashMap</* Node */ Entity,/* Link */ Entity>,
 }
 
 impl Node {
@@ -355,7 +360,7 @@ pub fn make_node(world: &mut World, center: Coordinate) -> Entity {
             coords: node_shape(center),
             color: graphics::Color::new(0.8, 0.8, 0.8, 1.0),
         })
-        .with(Node { at: center })
+        .with(Node { at: center, links: HashMap::new() })
         .build();
     or_die(|| world.write_resource::<geom::Map>().set(
         &mut world.write_storage::<geom::Space>(), ent,
@@ -426,14 +431,15 @@ pub fn link_shape(from: Coordinate, to: Coordinate) -> Vec<Coordinate> {
 
 pub fn can_link(world: &World, from: Entity, to: Entity) -> bool {
     let nodes = world.read_storage::<Node>();
-    let from_coord = if let Some(n) = nodes.get(from) { n.at() } else { return false };
-    let to_coord = if let Some(n) = nodes.get(to) { n.at() } else { return false };
-    if !space_for_link(&world.read_resource(), from_coord, to_coord) { return false };
+    let from_node = if let Some(n) = nodes.get(from) { n } else { return false };
+    let to_node = if let Some(n) = nodes.get(to) { n } else { return false };
+    if from_node.links.contains_key(&to) || to_node.links.contains_key(&from) { return false };
+    if !space_for_link(&world.read_resource(), from_node.at(), to_node.at()) { return false };
 
     let ranges = world.read_storage::<LinkRange>();
     let from_range = if let Some(r) = ranges.get(from) { r.get() } else { return false };
     let to_range = if let Some(r) = ranges.get(to) { r.get() } else { return false };
-    if max(from_range, to_range) < from_coord.distance(to_coord) { return false };
+    if max(from_range, to_range) < from_node.at().distance(to_node.at()) { return false };
 
     true
 }
@@ -458,5 +464,11 @@ pub fn make_link(world: &mut World, from: Entity, to: Entity) -> Entity {
     for (ag, _) in (&mut graphs, found_from & found_to).join() {
         ag.data.add_link(&link, ent);
     }
+    or_die(|| {
+        let mut nodes = world.write_storage::<Node>();
+        try_get_mut(&mut nodes, from)?.links.insert(to, ent);
+        try_get_mut(&mut nodes, to)?.links.insert(from, ent);
+        Ok(())
+    });
     ent
 }
