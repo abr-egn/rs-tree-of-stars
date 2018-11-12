@@ -18,11 +18,11 @@ use util::try_get;
 #[derive(Debug)]
 pub struct Power {
     has: HashMap<TypeId, f32>,
-    grid: f32,
+    from_grid: f32,
 }
 
 impl Power {
-    pub fn new() -> Self { Power { has: HashMap::new(), grid: 0.0 } }
+    pub fn new() -> Self { Power { has: HashMap::new(), from_grid: 0.0 } }
     pub fn set<T: 'static>(&mut self, amount: f32) -> Option<f32> {
         self.has.insert(TypeId::of::<T>(), amount)
     }
@@ -32,11 +32,11 @@ impl Power {
     pub fn total(&self) -> f32 {
         self.has.values().sum()
     }
-    pub fn grid(&self) -> f32 { self.grid }
+    pub fn from_grid(&self) -> f32 { self.from_grid }
     pub fn ratio(&self) -> f32 {
         let total = self.total();
         if total == 0.0 { 1.0 }
-        else { self.grid / self.total() }
+        else { self.from_grid / self.total() }
     }
     pub fn uses(&self) -> impl Iterator<Item=f32> {
         let mut items: Vec<(TypeId, f32)> = self.has.iter().map(|(&k, &v)| (k, v)).collect();
@@ -155,9 +155,9 @@ impl<'a> System<'a> for DistributePower {
             for (power, _) in (&mut data.powers, covered).join() {
                 let total = power.total();
                 if total < 0.0 {
-                    power.grid = total * in_scale
+                    power.from_grid = total * in_scale
                 } else {
-                    power.grid = total * out_scale
+                    power.from_grid = total * out_scale
                 }
             }
         }

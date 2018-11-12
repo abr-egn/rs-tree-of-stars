@@ -130,7 +130,7 @@ impl NodeSelected {
                     let dir = if total >= 0.0 { "Output" } else { "Input" };
                     ui.text(format!(
                         "Power {}: {:.0}% ({:+}/s of {:+}/s)", dir,
-                        100.0*power.ratio(), power.grid(), power.total()));
+                        100.0*power.ratio(), power.from_grid(), power.total()));
                 }
             }
             if let Some(prog) = world.read_storage::<reactor::Progress>().get(self.0) {
