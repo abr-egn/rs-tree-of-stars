@@ -50,6 +50,11 @@ impl Graph {
         self.data.add_edge(from, to, link_ent);
         self.route_cache.clear();
     }
+    fn remove_link(&mut self, from: Entity, to: Entity) -> Option<Entity> {
+        let ret = self.data.remove_edge(from, to);
+        if ret.is_some() { self.route_cache.clear() }
+        ret
+    }
     pub fn nodes_route<'a>(&'a mut self) -> (impl Iterator<Item=Entity> + 'a, Router<'a>) {
         (self.data.nodes(), Router { data: &self.data, route_cache: &mut self.route_cache })
     }
@@ -300,6 +305,7 @@ impl<'a> System<'a> for Traverse {
                 let nodes = &data.nodes;
                 or_die(|| {
                     if link_next {
+                        // TODO: This can fail when a link is deleted.  Detect and tag.
                         let (coord, more) = path_ix(
                             route.route[route.link_ix],
                             route.coord_ix,
@@ -471,4 +477,28 @@ pub fn make_link(world: &mut World, from: Entity, to: Entity) -> Entity {
         Ok(())
     });
     ent
+}
+
+pub fn delete_link(world: &mut World, link_ent: Entity) {
+    or_die(|| {
+        world.write_resource::<geom::Map>().clear(&mut world.write_storage(), link_ent)?;
+        {
+            let links = world.read_storage::<Link>();
+            let link: &Link = try_get(&links, link_ent)?;
+            let from = try_get(&world.read_storage::<Node>(), link.from)?.at();
+            let to = try_get(&world.read_storage::<Node>(), link.to)?.at();
+            let areas = world.read_resource::<geom::AreaMap>();
+            let found_from = areas.find(from);
+            let found_to = areas.find(to);
+            let mut graphs = world.write_storage::<AreaGraph>();
+            for (ag, _) in (&mut graphs, found_from & found_to).join() {
+                ag.data.remove_link(link.from, link.to)
+                    .map_or(Err(Error::NoSuchEdge), |e| {
+                        if e == link_ent { Ok(()) }
+                        else { Err(Error::WrongEdge) }
+                    })?;
+            }
+        }
+        Ok(())
+    })
 }

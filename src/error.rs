@@ -23,6 +23,7 @@ pub enum Error {
     PoolUnderflow,
     PullChannel,
     StorageOverflow,
+    WrongEdge,
     Ggez(ggez::GameError),
     Specs(specs::error::Error),
     SpecsGen(specs::error::WrongGeneration),
