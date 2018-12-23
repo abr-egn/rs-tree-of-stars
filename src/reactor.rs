@@ -7,12 +7,12 @@ use specs::{
     storage::BTreeStorage,
 };
 
-use error::or_die;
-use geom;
-use graph;
-use power::Power;
-use resource::{self, Pool, Resource, Sink, Source};
-use util::{duration_f32, f32_duration};
+use crate::error::or_die;
+use crate::geom;
+use crate::graph;
+use crate::power::Power;
+use crate::resource::{self, Pool, Resource, Sink, Source};
+use crate::util::{duration_f32, f32_duration};
 
 #[derive(Debug)]
 pub struct Progress {

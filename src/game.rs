@@ -10,16 +10,16 @@ use specs::{
     storage::BTreeStorage,
 };
 
-use build;
-use draw;
-use error::or_die;
-use geom;
-use graph;
-use mode::{Mode, EventAction, TopAction};
-use power;
-use reactor;
-use resource::{self, Resource};
-use util::*;
+use crate::build;
+use crate::draw;
+use crate::error::or_die;
+use crate::geom;
+use crate::graph;
+use crate::mode::{Mode, EventAction, TopAction};
+use crate::power;
+use crate::reactor;
+use crate::resource::{self, Resource};
+use crate::util::*;
 
 pub fn prep_world(world: &mut World) {
     world.add_resource(MouseWidget {

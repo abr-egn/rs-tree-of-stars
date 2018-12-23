@@ -37,7 +37,7 @@ use ggez::{
 use hex2d::Coordinate;
 use specs::prelude::*;
 
-use error::Result;
+use crate::error::Result;
 
 pub const UPDATES_PER_SECOND: u32 = 60;
 pub const UPDATE_DELTA: f32 = 1.0 / (UPDATES_PER_SECOND as f32);
@@ -160,7 +160,7 @@ fn main() -> Result<()> {
         ctx.timer_context.tick();
 
         let mut ev_buffer = vec![];
-        use event::Event;
+        use crate::event::Event;
         for event in events.poll() {
             ctx.process_event(&event);
             ui_ctx.process_event(&event);

@@ -5,7 +5,7 @@ use ggez::{
 use imgui::Ui;
 use specs::prelude::*;
 
-use draw::ModeText;
+use crate::draw::ModeText;
 
 pub enum TopAction {
     Do(EventAction),

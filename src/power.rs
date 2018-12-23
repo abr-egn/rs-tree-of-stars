@@ -10,10 +10,10 @@ use specs::{
     storage::BTreeStorage,
 };
 
-use error::or_die;
-use geom;
-use graph;
-use util::try_get;
+use crate::error::or_die;
+use crate::geom;
+use crate::graph;
+use crate::util::try_get;
 
 #[derive(Debug)]
 pub struct Power {

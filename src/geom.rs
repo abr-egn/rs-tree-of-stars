@@ -20,10 +20,10 @@ use specs::{
     storage::BTreeStorage,
 };
 
-use draw;
-use graph;
-use error::{Error, Result, or_die};
-use util::*;
+use crate::draw;
+use crate::graph;
+use crate::error::{Error, Result, or_die};
+use crate::util::*;
 
 #[derive(Debug)]
 pub struct Motion {

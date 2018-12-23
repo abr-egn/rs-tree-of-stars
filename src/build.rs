@@ -9,15 +9,15 @@ use specs::{
     storage::BTreeStorage,
 };
 
-use error::{Error, Result, or_die};
-use graph;
-use power::{self, Power};
-use reactor::{Progress, Reactor};
-use resource::{
+use crate::error::{Error, Result, or_die};
+use crate::graph;
+use crate::power::{self, Power};
+use crate::reactor::{Progress, Reactor};
+use crate::resource::{
     self,
     Pool, Resource,
 };
-use util;
+use crate::util;
 
 #[derive(Debug, Default)]
 pub struct Pending;

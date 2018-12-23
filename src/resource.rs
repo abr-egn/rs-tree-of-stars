@@ -10,12 +10,12 @@ use specs::{
     storage::BTreeStorage,
 };
 
-use error::{
+use crate::error::{
     Error, Result,
     or_die,
 };
-use graph;
-use util::*;
+use crate::graph;
+use crate::util::*;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[repr(usize)]

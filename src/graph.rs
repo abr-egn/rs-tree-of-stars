@@ -17,13 +17,13 @@ use specs::{
     Component,
 };
 
-use draw;
-use error::{
+use crate::draw;
+use crate::error::{
     Error, Result,
     or_die,
 };
-use geom;
-use util::*;
+use crate::geom;
+use crate::util::*;
 
 type GraphData = GraphMap<Entity, Entity, petgraph::Undirected>;
 

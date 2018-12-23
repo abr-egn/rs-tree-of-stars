@@ -7,7 +7,7 @@ use specs::{
     storage::GenericReadStorage,
 };
 
-use error::{Error, Result};
+use crate::error::{Error, Result};
 
 pub fn try_get<S, T>(storage: &S, ent: Entity) -> Result<&T>
     where S: GenericReadStorage<Component=T>,

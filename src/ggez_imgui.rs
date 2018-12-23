@@ -12,7 +12,7 @@ use imgui::{
 };
 use imgui_gfx_renderer::{Renderer, Shaders};
 
-use util::duration_f32;
+use crate::util::duration_f32;
 
 pub struct ImGuiContext {
     imgui: ImGui,

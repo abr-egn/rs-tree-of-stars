@@ -14,15 +14,15 @@ use specs::{
     prelude::*,
 };
 
-use build;
-use error::or_die;
-use game;
-use geom;
-use graph;
-use power;
-use reactor;
-use resource::{self, Resource};
-use util::{self, try_get};
+use crate::build;
+use crate::error::or_die;
+use crate::game;
+use crate::geom;
+use crate::graph;
+use crate::power;
+use crate::reactor;
+use crate::resource::{self, Resource};
+use crate::util::{self, try_get};
 
 pub const HEX_SIDE: f32 = 10.0;
 pub const SPACING: Spacing = Spacing::FlatTop(HEX_SIDE);
