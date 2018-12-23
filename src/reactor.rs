@@ -177,7 +177,8 @@ fn spawn_waste(lazy: &LazyUpdate, center: ::hex2d::Coordinate, res: Resource, co
         let mut rng = rand::thread_rng();
         let targets = center.ring(5, hex2d::Spin::CW(hex2d::Direction::XY));
         for _ in 0..count {
-            let target = targets[rng.gen_range::<usize>(0, targets.len())];
+            let ix: usize = rng.gen_range(0, targets.len());
+            let target = targets[ix];
             world.create_entity()
                 .with(resource::Packet { resource: res })
                 .with(geom::Motion::new(center, target, WASTE_SPEED))
