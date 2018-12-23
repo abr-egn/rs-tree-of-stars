@@ -4,7 +4,7 @@ use ggez::{
     Context,
 };
 use hex2d::{self, Coordinate};
-use imgui::{ImGuiCond, ImString, Ui};
+use imgui::{ImGuiCond, ImString, Ui, im_str};
 use specs::{
     prelude::*,
     storage::BTreeStorage,
@@ -537,7 +537,7 @@ impl Component for GrowTest {
 #[derive(Debug)]
 pub struct RunGrowTest;
 
-#[derive(SystemData)]
+#[derive(shred_derive::SystemData)]
 pub struct GrowTestData<'a> {
     entities: Entities<'a>,
     nodes: WriteStorage<'a, graph::Node>,

@@ -50,6 +50,7 @@ impl Graph {
         self.data.add_edge(from, to, link_ent);
         self.route_cache.clear();
     }
+    #[allow(unused)] // TODO
     fn remove_link(&mut self, from: Entity, to: Entity) -> Option<Entity> {
         let ret = self.data.remove_edge(from, to);
         if ret.is_some() { self.route_cache.clear() }
@@ -256,7 +257,7 @@ impl Traverse {
     }
 }
 
-#[derive(SystemData)]
+#[derive(shred_derive::SystemData)]
 pub struct TraverseData<'a> {
     entities: Entities<'a>,
     links: ReadStorage<'a, Link>,
@@ -479,6 +480,7 @@ pub fn make_link(world: &mut World, from: Entity, to: Entity) -> Entity {
     ent
 }
 
+#[allow(unused)]  // TODO
 pub fn delete_link(world: &mut World, link_ent: Entity) {
     or_die(|| {
         world.write_resource::<geom::Map>().clear(&mut world.write_storage(), link_ent)?;

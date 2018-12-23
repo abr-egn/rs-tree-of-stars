@@ -121,7 +121,7 @@ impl Pylon {
 #[derive(Debug)]
 pub struct DistributePower;
 
-#[derive(SystemData)]
+#[derive(shred_derive::SystemData)]
 pub struct DistributePowerData<'a> {
     entities: Entities<'a>,
     grid: ReadExpect<'a, PowerGrid>,

@@ -1,20 +1,3 @@
-extern crate gfx;
-extern crate gfx_device_gl;
-extern crate ggez;
-extern crate hex2d;
-extern crate hibitset;
-extern crate petgraph;
-extern crate rand;
-extern crate shred;
-#[macro_use]
-extern crate shred_derive;
-extern crate spade;
-extern crate specs;
-
-#[macro_use]
-extern crate imgui;
-extern crate imgui_gfx_renderer;
-
 mod build;
 mod draw;
 mod error;

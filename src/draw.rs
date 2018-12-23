@@ -237,7 +237,7 @@ fn source_radius() -> f32 { 3.0f32.sqrt() * HEX_SIDE * 2.0 }
 
 struct DrawSources<'a>(&'a mut Context);
 
-#[derive(SystemData)]
+#[derive(shred_derive::SystemData)]
 struct DrawSourcesData<'a> {
     packet_sprite: ReadExpect<'a, PacketSprite>,
     source_orbit: ReadExpect<'a, SourceOrbit>,

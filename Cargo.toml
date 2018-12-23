@@ -2,6 +2,7 @@
 name = "tree-of-stars"
 version = "0.1.0"
 authors = ["Abe Egnor <abe.egnor@gmail.com>"]
+edition = "2018"
 
 [dependencies]
 ggez = "0.4"

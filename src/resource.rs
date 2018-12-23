@@ -226,7 +226,7 @@ const SEND_COOLDOWN: Duration = Duration::from_millis(500);
 #[derive(Debug)]
 pub struct Pull;
 
-#[derive(SystemData)]
+#[derive(shred_derive::SystemData)]
 pub struct PullData<'a> {
     entities: Entities<'a>,
     now: ReadExpect<'a, super::Now>,
