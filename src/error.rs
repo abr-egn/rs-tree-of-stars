@@ -10,9 +10,6 @@ get their own Error enum.
 
 use std::sync::mpsc;
 
-use ggez;
-use specs;
-
 #[derive(Debug)]
 pub enum Error {
     NoPath,

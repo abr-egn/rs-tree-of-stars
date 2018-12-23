@@ -10,7 +10,6 @@ use ggez::{
 use hex2d::Coordinate;
 use hibitset::BitSet;
 use spade::{
-    self,
     rtree::RTree,
     BoundingRect,
 };
